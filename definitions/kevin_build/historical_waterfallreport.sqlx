@@ -1,9 +1,5 @@
-config {
-  type: "table",
-  database: "rc-datamart-report-082025",
-  schema: "genesis_looker_crm_ctp_universal_table",
-  name: "genesis_historical_waterfallreport"
-}
+CREATE OR REPLACE TABLE
+  `rc-datamart-report-082025.genesis_looker_crm_ctp_universal_table.genesis_historical_waterfallreport` AS
 
 WITH all_metrics AS (
   SELECT *
@@ -59,4 +55,4 @@ ORDER BY
   w.metric_date,
   w.Firm_Unique_ID,
   w.date_window,
-  m.metric_name
+  m.metric_name;
