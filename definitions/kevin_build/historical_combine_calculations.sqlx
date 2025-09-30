@@ -1,0 +1,160 @@
+CREATE OR REPLACE TABLE 
+  `rc-datamart-report-082025.genesis_looker_crm_ctp_universal_table.tmp_historical_combined` AS
+
+WITH base AS (
+  SELECT * 
+  FROM `rc-datamart-report-082025.genesis_looker_crm_ctp_universal_table.tmp_historical_base`
+)
+
+-- Answer Rate
+SELECT
+  a.metric_date,
+  a.date_window,
+  a.Firm_Unique_ID,
+  a.Firm_Name,
+  'Answer Rate' AS metric_name,
+  SAFE_DIVIDE(ans.metric_value, tc.metric_value) AS metric_value
+FROM (SELECT DISTINCT metric_date, date_window, Firm_Unique_ID, Firm_Name FROM base) a
+LEFT JOIN base ans 
+  ON  a.metric_date     = ans.metric_date
+  AND a.date_window     = ans.date_window
+  AND a.Firm_Unique_ID  = ans.Firm_Unique_ID
+  AND ans.metric_name   = 'Answered Calls'
+LEFT JOIN base tc 
+  ON  a.metric_date     = tc.metric_date
+  AND a.date_window     = tc.date_window
+  AND a.Firm_Unique_ID  = tc.Firm_Unique_ID
+  AND tc.metric_name    = 'Total Calls'
+
+UNION ALL
+
+-- Inbound Lead to Call
+SELECT
+  a.metric_date,
+  a.date_window,
+  a.Firm_Unique_ID,
+  a.Firm_Name,
+  'Inbound Lead to Call' AS metric_name,
+  SAFE_DIVIDE(tc.metric_value, inbound.metric_value) AS metric_value
+FROM (SELECT DISTINCT metric_date, date_window, Firm_Unique_ID, Firm_Name FROM base) a
+LEFT JOIN base tc 
+  ON  a.metric_date     = tc.metric_date
+  AND a.date_window     = tc.date_window
+  AND a.Firm_Unique_ID  = tc.Firm_Unique_ID
+  AND tc.metric_name    = 'Total Calls'
+LEFT JOIN base inbound 
+  ON  a.metric_date     = inbound.metric_date
+  AND a.date_window     = inbound.date_window
+  AND a.Firm_Unique_ID  = inbound.Firm_Unique_ID
+  AND inbound.metric_name = 'Inbound Leads'
+
+UNION ALL
+
+-- QPC Rate
+SELECT
+  a.metric_date,
+  a.date_window,
+  a.Firm_Unique_ID,
+  a.Firm_Name,
+  'QPC Rate' AS metric_name,
+  SAFE_DIVIDE(qpc.metric_value, tl.metric_value) AS metric_value
+FROM (SELECT DISTINCT metric_date, date_window, Firm_Unique_ID, Firm_Name FROM base) a
+LEFT JOIN base qpc 
+  ON  a.metric_date     = qpc.metric_date
+  AND a.date_window     = qpc.date_window
+  AND a.Firm_Unique_ID  = qpc.Firm_Unique_ID
+  AND qpc.metric_name   = 'QPCs'
+LEFT JOIN base tl 
+  ON  a.metric_date     = tl.metric_date
+  AND a.date_window     = tl.date_window
+  AND a.Firm_Unique_ID  = tl.Firm_Unique_ID
+  AND tl.metric_name    = 'Total Leads'
+
+UNION ALL
+
+-- QPC to Scheduled
+SELECT
+  a.metric_date,
+  a.date_window,
+  a.Firm_Unique_ID,
+  a.Firm_Name,
+  'QPC to Scheduled' AS metric_name,
+  SAFE_DIVIDE(cs.metric_value, qpc.metric_value) AS metric_value
+FROM (SELECT DISTINCT metric_date, date_window, Firm_Unique_ID, Firm_Name FROM base) a
+LEFT JOIN base cs 
+  ON  a.metric_date     = cs.metric_date
+  AND a.date_window     = cs.date_window
+  AND a.Firm_Unique_ID  = cs.Firm_Unique_ID
+  AND cs.metric_name    = 'Consults Scheduled'
+LEFT JOIN base qpc 
+  ON  a.metric_date     = qpc.metric_date
+  AND a.date_window     = qpc.date_window
+  AND a.Firm_Unique_ID  = qpc.Firm_Unique_ID
+  AND qpc.metric_name   = 'QPCs'
+
+UNION ALL
+
+-- Completion Rate
+SELECT
+  a.metric_date,
+  a.date_window,
+  a.Firm_Unique_ID,
+  a.Firm_Name,
+  'Completion Rate' AS metric_name,
+  SAFE_DIVIDE(cc.metric_value, cs.metric_value) AS metric_value
+FROM (SELECT DISTINCT metric_date, date_window, Firm_Unique_ID, Firm_Name FROM base) a
+LEFT JOIN base cc 
+  ON  a.metric_date     = cc.metric_date
+  AND a.date_window     = cc.date_window
+  AND a.Firm_Unique_ID  = cc.Firm_Unique_ID
+  AND cc.metric_name    = 'Consults Completed'
+LEFT JOIN base cs 
+  ON  a.metric_date     = cs.metric_date
+  AND a.date_window     = cs.date_window
+  AND a.Firm_Unique_ID  = cs.Firm_Unique_ID
+  AND cs.metric_name    = 'Consults Scheduled'
+
+UNION ALL
+
+-- Quote Rate
+SELECT
+  a.metric_date,
+  a.date_window,
+  a.Firm_Unique_ID,
+  a.Firm_Name,
+  'Quote Rate' AS metric_name,
+  SAFE_DIVIDE(qt.metric_value, cc.metric_value) AS metric_value
+FROM (SELECT DISTINCT metric_date, date_window, Firm_Unique_ID, Firm_Name FROM base) a
+LEFT JOIN base qt 
+  ON  a.metric_date     = qt.metric_date
+  AND a.date_window     = qt.date_window
+  AND a.Firm_Unique_ID  = qt.Firm_Unique_ID
+  AND qt.metric_name    = 'Quotes'
+LEFT JOIN base cc 
+  ON  a.metric_date     = cc.metric_date
+  AND a.date_window     = cc.date_window
+  AND a.Firm_Unique_ID  = cc.Firm_Unique_ID
+  AND cc.metric_name    = 'Consults Completed'
+
+UNION ALL
+
+-- Close Rate
+SELECT
+  a.metric_date,
+  a.date_window,
+  a.Firm_Unique_ID,
+  a.Firm_Name,
+  'Close Rate' AS metric_name,
+  SAFE_DIVIDE(fa.metric_value, cs.metric_value) AS metric_value
+FROM (SELECT DISTINCT metric_date, date_window, Firm_Unique_ID, Firm_Name FROM base) a
+LEFT JOIN base fa 
+  ON  a.metric_date     = fa.metric_date
+  AND a.date_window     = fa.date_window
+  AND a.Firm_Unique_ID  = fa.Firm_Unique_ID
+  AND fa.metric_name    = 'Funded Agreements'
+LEFT JOIN base cs 
+  ON  a.metric_date     = cs.metric_date
+  AND a.date_window     = cs.date_window
+  AND a.Firm_Unique_ID  = cs.Firm_Unique_ID
+  AND cs.metric_name    = 'Consults Scheduled'
+;
