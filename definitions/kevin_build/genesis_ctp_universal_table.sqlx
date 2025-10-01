@@ -1,0 +1,398 @@
+CREATE OR REPLACE TABLE `focused-sentry-464713-u0.ctp_universal_tables.genesis_ctp_universal_table` AS 
+-- 1) GENESIS
+WITH base_genesis AS (
+  SELECT
+    'Genesis-glg1000' AS firm_unique_id,
+    'Genesis' AS firm_name,
+    CAST(answered AS BOOL) AS answered,
+    direction,
+    SAFE_CAST(duration AS INT64) AS recording_duration,
+    id AS call_tracking_unique_id,
+    SAFE_CAST(recording_duration AS INT64) AS call_recording_duration,
+    COALESCE(
+      SAFE.PARSE_TIMESTAMP('%Y-%m-%dT%H:%M:%E*S%Ez', TRIM(CAST(start_time AS STRING))),
+      SAFE.PARSE_TIMESTAMP('%Y-%m-%d %H:%M:%E*S%Ez', TRIM(CAST(start_time AS STRING))),
+      SAFE.PARSE_TIMESTAMP('%Y-%m-%d %H:%M:%S%Ez',  TRIM(CAST(start_time AS STRING))),
+      CAST(start_time AS TIMESTAMP)
+    ) AS start_datetime
+  FROM `focused-sentry-464713-u0.callrail_genesis.callrail_alldata_delta`
+  WHERE REGEXP_CONTAINS(COALESCE(direction, ''), r'(?i)^\s*inbound\s*$')
+),
+ranked_genesis AS (
+  SELECT *, ROW_NUMBER() OVER (PARTITION BY call_tracking_unique_id ORDER BY start_datetime DESC) AS row_num
+  FROM base_genesis
+),
+
+-- 2) VDL
+base_vdl AS (
+  SELECT
+    'VDL-vdl1001' AS firm_unique_id,
+    'Vasquez de Lara' AS firm_name,
+    CAST(answered AS BOOL) AS answered,
+    direction,
+    SAFE_CAST(duration AS INT64) AS recording_duration,
+    id AS call_tracking_unique_id,
+    SAFE_CAST(recording_duration AS INT64) AS call_recording_duration,
+    COALESCE(
+      SAFE.PARSE_TIMESTAMP('%Y-%m-%dT%H:%M:%E*S%Ez', TRIM(CAST(start_time AS STRING))),
+      SAFE.PARSE_TIMESTAMP('%Y-%m-%d %H:%M:%E*S%Ez', TRIM(CAST(start_time AS STRING))),
+      SAFE.PARSE_TIMESTAMP('%Y-%m-%d %H:%M:%S%Ez',  TRIM(CAST(start_time AS STRING))),
+      CAST(start_time AS TIMESTAMP)
+    ) AS start_datetime
+  FROM `focused-sentry-464713-u0.callrail_vdl.callrail_historical_delta`
+  WHERE REGEXP_CONTAINS(COALESCE(direction, ''), r'(?i)^\s*inbound\s*$')
+),
+ranked_vdl AS (
+  SELECT *, ROW_NUMBER() OVER (PARTITION BY call_tracking_unique_id ORDER BY start_datetime DESC) AS row_num
+  FROM base_vdl
+),
+
+-- 3) SMB
+base_smb AS (
+  SELECT
+    'SMB-smb1002' AS firm_unique_id,
+    'Scott M Brown' AS firm_name,
+    CAST(answered AS BOOL) AS answered,
+    direction,
+    SAFE_CAST(duration AS INT64) AS recording_duration,
+    id AS call_tracking_unique_id,
+    SAFE_CAST(recording_duration AS INT64) AS call_recording_duration,
+    COALESCE(
+      SAFE.PARSE_TIMESTAMP('%Y-%m-%dT%H:%M:%E*S%Ez', TRIM(CAST(start_time AS STRING))),
+      SAFE.PARSE_TIMESTAMP('%Y-%m-%d %H:%M:%E*S%Ez', TRIM(CAST(start_time AS STRING))),
+      SAFE.PARSE_TIMESTAMP('%Y-%m-%d %H:%M:%S%Ez',  TRIM(CAST(start_time AS STRING))),
+      CAST(start_time AS TIMESTAMP)
+    ) AS start_datetime
+  FROM `focused-sentry-464713-u0.callrail_smb.callrail_initial_alldata_staging`
+  WHERE REGEXP_CONTAINS(COALESCE(direction, ''), r'(?i)^\s*inbound\s*$')
+),
+ranked_smb AS (
+  SELECT *, ROW_NUMBER() OVER (PARTITION BY call_tracking_unique_id ORDER BY start_datetime DESC) AS row_num
+  FROM base_smb
+),
+
+-- 4) ROSENBLUM (CallTracking)
+base_rosenblum AS (
+  SELECT
+    'Rosenblum-ral1004'       AS firm_unique_id,
+    'Rosenblum Allen Law'     AS firm_name,
+    CAST(LOWER(call_status) = 'answered' AS BOOL) AS answered,
+    direction,
+    CAST(NULL AS INT64)       AS recording_duration,
+    sid                        AS call_tracking_unique_id,
+    CAST(NULL AS INT64)       AS call_recording_duration,
+    COALESCE(
+      SAFE.PARSE_TIMESTAMP('%Y-%m-%d %I:%M %p %Ez', TRIM(CAST(called_at AS STRING))),
+      SAFE.PARSE_TIMESTAMP('%Y-%m-%d %I:%M %p %z',  TRIM(CAST(called_at AS STRING))),
+      SAFE.PARSE_TIMESTAMP('%Y-%m-%d %I:%M:%S %p %Ez', TRIM(CAST(called_at AS STRING))),
+      SAFE.PARSE_TIMESTAMP('%Y-%m-%d %I:%M:%S %p %z',  TRIM(CAST(called_at AS STRING))),
+      SAFE.PARSE_TIMESTAMP('%Y-%m-%dT%H:%M:%E*S%Ez',   TRIM(CAST(called_at AS STRING))),
+      SAFE.PARSE_TIMESTAMP('%Y-%m-%d %H:%M:%E*S%Ez',   TRIM(CAST(called_at AS STRING))),
+      CAST(called_at AS TIMESTAMP)
+    ) AS start_datetime
+  FROM `focused-sentry-464713-u0.calltracking_rosenblum.ctp_initialdata_delta`
+  WHERE REGEXP_CONTAINS(COALESCE(direction, ''), r'(?i)^\s*inbound\s*$')
+),
+ranked_rosenblum AS (
+  SELECT *, ROW_NUMBER() OVER (PARTITION BY call_tracking_unique_id ORDER BY start_datetime DESC) AS row_num
+  FROM base_rosenblum
+),
+
+-- 5) MEYERPINK
+base_meyerpink AS (
+  SELECT
+    'meyerpinklaw-mpl1005' AS firm_unique_id,
+    'Meyer Pink Law' AS firm_name,
+    CAST(answered AS BOOL) AS answered,
+    direction,
+    SAFE_CAST(recording_duration AS INT64) AS recording_duration,
+    id AS call_tracking_unique_id,
+    SAFE_CAST(recording_duration AS INT64) AS call_recording_duration,
+    COALESCE(
+      SAFE.PARSE_TIMESTAMP('%Y-%m-%dT%H:%M:%E*S%Ez', TRIM(CAST(start_time AS STRING))),
+      SAFE.PARSE_TIMESTAMP('%Y-%m-%d %H:%M:%E*S%Ez', TRIM(CAST(start_time AS STRING))),
+      SAFE.PARSE_TIMESTAMP('%Y-%m-%d %H:%M:%S%Ez',  TRIM(CAST(start_time AS STRING))),
+      CAST(start_time AS TIMESTAMP)
+    ) AS start_datetime
+  FROM `focused-sentry-464713-u0.callrail_meyerpink.callrail_alldata_delta`
+  WHERE REGEXP_CONTAINS(COALESCE(direction, ''), r'(?i)^\s*inbound\s*$')
+),
+ranked_meyerpink AS (
+  SELECT *, ROW_NUMBER() OVER (PARTITION BY call_tracking_unique_id ORDER BY start_datetime DESC) AS row_num
+  FROM base_meyerpink
+),
+
+-- 6) AURIT MEDIATION
+base_auritmediation AS (
+  SELECT
+    'auritmediation-am1007' AS firm_unique_id,
+    'Aurit Mediation'       AS firm_name,
+    CAST(answered AS BOOL) AS answered,
+    direction,
+    SAFE_CAST(recording_duration AS INT64) AS recording_duration,
+    id AS call_tracking_unique_id,
+    SAFE_CAST(recording_duration AS INT64) AS call_recording_duration,
+    COALESCE(
+      SAFE.PARSE_TIMESTAMP('%Y-%m-%dT%H:%M:%E*S%Ez', TRIM(CAST(start_time AS STRING))),
+      SAFE.PARSE_TIMESTAMP('%Y-%m-%d %H:%M:%E*S%Ez', TRIM(CAST(start_time AS STRING))),
+      SAFE.PARSE_TIMESTAMP('%Y-%m-%d %H:%M:%S%Ez',  TRIM(CAST(start_time AS STRING))),
+      CAST(start_time AS TIMESTAMP)
+    ) AS start_datetime
+  FROM `focused-sentry-464713-u0.callrail_auritmediation.callrail_alldata_delta`
+  WHERE REGEXP_CONTAINS(COALESCE(direction, ''), r'(?i)^\s*inbound\s*$')
+),
+ranked_auritmediation AS (
+  SELECT *, ROW_NUMBER() OVER (PARTITION BY call_tracking_unique_id ORDER BY start_datetime DESC) AS row_num
+  FROM base_auritmediation
+),
+
+-- 7) SUMMIT LAW GROUP 
+base_summit AS (
+  SELECT
+    'sumitfamilylawinc-sfl1006' AS firm_unique_id,
+    'Summit Family Law P.C.' AS firm_name,
+    CAST(answered AS BOOL) AS answered,
+    direction,
+    SAFE_CAST(duration AS INT64) AS recording_duration,
+    id AS call_tracking_unique_id,
+    SAFE_CAST(recording_duration AS INT64) AS call_recording_duration,
+    COALESCE(
+      SAFE.PARSE_TIMESTAMP('%Y-%m-%dT%H:%M:%E*S%Ez', TRIM(CAST(start_time AS STRING))),
+      SAFE.PARSE_TIMESTAMP('%Y-%m-%d %H:%M:%E*S%Ez', TRIM(CAST(start_time AS STRING))),
+      SAFE.PARSE_TIMESTAMP('%Y-%m-%d %H:%M:%S%Ez',  TRIM(CAST(start_time AS STRING))),
+      CAST(start_time AS TIMESTAMP)
+    ) AS start_datetime
+  FROM `focused-sentry-464713-u0.callrail_summit.callrail_alldata_delta`
+  WHERE REGEXP_CONTAINS(COALESCE(direction, ''), r'(?i)^\s*inbound\s*$')
+),
+ranked_summit AS (
+  SELECT *, ROW_NUMBER() OVER (PARTITION BY call_tracking_unique_id ORDER BY start_datetime DESC) AS row_num
+  FROM base_summit
+),
+
+-- 8) BRUCE LAW
+base_brucelaw AS (
+  SELECT
+    'Brucelaw-blg-1003' AS firm_unique_id,
+    'Bruce Law'         AS firm_name,
+    CAST(answered AS BOOL) AS answered,
+    direction,
+    COALESCE(SAFE_CAST(duration AS INT64), SAFE_CAST(recording_duration AS INT64)) AS recording_duration,
+    id AS call_tracking_unique_id,
+    SAFE_CAST(recording_duration AS INT64) AS call_recording_duration,
+    COALESCE(
+      SAFE.PARSE_TIMESTAMP('%Y-%m-%dT%H:%M:%E*S%Ez', TRIM(CAST(start_time AS STRING))),
+      SAFE.PARSE_TIMESTAMP('%Y-%m-%d %H:%M:%E*S%Ez', TRIM(CAST(start_time AS STRING))),
+      SAFE.PARSE_TIMESTAMP('%Y-%m-%d %H:%M:%S%Ez',  TRIM(CAST(start_time AS STRING))),
+      CAST(start_time AS TIMESTAMP)
+    ) AS start_datetime
+  FROM `focused-sentry-464713-u0.callrail_brucelaw.callrail_alldata_delta`
+  WHERE REGEXP_CONTAINS(COALESCE(direction, ''), r'(?i)^\s*inbound\s*$')
+),
+ranked_brucelaw AS (
+  SELECT *, ROW_NUMBER() OVER (PARTITION BY call_tracking_unique_id ORDER BY start_datetime DESC) AS row_num
+  FROM base_brucelaw
+),
+
+-- 9) DRAKE LAW
+base_drakelaw AS (
+  SELECT
+    'drakelaw-dl1008' AS firm_unique_id,
+    'Drake Law'         AS firm_name,
+    CAST(answered AS BOOL) AS answered,
+    direction,
+    COALESCE(SAFE_CAST(duration AS INT64), SAFE_CAST(recording_duration AS INT64)) AS recording_duration,
+    id AS call_tracking_unique_id,
+    SAFE_CAST(recording_duration AS INT64) AS call_recording_duration,
+    COALESCE(
+      SAFE.PARSE_TIMESTAMP('%Y-%m-%dT%H:%M:%E*S%Ez', TRIM(CAST(start_time AS STRING))),
+      SAFE.PARSE_TIMESTAMP('%Y-%m-%d %H:%M:%E*S%Ez', TRIM(CAST(start_time AS STRING))),
+      SAFE.PARSE_TIMESTAMP('%Y-%m-%d %H:%M:%S%Ez',  TRIM(CAST(start_time AS STRING))),
+      CAST(start_time AS TIMESTAMP)
+    ) AS start_datetime
+  FROM `focused-sentry-464713-u0.callrail_drakelaw.callrail_alldata_delta`
+  WHERE REGEXP_CONTAINS(COALESCE(direction, ''), r'(?i)^\s*inbound\s*$')
+),
+ranked_drakelaw AS (
+  SELECT *, ROW_NUMBER() OVER (PARTITION BY call_tracking_unique_id ORDER BY start_datetime DESC) AS row_num
+  FROM base_drakelaw
+),
+
+-- 10) HAFFNER (CallTracking)
+base_haffner AS (
+  SELECT
+    'haffner-haffner1009' AS firm_unique_id,
+    'Haffner'             AS firm_name,
+    CAST(LOWER(call_status) = 'answered' AS BOOL) AS answered,
+    direction,
+    SAFE_CAST(duration AS INT64) AS recording_duration,
+    sid AS call_tracking_unique_id,
+    CAST(NULL AS INT64)  AS call_recording_duration,
+    COALESCE(
+      SAFE.PARSE_TIMESTAMP('%Y-%m-%d %I:%M %p %Ez', TRIM(CAST(called_at AS STRING))),
+      SAFE.PARSE_TIMESTAMP('%Y-%m-%d %I:%M %p %z',  TRIM(CAST(called_at AS STRING))),
+      SAFE.PARSE_TIMESTAMP('%Y-%m-%d %I:%M:%S %p %Ez', TRIM(CAST(called_at AS STRING))),
+      SAFE.PARSE_TIMESTAMP('%Y-%m-%d %I:%M:%S %p %z',  TRIM(CAST(called_at AS STRING))),
+      SAFE.PARSE_TIMESTAMP('%Y-%m-%dT%H:%M:%E*S%Ez', TRIM(CAST(called_at AS STRING))),
+      SAFE.PARSE_TIMESTAMP('%Y-%m-%d %H:%M:%E*S%Ez', TRIM(CAST(called_at AS STRING))),
+      CAST(called_at AS TIMESTAMP)
+    ) AS start_datetime
+  FROM `focused-sentry-464713-u0.calltracking_haffner.ctp_initialdata_delta`
+  WHERE REGEXP_CONTAINS(COALESCE(direction, ''), r'(?i)^\s*inbound\s*$')
+),
+ranked_haffner AS (
+  SELECT *, ROW_NUMBER() OVER (PARTITION BY call_tracking_unique_id ORDER BY start_datetime DESC) AS row_num
+  FROM base_haffner
+),
+
+-- 11) SLO (Sterling Law Office) (CallTracking)
+base_slo AS (
+  SELECT
+    'SterlingLawOffice-1010' AS firm_unique_id,
+    'Sterling Law Office'    AS firm_name,
+    CAST(LOWER(call_status) = 'answered' AS BOOL) AS answered,
+    direction,
+    SAFE_CAST(duration AS INT64) AS recording_duration,
+    sid AS call_tracking_unique_id,
+    CAST(NULL AS INT64)  AS call_recording_duration,
+    COALESCE(
+      SAFE.PARSE_TIMESTAMP('%Y-%m-%d %I:%M %p %Ez', TRIM(CAST(called_at AS STRING))),
+      SAFE.PARSE_TIMESTAMP('%Y-%m-%d %I:%M %p %z',  TRIM(CAST(called_at AS STRING))),
+      SAFE.PARSE_TIMESTAMP('%Y-%m-%d %I:%M:%S %p %Ez', TRIM(CAST(called_at AS STRING))),
+      SAFE.PARSE_TIMESTAMP('%Y-%m-%d %I:%M:%S %p %z',  TRIM(CAST(called_at AS STRING))),
+      SAFE.PARSE_TIMESTAMP('%Y-%m-%dT%H:%M:%E*S%Ez', TRIM(CAST(called_at AS STRING))),
+      SAFE.PARSE_TIMESTAMP('%Y-%m-%d %H:%M:%E*S%Ez', TRIM(CAST(called_at AS STRING))),
+      CAST(called_at AS TIMESTAMP)
+    ) AS start_datetime
+  FROM `focused-sentry-464713-u0.calltracking_slo.ctp_initialdata_delta`
+  WHERE REGEXP_CONTAINS(COALESCE(direction, ''), r'(?i)^\s*inbound\s*$')
+),
+ranked_slo AS (
+  SELECT *, ROW_NUMBER() OVER (PARTITION BY call_tracking_unique_id ORDER BY start_datetime DESC) AS row_num
+  FROM base_slo
+),
+
+-- 12) THE RAMAGE LAW GROUP
+base_ramage AS (
+  SELECT
+    'theramagelawgroup-1011' AS firm_unique_id,
+    'The Ramage Law Group'   AS firm_name,
+    CAST(answered AS BOOL)   AS answered,
+    direction,
+    SAFE_CAST(recording_duration AS INT64) AS recording_duration,
+    id AS call_tracking_unique_id,
+    SAFE_CAST(recording_duration AS INT64) AS call_recording_duration,
+    COALESCE(
+      SAFE.PARSE_TIMESTAMP('%Y-%m-%dT%H:%M:%E*S%Ez', TRIM(CAST(start_time AS STRING))),
+      SAFE.PARSE_TIMESTAMP('%Y-%m-%d %H:%M:%E*S%Ez', TRIM(CAST(start_time AS STRING))),
+      SAFE.PARSE_TIMESTAMP('%Y-%m-%d %H:%M:%S%Ez',  TRIM(CAST(start_time AS STRING))),
+      CAST(start_time AS TIMESTAMP)
+    ) AS start_datetime
+  FROM `focused-sentry-464713-u0.callrail_theramagelawgroup.callrail_alldata_delta`
+  WHERE REGEXP_CONTAINS(COALESCE(direction, ''), r'(?i)^\s*inbound\s*$')
+),
+ranked_ramage AS (
+  SELECT *, ROW_NUMBER() OVER (PARTITION BY call_tracking_unique_id ORDER BY start_datetime DESC) AS row_num
+  FROM base_ramage
+),
+
+-- 13) CHISHOLM LAW FIRM
+base_chisholm AS (
+  SELECT
+    'chisholmlawfirm-1012' AS firm_unique_id,
+    'Chisholm Law Firm'    AS firm_name,
+    CAST(answered AS BOOL) AS answered,
+    direction,
+    SAFE_CAST(recording_duration AS INT64) AS recording_duration,
+    id AS call_tracking_unique_id,
+    SAFE_CAST(recording_duration AS INT64) AS call_recording_duration,
+    COALESCE(
+      SAFE.PARSE_TIMESTAMP('%Y-%m-%dT%H:%M:%E*S%Ez', TRIM(CAST(start_time AS STRING))),
+      SAFE.PARSE_TIMESTAMP('%Y-%m-%d %H:%M:%E*S%Ez', TRIM(CAST(start_time AS STRING))),
+      SAFE.PARSE_TIMESTAMP('%Y-%m-%d %H:%M:%S%Ez',  TRIM(CAST(start_time AS STRING))),
+      CAST(start_time AS TIMESTAMP)
+    ) AS start_datetime
+  FROM `focused-sentry-464713-u0.callrail_chisholm.callrail_alldata_delta`
+  WHERE REGEXP_CONTAINS(COALESCE(direction, ''), r'(?i)^\s*inbound\s*$')
+),
+ranked_chisholm AS (
+  SELECT *, ROW_NUMBER() OVER (PARTITION BY call_tracking_unique_id ORDER BY start_datetime DESC) AS row_num
+  FROM base_chisholm
+),
+
+unioned AS (
+  SELECT firm_unique_id, firm_name, answered, direction, recording_duration,
+         call_tracking_unique_id, call_recording_duration, start_datetime
+  FROM ranked_genesis WHERE row_num = 1
+
+  UNION ALL
+  SELECT firm_unique_id, firm_name, answered, direction, recording_duration,
+         call_tracking_unique_id, call_recording_duration, start_datetime
+  FROM ranked_vdl WHERE row_num = 1
+
+  UNION ALL
+  SELECT firm_unique_id, firm_name, answered, direction, recording_duration,
+         call_tracking_unique_id, call_recording_duration, start_datetime
+  FROM ranked_smb WHERE row_num = 1
+
+  UNION ALL
+  SELECT firm_unique_id, firm_name, answered, direction, recording_duration,
+         call_tracking_unique_id, call_recording_duration, start_datetime
+  FROM ranked_rosenblum WHERE row_num = 1
+
+  UNION ALL
+  SELECT firm_unique_id, firm_name, answered, direction, recording_duration,
+         call_tracking_unique_id, call_recording_duration, start_datetime
+  FROM ranked_meyerpink WHERE row_num = 1
+
+  UNION ALL
+  SELECT firm_unique_id, firm_name, answered, direction, recording_duration,
+         call_tracking_unique_id, call_recording_duration, start_datetime
+  FROM ranked_auritmediation WHERE row_num = 1
+
+  UNION ALL
+  SELECT firm_unique_id, firm_name, answered, direction, recording_duration,
+         call_tracking_unique_id, call_recording_duration, start_datetime
+  FROM ranked_summit WHERE row_num = 1
+
+  UNION ALL
+  SELECT firm_unique_id, firm_name, answered, direction, recording_duration,
+         call_tracking_unique_id, call_recording_duration, start_datetime
+  FROM ranked_brucelaw WHERE row_num = 1
+
+  UNION ALL
+  SELECT firm_unique_id, firm_name, answered, direction, recording_duration,
+         call_tracking_unique_id, call_recording_duration, start_datetime
+  FROM ranked_drakelaw WHERE row_num = 1
+
+  UNION ALL
+  SELECT firm_unique_id, firm_name, answered, direction, recording_duration,
+         call_tracking_unique_id, call_recording_duration, start_datetime
+  FROM ranked_haffner WHERE row_num = 1
+
+  UNION ALL
+  SELECT firm_unique_id, firm_name, answered, direction, recording_duration,
+         call_tracking_unique_id, call_recording_duration, start_datetime
+  FROM ranked_slo WHERE row_num = 1
+
+  UNION ALL
+  SELECT firm_unique_id, firm_name, answered, direction, recording_duration,
+         call_tracking_unique_id, call_recording_duration, start_datetime
+  FROM ranked_ramage WHERE row_num = 1
+
+  UNION ALL
+  SELECT firm_unique_id, firm_name, answered, direction, recording_duration,
+         call_tracking_unique_id, call_recording_duration, start_datetime
+  FROM ranked_chisholm WHERE row_num = 1
+)
+
+SELECT
+  firm_unique_id,
+  firm_name,
+  answered,
+  direction,
+  IFNULL(recording_duration, 0) AS recording_duration,
+  call_tracking_unique_id,
+  IFNULL(call_recording_duration, 0) AS call_recording_duration,
+  start_datetime
+FROM unioned;
