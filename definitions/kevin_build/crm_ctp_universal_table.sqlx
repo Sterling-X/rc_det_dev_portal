@@ -1,0 +1,100 @@
+
+CREATE TEMP FUNCTION parse_date_any(s STRING)
+RETURNS DATE AS (
+  COALESCE(
+    SAFE.PARSE_DATE('%B %e, %Y', NULLIF(TRIM(s), '')),  -- e.g., August 5, 2025
+    SAFE.PARSE_DATE('%Y-%m-%d',   NULLIF(TRIM(s), '')),  -- 2025-08-05
+    SAFE.PARSE_DATE('%m/%d/%Y',   NULLIF(TRIM(s), ''))   -- 08/05/2025
+  )
+);
+
+CREATE TEMP FUNCTION parse_ts_any(s STRING)
+RETURNS TIMESTAMP AS (
+  COALESCE(
+    SAFE.PARSE_TIMESTAMP('%Y-%m-%dT%H:%M:%E*S%Ez', NULLIF(TRIM(s), '')), -- ISO with TZ
+    SAFE.PARSE_TIMESTAMP('%Y-%m-%d %H:%M:%E*S%Ez', NULLIF(TRIM(s), '')),
+    SAFE.PARSE_TIMESTAMP('%Y-%m-%d %H:%M:%S%Ez',  NULLIF(TRIM(s), '')),
+    SAFE.PARSE_TIMESTAMP('%Y-%m-%d %H:%M:%S',     NULLIF(TRIM(s), '')),
+    SAFE.PARSE_TIMESTAMP('%Y-%m-%d',              NULLIF(TRIM(s), ''))
+  )
+);
+
+CREATE OR REPLACE TABLE `rc-datamart-report-082025.genesis_looker_crm_ctp_universal_table.genesis_crm_ctp_universal_table` AS
+
+-- CRM Universal Table
+SELECT
+  Firm_Unique_ID AS Firm_Unique_ID,
+  Firm_Name      AS Firm_Name,
+
+  -- CRM-specific fields
+  Lead_Unique_ID,
+  COALESCE(SAFE_CAST(Lead_Create_Date AS TIMESTAMP), parse_ts_any(CAST(Lead_Create_Date AS STRING))) AS Lead_Create_Date,
+
+  parse_date_any(CAST(Consultation_Date        AS STRING)) AS Consultation_Date,
+  parse_date_any(CAST(Consult_Completed_Date   AS STRING)) AS Consult_Completed_Date,
+  parse_date_any(CAST(Retainer_Sent_Date       AS STRING)) AS Retainer_Sent_Date,
+  parse_date_any(CAST(Retainer_Signed_Date     AS STRING)) AS Retainer_Signed_Date,
+  parse_date_any(CAST(Retainer_Funded_Date     AS STRING)) AS Retainer_Funded_Date,
+
+  Web_Lead_Indicator,
+  Lead_Source,
+  CAST(Marketing_Channel AS STRING) AS Marketing_Channel,
+  Form_Submit_URL,
+  UTM_Campaign,
+  CAST(UTM_Content AS STRING) AS UTM_Content,
+  UTM_Medium,
+  UTM_Source,
+  UTM_Term,
+  gclid,
+  parse_date_any(CAST(QPC AS STRING)) AS QPC,  -- QPC to DATE
+
+  -- CTP fields as NULLs
+  CAST(NULL AS BOOL)      AS Answered,
+  CAST(NULL AS STRING)    AS Direction,
+  CAST(NULL AS INT64)     AS Recording_Duration,
+  CAST(NULL AS STRING)    AS Call_Tracking_Unique_ID,
+  CAST(NULL AS INT64)     AS Call_Recording_Duration,
+  CAST(NULL AS TIMESTAMP) AS start_datetime,
+
+  'crm' AS source_table
+
+FROM `focused-sentry-464713-u0.crm_universal_tables.genesis_crm_universal_table`
+
+UNION ALL
+
+-- CTP Universal Table
+SELECT
+  firm_unique_id AS Firm_Unique_ID,
+  firm_name      AS Firm_Name,
+
+  -- CRM-specific fields as NULLs
+  CAST(NULL AS STRING)    AS Lead_Unique_ID,
+  CAST(NULL AS TIMESTAMP) AS Lead_Create_Date,
+  CAST(NULL AS DATE)      AS Consultation_Date,
+  CAST(NULL AS DATE)      AS Consult_Completed_Date,
+  CAST(NULL AS DATE)      AS Retainer_Sent_Date,
+  CAST(NULL AS DATE)      AS Retainer_Signed_Date,
+  CAST(NULL AS DATE)      AS Retainer_Funded_Date,
+  CAST(NULL AS STRING)    AS Web_Lead_Indicator,
+  CAST(NULL AS STRING)    AS Lead_Source,
+  CAST(NULL AS STRING)    AS Marketing_Channel,
+  CAST(NULL AS STRING)    AS Form_Submit_URL,
+  CAST(NULL AS STRING)    AS UTM_Campaign,
+  CAST(NULL AS STRING)    AS UTM_Content,
+  CAST(NULL AS STRING)    AS UTM_Medium,
+  CAST(NULL AS STRING)    AS UTM_Source,
+  CAST(NULL AS STRING)    AS UTM_Term,
+  CAST(NULL AS STRING)    AS gclid,
+  CAST(NULL AS DATE)      AS QPC,
+
+  -- CTP fields
+  answered                 AS Answered,
+  direction                AS Direction,
+  recording_duration       AS Recording_Duration,
+  call_tracking_unique_id  AS Call_Tracking_Unique_ID,
+  call_recording_duration  AS Call_Recording_Duration,
+  start_datetime,  -- TIMESTAMP
+
+  'ctp' AS source_table
+
+FROM `focused-sentry-464713-u0.ctp_universal_tables.genesis_ctp_universal_table`;
