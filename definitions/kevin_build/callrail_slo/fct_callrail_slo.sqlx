@@ -2,13 +2,14 @@
 --   "type": "table",
 --   "schema": "callrail_slo",
 --   "name": "fct_callrail_slo",
---   "description": "Inbound weekday calls, duration >= 4s, exclude unwanted sources and spam tags."
+--   "description": "Inbound weekday calls, duration >= 4s, exclude unwanted sources and spam tags, restricted to 8AM–5PM Central Time."
 -- }
 
 CREATE OR REPLACE TABLE `rc-datamart-report-082025.callrail_slo.fct_callrail_slo` AS
 WITH src AS (
 SELECT
-*,COALESCE(
+*,
+COALESCE(
 SAFE.TIMESTAMP_SECONDS(CAST(unix_time AS INT64)),
 SAFE.PARSE_TIMESTAMP('%Y-%m-%dT%H:%M:%E*S%Ez', called_at),
 SAFE.PARSE_TIMESTAMP('%Y-%m-%d %H:%M:%E*S%Ez', called_at),
@@ -24,13 +25,13 @@ SELECT
 FROM
 src
 WHERE
--- 1) Direction = inbound
+-- Inbound only
 LOWER(COALESCE(direction, '')) = 'inbound'
 
--- 2) Duration >= 4 (treat NULL as 0)
+-- Duration >= 4 seconds
 AND COALESCE(CAST(duration AS INT64), 0) >= 4
 
--- 3) Exclude unwanted tracking sources and exclude NULL/blank/whitespace-only sources
+-- Filter for sources
 AND source IS NOT NULL
 AND TRIM(source) <> ''
 AND LOWER(TRIM(source)) NOT IN (
@@ -42,14 +43,12 @@ AND LOWER(TRIM(source)) NOT IN (
 'credit card authorization recordings'
 )
 
--- 4) Exclude tag_list rows containing the word "spam"
--- tag_list in your schema is a string (example: '["new caller","spam"]'), so we defensively check for the word boundary.
+-- Exclude spam tag
 AND NOT REGEXP_CONTAINS(LOWER(COALESCE(tag_list, '')), r'\bspam\b')
 
--- 5) Exclude weekends
--- NOTE: BigQuery EXTRACT(DAYOFWEEK FROM TIMESTAMP) returns 1 = Sunday, 7 = Saturday.
--- We therefore exclude dayofweek IN (1, 7) which corresponds to Sunday and Saturday.
-AND (
-called_ts IS NOT NULL
+-- Exclude weekends (1=Sunday, 7=Saturday)
+AND called_ts IS NOT NULL
 AND EXTRACT(DAYOFWEEK FROM called_ts) NOT IN (1, 7)
-);
+
+-- Restrict to 8:00–17:00 Central Time
+AND EXTRACT(HOUR FROM called_ts AT TIME ZONE "America/Chicago") BETWEEN 8 AND 17;

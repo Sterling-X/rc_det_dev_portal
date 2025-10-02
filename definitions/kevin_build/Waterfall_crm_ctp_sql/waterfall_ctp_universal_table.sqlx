@@ -264,7 +264,7 @@ base_slo AS (
       SAFE.PARSE_TIMESTAMP('%Y-%m-%d %H:%M:%E*S%Ez', TRIM(CAST(called_at AS STRING))),
       CAST(called_at AS TIMESTAMP)
     ) AS start_datetime
-  FROM `focused-sentry-464713-u0.calltracking_slo.ctp_initialdata_delta`
+  FROM `rc-datamart-report-082025.callrail_slo.fct_callrail_slo`
   WHERE REGEXP_CONTAINS(COALESCE(direction, ''), r'(?i)^\s*inbound\s*$')
 ),
 ranked_slo AS (
