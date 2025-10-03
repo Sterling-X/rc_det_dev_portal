@@ -1,20 +1,21 @@
 -- 09282025 - KNM - Added timezone for each firm
 -- 09292025 - - Add Marketing Channel
 -- 09302025 - KNM - Change Web Lead Indicator
+-- 10012025 - KNM Change Timezone to 'America/Chicago' for all CRM be in CDT
 
 CREATE OR REPLACE TABLE
   `rc-datamart-report-082025.genesis_looker_crm_ctp_universal_table.tmp_historical_base` AS
 
 -- 0) Firm_Unique_ID → timezone map
 WITH firm_tz AS (
-  SELECT 'Genesis-glg1000' AS Firm_Unique_ID, 'America/Los_Angeles' AS tz UNION ALL
-  SELECT 'VDL-vdl1001'     , 'America/New_York' UNION ALL
-  SELECT 'SMB-smb1002'     , 'America/New_York' UNION ALL
-  SELECT 'Brucelaw-blg-1003','America/New_York' UNION ALL
+  SELECT 'Genesis-glg1000' AS Firm_Unique_ID, 'America/Chicago' AS tz UNION ALL
+  SELECT 'VDL-vdl1001'     , 'America/Chicago' UNION ALL
+  SELECT 'SMB-smb1002'     , 'America/Chicago' UNION ALL
+  SELECT 'Brucelaw-blg-1003','America/Chicago' UNION ALL
   SELECT 'Rosenblum-ral1004','America/Chicago' UNION ALL
   SELECT 'meyerpinklaw-mpl1005','America/Chicago' UNION ALL
   SELECT 'sumitfamilylawinc-sfl1006','America/Chicago' UNION ALL
-  SELECT 'auritmediation-am1007','America/Phoenix' UNION ALL
+  SELECT 'auritmediation-am1007','America/Chicago' UNION ALL
   SELECT 'drakelaw-dl1008' , 'America/Chicago' UNION ALL
   SELECT 'haffner-haffner1009','America/Chicago' UNION ALL
   SELECT 'SterlingLawOffice-1010','America/Chicago' UNION ALL
