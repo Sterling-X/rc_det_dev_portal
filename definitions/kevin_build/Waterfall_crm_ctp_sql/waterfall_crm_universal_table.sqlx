@@ -66,13 +66,13 @@ vdl_dedup AS (
 ),
 smb_dedup AS (
   SELECT 
-    opportunity_id,
-    opportunity_created_at,
-    opportunity_updated_at,
-    opportunity_attributions,
+    opp__id,
+    opp__createdat,
+    opp__updatedat,
+    opp__attribution_medium,
     ROW_NUMBER() OVER (
-      PARTITION BY opportunity_id
-      ORDER BY opportunity_updated_at DESC, opportunity_created_at DESC
+      PARTITION BY opp__id
+      ORDER BY opp__updatedat DESC, opp__createdat DESC
     ) AS rn
   FROM `focused-sentry-464713-u0.turbine_smb.smb_alldata_delta`
 ),
@@ -296,8 +296,8 @@ smb AS (
   SELECT
     'SMB-smb1002'                              AS Firm_Unique_ID,
     'Scott M Brown'                            AS Firm_Name,
-    CAST(opportunity_id AS STRING)             AS Lead_Unique_ID,
-    to_iso_date_string(opportunity_created_at) AS Lead_Create_Date,
+    CAST(opp__id AS STRING)             AS Lead_Unique_ID,
+    to_iso_date_string(opp__createdat) AS Lead_Create_Date,
     CAST(NULL AS STRING)                       AS Consultation_Date,
     CAST(NULL AS STRING)                       AS Consult_Completed_Date,
     CAST(NULL AS STRING)                       AS Retainer_Sent_Date,
@@ -309,10 +309,7 @@ smb AS (
     CAST(NULL AS STRING)                       AS Form_Submit_URL,
     CAST(NULL AS STRING)                       AS UTM_Campaign,
     CAST(NULL AS STRING)                       AS UTM_Content,
-    (SELECT AS VALUE x.medium
-     FROM UNNEST(opportunity_attributions) x
-     ORDER BY x.isFirst DESC
-     LIMIT 1)                                  AS UTM_Medium,
+    CAST(opp__attribution_medium AS STRING)                                 AS UTM_Medium,
     CAST(NULL AS STRING)                       AS UTM_Pageview_Count,
     CAST(NULL AS STRING)                       AS UTM_Session_Count,
     CAST(NULL AS STRING)                       AS UTM_Source,
