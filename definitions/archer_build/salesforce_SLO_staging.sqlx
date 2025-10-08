@@ -1,0 +1,157 @@
+--09302025 genesis - Genesis Reporting (consult completed) update On 7/29/20025, there was a change to the field that populated CF_Consult_Completed_Date.
+  -- Update Webleads for genesis
+
+
+-- Date parser
+CREATE TEMP FUNCTION to_date_safe(x ANY TYPE) AS (
+  COALESCE(
+    SAFE.PARSE_DATE('%Y-%m-%d', TRIM(CAST(x AS STRING))),
+    SAFE.PARSE_DATE('%B %e, %Y', TRIM(CAST(x AS STRING))),  -- September 30, 2024
+    SAFE.PARSE_DATE('%b %e, %Y',  TRIM(CAST(x AS STRING))), -- Sep 30, 2024
+    SAFE.DATE(SAFE.PARSE_TIMESTAMP('%Y-%m-%dT%H:%M:%E*S%Ez', TRIM(CAST(x AS STRING)))),
+    SAFE.DATE(SAFE.PARSE_TIMESTAMP('%Y-%m-%d %H:%M:%E*S%Ez', TRIM(CAST(x AS STRING)))),
+    SAFE.DATE(SAFE.PARSE_TIMESTAMP('%Y-%m-%d %H:%M:%S',      TRIM(CAST(x AS STRING))))
+  )
+);
+
+CREATE TEMP FUNCTION to_iso_date_string(x ANY TYPE) AS (
+  COALESCE(
+    FORMAT_DATE('%Y-%m-%d', to_date_safe(x)),
+    CAST(x AS STRING)
+  )
+);
+
+CREATE OR REPLACE TABLE `focused-sentry-464713-u0.crm_universal_tables.slo_crm_universal_table` AS
+WITH 
+slo_dedup AS (
+  SELECT
+    lead_Id,
+    lead_CreatedDate,
+    opportunity_Consult_Date_Time__c,
+    opportunity_Consult_Completed__c,
+    opportunity_Consult_Status__c,
+    opportunity_AccountId, 
+    lead_Web_Lead__c,
+    lead_LeadSource,
+    lead_Form_Submit_URL__c,
+    lead_Google_Campaign__c,
+    lead_Google_Content__c,
+    lead_Google_ICT_Reference_Number__c,
+    lead_Google_Medium__c,
+    lead_GA_Source_Medium__c,
+    lead_Google_Count_of_Pageviews__c,
+    lead_Google_Count_of_Sessions__c,
+    lead_Google_Source__c,
+    lead_Google_Term__c,
+    lead_Google_ClientID__c,
+    lead_Google_UserID__c,
+    lead_GCLID__c,
+    lead_NPS_Score__c, 
+    lead_IsConverted, 
+    lead_Potential_Lead__c, 
+    ROW_NUMBER() OVER (PARTITION BY lead_Id ORDER BY lead_CreatedDate DESC) AS rn
+  FROM `focused-sentry-464713-u0.salesforce_slo.slo_alldata_delta`
+),
+
+/* =========================
+   OUTPUT BRANCHES (25 columns)
+   1  Firm_Unique_ID
+   2  Firm_Name
+   3  Lead_Unique_ID
+   4  Lead_Create_Date
+   5  Consultation_Date
+   6  Consult_Completed_Date
+   7  Retainer_Sent_Date
+   8  Retainer_Signed_Date
+   9  Retainer_Funded_Date
+   10 Web_Lead_Indicator
+   11 Lead_Source
+   12 Marketing_Channel
+   13 Form_Submit_URL
+   14 UTM_Campaign
+   15 UTM_Content
+   16 UTM_Medium
+   17 UTM_Pageview_Count
+   18 UTM_Session_Count
+   19 UTM_Source
+   20 UTM_Term
+   21 gclid
+   22 QPC
+   23 UTM_ICT_Reference_Number
+   24 ga_client_id
+   25 ga_user_id
+   ========================= */
+
+
+slo AS (
+  SELECT
+    'SterlingLawOffice-1010'                AS Firm_Unique_ID,
+    'Sterling Law Office'                   AS Firm_Name,
+
+    CASE
+      WHEN lead_NPS_Score__c IS NULL AND 
+          lead_IsConverted = FALSE AND 
+          lead_Potential_Lead__c = FALSE AND 
+          NOT (REGEXP_CONTAINS(
+            COALESCE(opportunity_AccountId, ''),
+            r'(?i)(?:^|[^A-Za-z0-9_])participant(?:$|[^A-Za-z0-9_])'
+          ))
+      THEN lead_Id 
+      ELSE NULL
+    END                                     AS Lead_Unique_ID,
+
+    to_iso_date_string(lead_CreatedDate)    AS Lead_Create_Date,
+    
+    CASE
+      WHEN NOT (REGEXP_CONTAINS(
+            COALESCE(opportunity_AccountId, ''),
+            r'(?i)(?:^|[^A-Za-z0-9_])participant(?:$|[^A-Za-z0-9_])'
+          ))
+      THEN to_iso_date_string(opportunity_Consult_Date_Time__c) 
+      ELSE NULL
+    END                                     AS Consultation_Date,
+
+    CASE
+      WHEN opportunity_Consult_Status__c IN ('Signed in Person - Paid', 'Signed in Person - UnPaid', 'Consult Completed', 'Complete')
+      THEN to_iso_date_string(opportunity_Consult_Completed__c)
+      ELSE NULL
+    END                                     AS Consult_Completed_Date,
+
+    CAST(NULL AS STRING)                    AS Retainer_Sent_Date,
+    CAST(NULL AS STRING)                    AS Retainer_Signed_Date,
+    CAST(NULL AS STRING)                    AS Retainer_Funded_Date,
+
+    CASE 
+      WHEN lead_Web_Lead__c = TRUE  AND
+          lead_NPS_Score__c IS NULL AND 
+          lead_IsConverted = FALSE AND 
+          lead_Potential_Lead__c = FALSE AND 
+          NOT (REGEXP_CONTAINS(
+            COALESCE(opportunity_AccountId, ''),
+            r'(?i)(?:^|[^A-Za-z0-9_])participant(?:$|[^A-Za-z0-9_])'
+          ))
+      THEN 'true'
+      ELSE NULL
+    END                                     AS Web_Lead_Indicator,
+
+    CAST(lead_LeadSource AS STRING)         AS Lead_Source,
+    CAST(NULL AS STRING)                    AS Marketing_Channel,
+    CAST(lead_Form_Submit_URL__c AS STRING) AS Form_Submit_URL,
+    CAST(lead_Google_Campaign__c AS STRING) AS UTM_Campaign,
+    CAST(lead_Google_Content__c AS STRING)  AS UTM_Content,
+    CAST(COALESCE(lead_Google_Medium__c, lead_GA_Source_Medium__c) AS STRING) AS UTM_Medium,
+    CAST(lead_Google_Count_of_Pageviews__c AS STRING) AS UTM_Pageview_Count,
+    CAST(lead_Google_Count_of_Sessions__c AS STRING)  AS UTM_Session_Count,
+    CAST(lead_Google_Source__c AS STRING)   AS UTM_Source,
+    CAST(lead_Google_Term__c AS STRING)     AS UTM_Term,
+    CAST(lead_GCLID__c AS STRING)           AS gclid,
+    CAST(NULL AS STRING)                    AS QPC,
+    CAST(lead_Google_ICT_Reference_Number__c AS STRING) AS UTM_ICT_Reference_Number,
+    CAST(lead_Google_ClientID__c AS STRING) AS ga_client_id,
+    CAST(lead_Google_UserID__c AS STRING)   AS ga_user_id
+  FROM slo_dedup
+  WHERE rn = 1
+)
+
+-- Final union
+SELECT * FROM slo;

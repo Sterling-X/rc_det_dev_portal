@@ -34,7 +34,7 @@ firms AS (
   LEFT JOIN firm_tz tz USING (Firm_Unique_ID)
 ),
 
--- 2) Daily aggregates (timezone-safe dating; use all data across firms)
+-- 2) Daily aggregates (use all data across firms)
 calls_daily AS (
   SELECT
     u.Firm_Unique_ID, u.Firm_Name,

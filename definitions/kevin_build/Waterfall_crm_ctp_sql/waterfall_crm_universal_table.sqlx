@@ -14,7 +14,6 @@ CREATE TEMP FUNCTION to_date_safe(x ANY TYPE) AS (
   )
 );
 
--- Helper: YYYY-MM-DD string or original string
 CREATE TEMP FUNCTION to_iso_date_string(x ANY TYPE) AS (
   COALESCE(
     FORMAT_DATE('%Y-%m-%d', to_date_safe(x)),
@@ -23,7 +22,7 @@ CREATE TEMP FUNCTION to_iso_date_string(x ANY TYPE) AS (
 );
 
 CREATE OR REPLACE TABLE `focused-sentry-464713-u0.crm_universal_tables.genesis_crm_universal_table` AS
--- Dedup source CTEs
+-- Dedup source
 WITH genesis_dedup AS (
   SELECT 
     prospectid,
@@ -167,7 +166,7 @@ aurit_dedup AS (
     ROW_NUMBER() OVER (PARTITION BY lead_Id ORDER BY lead_CreatedDate DESC) AS rn
   FROM `focused-sentry-464713-u0.salesforce_auritmediation.auritmediation_alldata_delta`
 ),
--- NEW: Sterling Law Office (Salesforce)
+-- Sterling Law Office (Salesforce)
 slo_dedup AS (
   SELECT
     lead_Id,
