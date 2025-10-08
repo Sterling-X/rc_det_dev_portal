@@ -64,18 +64,30 @@ vdl_dedup AS (
     ROW_NUMBER() OVER (PARTITION BY prospectid ORDER BY updated_at DESC) AS rn
   FROM `focused-sentry-464713-u0.lawmatics_vdl.vdl_alldata_delta`
 ),
+-- SMB (Turbine)
 smb_dedup AS (
   SELECT 
     opp__id,
     opp__createdat,
     opp__updatedat,
+    opp__cf_opportunity_consult_date,
+    opp__cf_opportunity_consult_completed,               
+    opp__cf_opportunity_retainer_sent_date,
+    opp__cf_opportunity_date_new_lead_became_a_client,
+    opp__cf_opportunity_date_new_lead_became_a_qualified_lead,
+    opp__source,                                           -- Lead Source
+    contact__source,          
+    contact__tags,           
+
     opp__attribution_medium,
+
     ROW_NUMBER() OVER (
       PARTITION BY opp__id
       ORDER BY opp__updatedat DESC, opp__createdat DESC
     ) AS rn
   FROM `focused-sentry-464713-u0.turbine_smb.smb_alldata_delta`
 ),
+
 summit_dedup AS (
   SELECT
     contact_record_id,
@@ -96,6 +108,7 @@ summit_dedup AS (
     contact_utm_term,
     contact_gclid,
     contact_date_entered_sales_qualified_lead_lifecycle_stage_pipeline,
+    contact_latest_disqualified_lead_date,  -- 👈 Added here
     contact_last_modified_date,
     ROW_NUMBER() OVER (
       PARTITION BY contact_record_id
@@ -103,6 +116,8 @@ summit_dedup AS (
     ) AS rn
   FROM `focused-sentry-464713-u0.hubspot_summit.summit_alldata_delta`
 ),
+
+
 rosenblum_dedup AS (
   SELECT
     prospectid,
@@ -294,34 +309,64 @@ vdl AS (
 
 smb AS (
   SELECT
-    'SMB-smb1002'                              AS Firm_Unique_ID,
-    'Scott M Brown'                            AS Firm_Name,
-    CAST(opp__id AS STRING)             AS Lead_Unique_ID,
-    to_iso_date_string(opp__createdat) AS Lead_Create_Date,
-    CAST(NULL AS STRING)                       AS Consultation_Date,
-    CAST(NULL AS STRING)                       AS Consult_Completed_Date,
-    CAST(NULL AS STRING)                       AS Retainer_Sent_Date,
-    CAST(NULL AS STRING)                       AS Retainer_Signed_Date,
-    CAST(NULL AS STRING)                       AS Retainer_Funded_Date,
-    CAST(NULL AS STRING)                       AS Web_Lead_Indicator,
-    CAST(NULL AS STRING)                       AS Lead_Source,
-    CAST(NULL AS STRING)                       AS Marketing_Channel,
-    CAST(NULL AS STRING)                       AS Form_Submit_URL,
-    CAST(NULL AS STRING)                       AS UTM_Campaign,
-    CAST(NULL AS STRING)                       AS UTM_Content,
-    CAST(opp__attribution_medium AS STRING)                                 AS UTM_Medium,
-    CAST(NULL AS STRING)                       AS UTM_Pageview_Count,
-    CAST(NULL AS STRING)                       AS UTM_Session_Count,
-    CAST(NULL AS STRING)                       AS UTM_Source,
-    CAST(NULL AS STRING)                       AS UTM_Term,
-    CAST(NULL AS STRING)                       AS gclid,
-    CAST(NULL AS STRING)                       AS QPC,
-    CAST(NULL AS STRING)                       AS UTM_ICT_Reference_Number,
-    CAST(NULL AS STRING)                       AS ga_client_id,
-    CAST(NULL AS STRING)                       AS ga_user_id
+    'SMB-smb1002'                                 AS Firm_Unique_ID,
+    'Scott M Brown'                               AS Firm_Name,
+
+    -- Lead ID + Created
+    CAST(opp__id AS STRING)                       AS Lead_Unique_ID,
+    to_iso_date_string(opp__createdat)            AS Lead_Create_Date,
+
+    -- Consultation Date
+    to_iso_date_string(opp__cf_opportunity_consult_date) AS Consultation_Date,
+
+    -- Consult Completed Date:
+    -- "When the Consult Completed Date is Null on the universal table:
+    --      If opp__cf_opportunity_consult_completed = True -> use opp__cf_opportunity_consult_date
+    --  When NOT Null on the universal table: Do not update"
+    CASE
+      WHEN TRUE = SAFE_CAST(opp__cf_opportunity_consult_completed AS BOOL)
+        THEN to_iso_date_string(opp__cf_opportunity_consult_date)
+      ELSE NULL
+    END                                            AS Consult_Completed_Date,
+    to_iso_date_string(opp__cf_opportunity_retainer_sent_date)    AS Retainer_Sent_Date,
+    CAST(NULL AS STRING)                           AS Retainer_Signed_Date,
+    to_iso_date_string(opp__cf_opportunity_date_new_lead_became_a_client) AS Retainer_Funded_Date,
+
+    -- Web Lead Indicator:
+    -- (Contact_Source contains 'website') OR
+    -- (Contact_Source does NOT contain 'website' AND Contact_Tags contains 'website')
+    -- If matched, return the CREATED date (as instructed); else NULL.
+    CASE
+      WHEN REGEXP_CONTAINS(LOWER(CAST(contact__source AS STRING)), r'website')
+        THEN to_iso_date_string(opp__createdat)
+      WHEN NOT REGEXP_CONTAINS(LOWER(CAST(contact__source AS STRING)), r'website')
+           AND REGEXP_CONTAINS(LOWER(CAST(contact__tags AS STRING)), r'website')
+        THEN to_iso_date_string(opp__createdat)
+      ELSE NULL
+    END                                            AS Web_Lead_Indicator,
+
+    CAST(opp__source AS STRING)                    AS Lead_Source,
+    CAST(NULL AS STRING)                           AS Marketing_Channel,
+    CAST(NULL AS STRING)                           AS Form_Submit_URL,
+    CAST(NULL AS STRING)                           AS UTM_Campaign,
+    CAST(NULL AS STRING)                           AS UTM_Content,
+    CAST(opp__attribution_medium AS STRING)        AS UTM_Medium,
+    CAST(NULL AS STRING)                           AS UTM_Pageview_Count,
+    CAST(NULL AS STRING)                           AS UTM_Session_Count,
+    CAST(NULL AS STRING)                           AS UTM_Source,
+    CAST(NULL AS STRING)                           AS UTM_Term,
+    CAST(NULL AS STRING)                           AS gclid,
+
+    -- QPC
+    to_iso_date_string(opp__cf_opportunity_date_new_lead_became_a_qualified_lead) AS QPC,
+
+    CAST(NULL AS STRING)                           AS UTM_ICT_Reference_Number,
+    CAST(NULL AS STRING)                           AS ga_client_id,
+    CAST(NULL AS STRING)                           AS ga_user_id
   FROM smb_dedup
   WHERE rn = 1
 ),
+
 
 summit AS (
   SELECT
@@ -337,20 +382,28 @@ summit AS (
     CASE WHEN UPPER(contact_latest_traffic_source) = 'DIRECT_TRAFFIC'
          THEN CAST(contact_latest_traffic_source AS STRING) ELSE NULL END AS Web_Lead_Indicator,
     CAST(contact_original_lead_source_drill_down_1 AS STRING)           AS Lead_Source,
-    CAST(contact_original_lead_source AS STRING)                         AS Marketing_Channel,
-    CAST(contact_last_referring_site AS STRING)                          AS Form_Submit_URL,
-    CAST(contact_utm_campaign AS STRING)                                 AS UTM_Campaign,
-    CAST(contact_utm_content AS STRING)                                  AS UTM_Content,
-    CAST(contact_utm_medium AS STRING)                                   AS UTM_Medium,
-    CAST(NULL AS STRING)                                                 AS UTM_Pageview_Count,
-    CAST(NULL AS STRING)                                                 AS UTM_Session_Count,
-    CAST(contact_utm_source AS STRING)                                   AS UTM_Source,
-    CAST(contact_utm_term AS STRING)                                     AS UTM_Term,
-    CAST(contact_gclid AS STRING)                                        AS gclid,
-    to_iso_date_string(contact_date_entered_sales_qualified_lead_lifecycle_stage_pipeline) AS QPC,
-    CAST(NULL AS STRING)                                                 AS UTM_ICT_Reference_Number,
-    CAST(NULL AS STRING)                                                 AS ga_client_id,
-    CAST(NULL AS STRING)                                                 AS ga_user_id
+    CAST(contact_original_lead_source AS STRING)                        AS Marketing_Channel,
+    CAST(contact_last_referring_site AS STRING)                         AS Form_Submit_URL,
+    CAST(contact_utm_campaign AS STRING)                                AS UTM_Campaign,
+    CAST(contact_utm_content AS STRING)                                 AS UTM_Content,
+    CAST(contact_utm_medium AS STRING)                                  AS UTM_Medium,
+    CAST(NULL AS STRING)                                                AS UTM_Pageview_Count,
+    CAST(NULL AS STRING)                                                AS UTM_Session_Count,
+    CAST(contact_utm_source AS STRING)                                  AS UTM_Source,
+    CAST(contact_utm_term AS STRING)                                    AS UTM_Term,
+    CAST(contact_gclid AS STRING)                                       AS gclid,
+
+    -- QPC
+    CASE
+      WHEN contact_latest_disqualified_lead_date IS NULL
+           OR TIMESTAMP(contact_create_date) < TIMESTAMP(contact_latest_disqualified_lead_date)
+        THEN to_iso_date_string(contact_date_entered_sales_qualified_lead_lifecycle_stage_pipeline)
+      ELSE NULL
+    END AS QPC,
+
+    CAST(NULL AS STRING)                                                AS UTM_ICT_Reference_Number,
+    CAST(NULL AS STRING)                                                AS ga_client_id,
+    CAST(NULL AS STRING)                                                AS ga_user_id
   FROM summit_dedup
   WHERE rn = 1
 ),
