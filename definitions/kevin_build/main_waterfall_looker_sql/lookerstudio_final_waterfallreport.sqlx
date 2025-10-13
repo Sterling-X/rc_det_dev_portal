@@ -15,6 +15,7 @@ wide_metrics AS (
     date_window,
     Firm_Unique_ID,
     Firm_Name,
+    ANY_VALUE(Marketing_Channel) AS Marketing_Channel,   -- ✅ Added here, consistent across firms
     MAX(IF(metric_name = 'Total Calls',            metric_value, NULL)) AS `Calls`,
     MAX(IF(metric_name = 'Answered Calls',         metric_value, NULL)) AS `Answered Calls`,
     MAX(IF(metric_name = 'Total Leads',            metric_value, NULL)) AS `Total Leads`,

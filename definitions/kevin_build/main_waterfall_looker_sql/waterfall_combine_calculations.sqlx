@@ -12,9 +12,13 @@ SELECT
   a.date_window,
   a.Firm_Unique_ID,
   a.Firm_Name,
+  a.Marketing_Channel,                -- NEW
   'Answer Rate' AS metric_name,
   SAFE_DIVIDE(ans.metric_value, tc.metric_value) AS metric_value
-FROM (SELECT DISTINCT metric_date, date_window, Firm_Unique_ID, Firm_Name FROM base) a
+FROM (
+  SELECT DISTINCT metric_date, date_window, Firm_Unique_ID, Firm_Name, Marketing_Channel
+  FROM base
+) a
 LEFT JOIN base ans 
   ON  a.metric_date     = ans.metric_date
   AND a.date_window     = ans.date_window
@@ -34,9 +38,13 @@ SELECT
   a.date_window,
   a.Firm_Unique_ID,
   a.Firm_Name,
+  a.Marketing_Channel,                -- NEW
   'Inbound Lead to Call' AS metric_name,
   SAFE_DIVIDE(tc.metric_value, inbound.metric_value) AS metric_value
-FROM (SELECT DISTINCT metric_date, date_window, Firm_Unique_ID, Firm_Name FROM base) a
+FROM (
+  SELECT DISTINCT metric_date, date_window, Firm_Unique_ID, Firm_Name, Marketing_Channel
+  FROM base
+) a
 LEFT JOIN base tc 
   ON  a.metric_date     = tc.metric_date
   AND a.date_window     = tc.date_window
@@ -56,9 +64,13 @@ SELECT
   a.date_window,
   a.Firm_Unique_ID,
   a.Firm_Name,
+  a.Marketing_Channel,                -- NEW
   'QPC Rate' AS metric_name,
   SAFE_DIVIDE(qpc.metric_value, tl.metric_value) AS metric_value
-FROM (SELECT DISTINCT metric_date, date_window, Firm_Unique_ID, Firm_Name FROM base) a
+FROM (
+  SELECT DISTINCT metric_date, date_window, Firm_Unique_ID, Firm_Name, Marketing_Channel
+  FROM base
+) a
 LEFT JOIN base qpc 
   ON  a.metric_date     = qpc.metric_date
   AND a.date_window     = qpc.date_window
@@ -78,9 +90,13 @@ SELECT
   a.date_window,
   a.Firm_Unique_ID,
   a.Firm_Name,
+  a.Marketing_Channel,                -- NEW
   'QPC to Scheduled' AS metric_name,
   SAFE_DIVIDE(cs.metric_value, qpc.metric_value) AS metric_value
-FROM (SELECT DISTINCT metric_date, date_window, Firm_Unique_ID, Firm_Name FROM base) a
+FROM (
+  SELECT DISTINCT metric_date, date_window, Firm_Unique_ID, Firm_Name, Marketing_Channel
+  FROM base
+) a
 LEFT JOIN base cs 
   ON  a.metric_date     = cs.metric_date
   AND a.date_window     = cs.date_window
@@ -100,9 +116,13 @@ SELECT
   a.date_window,
   a.Firm_Unique_ID,
   a.Firm_Name,
+  a.Marketing_Channel,                -- NEW
   'Completion Rate' AS metric_name,
   SAFE_DIVIDE(cc.metric_value, cs.metric_value) AS metric_value
-FROM (SELECT DISTINCT metric_date, date_window, Firm_Unique_ID, Firm_Name FROM base) a
+FROM (
+  SELECT DISTINCT metric_date, date_window, Firm_Unique_ID, Firm_Name, Marketing_Channel
+  FROM base
+) a
 LEFT JOIN base cc 
   ON  a.metric_date     = cc.metric_date
   AND a.date_window     = cc.date_window
@@ -122,9 +142,13 @@ SELECT
   a.date_window,
   a.Firm_Unique_ID,
   a.Firm_Name,
+  a.Marketing_Channel,                -- NEW
   'Quote Rate' AS metric_name,
   SAFE_DIVIDE(qt.metric_value, cc.metric_value) AS metric_value
-FROM (SELECT DISTINCT metric_date, date_window, Firm_Unique_ID, Firm_Name FROM base) a
+FROM (
+  SELECT DISTINCT metric_date, date_window, Firm_Unique_ID, Firm_Name, Marketing_Channel
+  FROM base
+) a
 LEFT JOIN base qt 
   ON  a.metric_date     = qt.metric_date
   AND a.date_window     = qt.date_window
@@ -144,9 +168,13 @@ SELECT
   a.date_window,
   a.Firm_Unique_ID,
   a.Firm_Name,
+  a.Marketing_Channel,                -- NEW
   'Close Rate' AS metric_name,
   SAFE_DIVIDE(fa.metric_value, cs.metric_value) AS metric_value
-FROM (SELECT DISTINCT metric_date, date_window, Firm_Unique_ID, Firm_Name FROM base) a
+FROM (
+  SELECT DISTINCT metric_date, date_window, Firm_Unique_ID, Firm_Name, Marketing_Channel
+  FROM base
+) a
 LEFT JOIN base fa 
   ON  a.metric_date     = fa.metric_date
   AND a.date_window     = fa.date_window
