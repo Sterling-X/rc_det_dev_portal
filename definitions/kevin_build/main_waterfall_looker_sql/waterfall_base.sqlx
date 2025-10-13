@@ -1,5 +1,5 @@
 -- 09282025 - KNM - Added timezone for each firm
--- 09292025 - - Add Marketing Channel
+-- 09292025 - KNM - Add Marketing Channel
 -- 09302025 - KNM - Change Web Lead Indicator
 -- 10012025 - KNM Change Timezone to 'America/Chicago' for all CRM be in CDT
 
@@ -34,7 +34,13 @@ firms AS (
   LEFT JOIN firm_tz tz USING (Firm_Unique_ID)
 ),
 
--- 2) Daily aggregates (use all data across firms)
+-- NEW: firm → Marketing_Channel mapping (no calculations, just distinct)
+firm_channel AS (
+  SELECT DISTINCT Firm_Unique_ID, Firm_Name, Marketing_Channel
+  FROM `rc-datamart-report-082025.genesis_looker_crm_ctp_universal_table.genesis_crm_ctp_universal_table`
+),
+
+-- 2) Daily aggregates (unchanged)
 calls_daily AS (
   SELECT
     u.Firm_Unique_ID, u.Firm_Name,
@@ -108,7 +114,7 @@ qpc_daily AS (
   GROUP BY u.Firm_Unique_ID, u.Firm_Name, metric_date
 ),
 
--- 3) Dense firm-date grid + zero-fill
+-- 3) Dense firm-date grid + zero-fill (unchanged)
 dense AS (
   SELECT
     f.Firm_Unique_ID, f.Firm_Name, f.tz, d.metric_date,
@@ -132,67 +138,50 @@ dense AS (
   LEFT JOIN funded_daily          fu USING (Firm_Unique_ID, Firm_Name, metric_date)
 ),
 
--- 4) Rolling sums (exclude current day via 1 PRECEDING)
+-- 4) Rolling sums (unchanged)
 roll AS (
   SELECT
     *,
-    -- Calls
     SUM(calls_total_day)        OVER (PARTITION BY Firm_Unique_ID, Firm_Name ORDER BY metric_date ROWS BETWEEN 7   PRECEDING AND 1 PRECEDING) AS calls_w7,
     SUM(calls_total_day)        OVER (PARTITION BY Firm_Unique_ID, Firm_Name ORDER BY metric_date ROWS BETWEEN 28  PRECEDING AND 1 PRECEDING) AS calls_w28,
     SUM(calls_total_day)        OVER (PARTITION BY Firm_Unique_ID, Firm_Name ORDER BY metric_date ROWS BETWEEN 90  PRECEDING AND 1 PRECEDING) AS calls_w90,
     SUM(calls_total_day)        OVER (PARTITION BY Firm_Unique_ID, Firm_Name ORDER BY metric_date ROWS BETWEEN 180 PRECEDING AND 1 PRECEDING) AS calls_w180,
     SUM(calls_total_day)        OVER (PARTITION BY Firm_Unique_ID, Firm_Name ORDER BY metric_date ROWS BETWEEN 365 PRECEDING AND 1 PRECEDING) AS calls_w365,
-
-    -- Answered
     SUM(calls_answered_day)     OVER (PARTITION BY Firm_Unique_ID, Firm_Name ORDER BY metric_date ROWS BETWEEN 7   PRECEDING AND 1 PRECEDING) AS ans_w7,
     SUM(calls_answered_day)     OVER (PARTITION BY Firm_Unique_ID, Firm_Name ORDER BY metric_date ROWS BETWEEN 28  PRECEDING AND 1 PRECEDING) AS ans_w28,
     SUM(calls_answered_day)     OVER (PARTITION BY Firm_Unique_ID, Firm_Name ORDER BY metric_date ROWS BETWEEN 90  PRECEDING AND 1 PRECEDING) AS ans_w90,
     SUM(calls_answered_day)     OVER (PARTITION BY Firm_Unique_ID, Firm_Name ORDER BY metric_date ROWS BETWEEN 180 PRECEDING AND 1 PRECEDING) AS ans_w180,
     SUM(calls_answered_day)     OVER (PARTITION BY Firm_Unique_ID, Firm_Name ORDER BY metric_date ROWS BETWEEN 365 PRECEDING AND 1 PRECEDING) AS ans_w365,
-
-    -- Leads
     SUM(leads_total_day)        OVER (PARTITION BY Firm_Unique_ID, Firm_Name ORDER BY metric_date ROWS BETWEEN 7   PRECEDING AND 1 PRECEDING) AS leads_w7,
     SUM(leads_total_day)        OVER (PARTITION BY Firm_Unique_ID, Firm_Name ORDER BY metric_date ROWS BETWEEN 28  PRECEDING AND 1 PRECEDING) AS leads_w28,
     SUM(leads_total_day)        OVER (PARTITION BY Firm_Unique_ID, Firm_Name ORDER BY metric_date ROWS BETWEEN 90  PRECEDING AND 1 PRECEDING) AS leads_w90,
     SUM(leads_total_day)        OVER (PARTITION BY Firm_Unique_ID, Firm_Name ORDER BY metric_date ROWS BETWEEN 180 PRECEDING AND 1 PRECEDING) AS leads_w180,
     SUM(leads_total_day)        OVER (PARTITION BY Firm_Unique_ID, Firm_Name ORDER BY metric_date ROWS BETWEEN 365 PRECEDING AND 1 PRECEDING) AS leads_w365,
-
-    -- Web Leads
     SUM(web_leads_day)          OVER (PARTITION BY Firm_Unique_ID, Firm_Name ORDER BY metric_date ROWS BETWEEN 7   PRECEDING AND 1 PRECEDING) AS web_w7,
     SUM(web_leads_day)          OVER (PARTITION BY Firm_Unique_ID, Firm_Name ORDER BY metric_date ROWS BETWEEN 28  PRECEDING AND 1 PRECEDING) AS web_w28,
     SUM(web_leads_day)          OVER (PARTITION BY Firm_Unique_ID, Firm_Name ORDER BY metric_date ROWS BETWEEN 90  PRECEDING AND 1 PRECEDING) AS web_w90,
     SUM(web_leads_day)          OVER (PARTITION BY Firm_Unique_ID, Firm_Name ORDER BY metric_date ROWS BETWEEN 180 PRECEDING AND 1 PRECEDING) AS web_w180,
     SUM(web_leads_day)          OVER (PARTITION BY Firm_Unique_ID, Firm_Name ORDER BY metric_date ROWS BETWEEN 365 PRECEDING AND 1 PRECEDING) AS web_w365,
-
-    -- QPCs
     SUM(qpc_count_day)          OVER (PARTITION BY Firm_Unique_ID, Firm_Name ORDER BY metric_date ROWS BETWEEN 7   PRECEDING AND 1 PRECEDING) AS qpc_w7,
     SUM(qpc_count_day)          OVER (PARTITION BY Firm_Unique_ID, Firm_Name ORDER BY metric_date ROWS BETWEEN 28  PRECEDING AND 1 PRECEDING) AS qpc_w28,
     SUM(qpc_count_day)          OVER (PARTITION BY Firm_Unique_ID, Firm_Name ORDER BY metric_date ROWS BETWEEN 90  PRECEDING AND 1 PRECEDING) AS qpc_w90,
     SUM(qpc_count_day)          OVER (PARTITION BY Firm_Unique_ID, Firm_Name ORDER BY metric_date ROWS BETWEEN 180 PRECEDING AND 1 PRECEDING) AS qpc_w180,
     SUM(qpc_count_day)          OVER (PARTITION BY Firm_Unique_ID, Firm_Name ORDER BY metric_date ROWS BETWEEN 365 PRECEDING AND 1 PRECEDING) AS qpc_w365,
-
-    -- Consults Scheduled
     SUM(consults_scheduled_day) OVER (PARTITION BY Firm_Unique_ID, Firm_Name ORDER BY metric_date ROWS BETWEEN 7   PRECEDING AND 1 PRECEDING) AS cs_w7,
     SUM(consults_scheduled_day) OVER (PARTITION BY Firm_Unique_ID, Firm_Name ORDER BY metric_date ROWS BETWEEN 28  PRECEDING AND 1 PRECEDING) AS cs_w28,
     SUM(consults_scheduled_day) OVER (PARTITION BY Firm_Unique_ID, Firm_Name ORDER BY metric_date ROWS BETWEEN 90  PRECEDING AND 1 PRECEDING) AS cs_w90,
     SUM(consults_scheduled_day) OVER (PARTITION BY Firm_Unique_ID, Firm_Name ORDER BY metric_date ROWS BETWEEN 180 PRECEDING AND 1 PRECEDING) AS cs_w180,
     SUM(consults_scheduled_day) OVER (PARTITION BY Firm_Unique_ID, Firm_Name ORDER BY metric_date ROWS BETWEEN 365 PRECEDING AND 1 PRECEDING) AS cs_w365,
-
-    -- Consults Completed
     SUM(consults_completed_day) OVER (PARTITION BY Firm_Unique_ID, Firm_Name ORDER BY metric_date ROWS BETWEEN 7   PRECEDING AND 1 PRECEDING) AS cc_w7,
     SUM(consults_completed_day) OVER (PARTITION BY Firm_Unique_ID, Firm_Name ORDER BY metric_date ROWS BETWEEN 28  PRECEDING AND 1 PRECEDING) AS cc_w28,
     SUM(consults_completed_day) OVER (PARTITION BY Firm_Unique_ID, Firm_Name ORDER BY metric_date ROWS BETWEEN 90  PRECEDING AND 1 PRECEDING) AS cc_w90,
     SUM(consults_completed_day) OVER (PARTITION BY Firm_Unique_ID, Firm_Name ORDER BY metric_date ROWS BETWEEN 180 PRECEDING AND 1 PRECEDING) AS cc_w180,
     SUM(consults_completed_day) OVER (PARTITION BY Firm_Unique_ID, Firm_Name ORDER BY metric_date ROWS BETWEEN 365 PRECEDING AND 1 PRECEDING) AS cc_w365,
-
-    -- Quotes
     SUM(quotes_day)             OVER (PARTITION BY Firm_Unique_ID, Firm_Name ORDER BY metric_date ROWS BETWEEN 7   PRECEDING AND 1 PRECEDING) AS qts_w7,
     SUM(quotes_day)             OVER (PARTITION BY Firm_Unique_ID, Firm_Name ORDER BY metric_date ROWS BETWEEN 28  PRECEDING AND 1 PRECEDING) AS qts_w28,
     SUM(quotes_day)             OVER (PARTITION BY Firm_Unique_ID, Firm_Name ORDER BY metric_date ROWS BETWEEN 90  PRECEDING AND 1 PRECEDING) AS qts_w90,
     SUM(quotes_day)             OVER (PARTITION BY Firm_Unique_ID, Firm_Name ORDER BY metric_date ROWS BETWEEN 180 PRECEDING AND 1 PRECEDING) AS qts_w180,
     SUM(quotes_day)             OVER (PARTITION BY Firm_Unique_ID, Firm_Name ORDER BY metric_date ROWS BETWEEN 365 PRECEDING AND 1 PRECEDING) AS qts_w365,
-
-    -- Funded Agreements
     SUM(funded_agreements_day)  OVER (PARTITION BY Firm_Unique_ID, Firm_Name ORDER BY metric_date ROWS BETWEEN 7   PRECEDING AND 1 PRECEDING) AS fa_w7,
     SUM(funded_agreements_day)  OVER (PARTITION BY Firm_Unique_ID, Firm_Name ORDER BY metric_date ROWS BETWEEN 28  PRECEDING AND 1 PRECEDING) AS fa_w28,
     SUM(funded_agreements_day)  OVER (PARTITION BY Firm_Unique_ID, Firm_Name ORDER BY metric_date ROWS BETWEEN 90  PRECEDING AND 1 PRECEDING) AS fa_w90,
@@ -201,80 +190,63 @@ roll AS (
   FROM dense
 )
 
--- 5) Final tall output (schema: metric_date, date_window, Firm_Unique_ID, Firm_Name, metric_name, metric_value)
+-- 5) Final tall output + Marketing_Channel (no calc; joined once per firm)
 SELECT
-  metric_date,
+  r.metric_date,
   m.date_window,
-  Firm_Unique_ID,
-  Firm_Name,
+  r.Firm_Unique_ID,
+  r.Firm_Name,
+  fc.Marketing_Channel,                 -- << NEW COLUMN
   m.metric_name,
   m.metric_value
-FROM roll
+FROM roll r
+LEFT JOIN firm_channel fc USING (Firm_Unique_ID, Firm_Name)
 CROSS JOIN UNNEST([
-  -- Total Calls
   STRUCT<metric_name STRING, date_window STRING, metric_value FLOAT64>('Total Calls','last_7_days'   , SAFE_DIVIDE(calls_w7,    5)),
   STRUCT<metric_name STRING, date_window STRING, metric_value FLOAT64>('Total Calls','last_28_days'  , SAFE_DIVIDE(calls_w28,  20)),
   STRUCT<metric_name STRING, date_window STRING, metric_value FLOAT64>('Total Calls','last_3_months' , SAFE_DIVIDE(calls_w90,  65)),
   STRUCT<metric_name STRING, date_window STRING, metric_value FLOAT64>('Total Calls','last_6_months' , SAFE_DIVIDE(calls_w180,130)),
   STRUCT<metric_name STRING, date_window STRING, metric_value FLOAT64>('Total Calls','last_12_months', SAFE_DIVIDE(calls_w365,260)),
-
-  -- Answered Calls
   STRUCT<metric_name STRING, date_window STRING, metric_value FLOAT64>('Answered Calls','last_7_days'   , SAFE_DIVIDE(ans_w7,    5)),
   STRUCT<metric_name STRING, date_window STRING, metric_value FLOAT64>('Answered Calls','last_28_days'  , SAFE_DIVIDE(ans_w28,  20)),
   STRUCT<metric_name STRING, date_window STRING, metric_value FLOAT64>('Answered Calls','last_3_months' , SAFE_DIVIDE(ans_w90,  65)),
   STRUCT<metric_name STRING, date_window STRING, metric_value FLOAT64>('Answered Calls','last_6_months' , SAFE_DIVIDE(ans_w180,130)),
   STRUCT<metric_name STRING, date_window STRING, metric_value FLOAT64>('Answered Calls','last_12_months', SAFE_DIVIDE(ans_w365,260)),
-
-  -- Total Leads
   STRUCT<metric_name STRING, date_window STRING, metric_value FLOAT64>('Total Leads','last_7_days'   , SAFE_DIVIDE(leads_w7,    5)),
   STRUCT<metric_name STRING, date_window STRING, metric_value FLOAT64>('Total Leads','last_28_days'  , SAFE_DIVIDE(leads_w28,  20)),
   STRUCT<metric_name STRING, date_window STRING, metric_value FLOAT64>('Total Leads','last_3_months' , SAFE_DIVIDE(leads_w90,  65)),
   STRUCT<metric_name STRING, date_window STRING, metric_value FLOAT64>('Total Leads','last_6_months' , SAFE_DIVIDE(leads_w180,130)),
   STRUCT<metric_name STRING, date_window STRING, metric_value FLOAT64>('Total Leads','last_12_months', SAFE_DIVIDE(leads_w365,260)),
-
-  -- Web Leads
   STRUCT<metric_name STRING, date_window STRING, metric_value FLOAT64>('Web Leads','last_7_days'   , SAFE_DIVIDE(web_w7,    5)),
   STRUCT<metric_name STRING, date_window STRING, metric_value FLOAT64>('Web Leads','last_28_days'  , SAFE_DIVIDE(web_w28,  20)),
   STRUCT<metric_name STRING, date_window STRING, metric_value FLOAT64>('Web Leads','last_3_months' , SAFE_DIVIDE(web_w90,  65)),
   STRUCT<metric_name STRING, date_window STRING, metric_value FLOAT64>('Web Leads','last_6_months' , SAFE_DIVIDE(web_w180,130)),
   STRUCT<metric_name STRING, date_window STRING, metric_value FLOAT64>('Web Leads','last_12_months', SAFE_DIVIDE(web_w365,260)),
-
-  -- Inbound Leads (Total − Web)
   STRUCT<metric_name STRING, date_window STRING, metric_value FLOAT64>('Inbound Leads','last_7_days'   , SAFE_DIVIDE(leads_w7   - web_w7,    5)),
   STRUCT<metric_name STRING, date_window STRING, metric_value FLOAT64>('Inbound Leads','last_28_days'  , SAFE_DIVIDE(leads_w28  - web_w28,  20)),
   STRUCT<metric_name STRING, date_window STRING, metric_value FLOAT64>('Inbound Leads','last_3_months' , SAFE_DIVIDE(leads_w90  - web_w90,  65)),
   STRUCT<metric_name STRING, date_window STRING, metric_value FLOAT64>('Inbound Leads','last_6_months' , SAFE_DIVIDE(leads_w180 - web_w180,130)),
   STRUCT<metric_name STRING, date_window STRING, metric_value FLOAT64>('Inbound Leads','last_12_months', SAFE_DIVIDE(leads_w365 - web_w365,260)),
-
-  -- QPCs
   STRUCT<metric_name STRING, date_window STRING, metric_value FLOAT64>('QPCs','last_7_days'   , SAFE_DIVIDE(qpc_w7,    5)),
   STRUCT<metric_name STRING, date_window STRING, metric_value FLOAT64>('QPCs','last_28_days'  , SAFE_DIVIDE(qpc_w28,  20)),
   STRUCT<metric_name STRING, date_window STRING, metric_value FLOAT64>('QPCs','last_3_months' , SAFE_DIVIDE(qpc_w90,  65)),
   STRUCT<metric_name STRING, date_window STRING, metric_value FLOAT64>('QPCs','last_6_months' , SAFE_DIVIDE(qpc_w180,130)),
   STRUCT<metric_name STRING, date_window STRING, metric_value FLOAT64>('QPCs','last_12_months', SAFE_DIVIDE(qpc_w365,260)),
-
-  -- Consults Scheduled
   STRUCT<metric_name STRING, date_window STRING, metric_value FLOAT64>('Consults Scheduled','last_7_days'   , SAFE_DIVIDE(cs_w7,    5)),
   STRUCT<metric_name STRING, date_window STRING, metric_value FLOAT64>('Consults Scheduled','last_28_days'  , SAFE_DIVIDE(cs_w28, 20)),
   STRUCT<metric_name STRING, date_window STRING, metric_value FLOAT64>('Consults Scheduled','last_3_months' , SAFE_DIVIDE(cs_w90, 65)),
   STRUCT<metric_name STRING, date_window STRING, metric_value FLOAT64>('Consults Scheduled','last_6_months' , SAFE_DIVIDE(cs_w180,130)),
   STRUCT<metric_name STRING, date_window STRING, metric_value FLOAT64>('Consults Scheduled','last_12_months', SAFE_DIVIDE(cs_w365,260)),
-
-  -- Consults Completed
   STRUCT<metric_name STRING, date_window STRING, metric_value FLOAT64>('Consults Completed','last_7_days'   , SAFE_DIVIDE(cc_w7,    5)),
   STRUCT<metric_name STRING, date_window STRING, metric_value FLOAT64>('Consults Completed','last_28_days'  , SAFE_DIVIDE(cc_w28, 20)),
   STRUCT<metric_name STRING, date_window STRING, metric_value FLOAT64>('Consults Completed','last_3_months' , SAFE_DIVIDE(cc_w90, 65)),
   STRUCT<metric_name STRING, date_window STRING, metric_value FLOAT64>('Consults Completed','last_6_months' , SAFE_DIVIDE(cc_w180,130)),
   STRUCT<metric_name STRING, date_window STRING, metric_value FLOAT64>('Consults Completed','last_12_months', SAFE_DIVIDE(cc_w365,260)),
-
-  -- Quotes
   STRUCT<metric_name STRING, date_window STRING, metric_value FLOAT64>('Quotes','last_7_days'   , SAFE_DIVIDE(qts_w7,    5)),
   STRUCT<metric_name STRING, date_window STRING, metric_value FLOAT64>('Quotes','last_28_days'  , SAFE_DIVIDE(qts_w28,  20)),
   STRUCT<metric_name STRING, date_window STRING, metric_value FLOAT64>('Quotes','last_3_months' , SAFE_DIVIDE(qts_w90,  65)),
   STRUCT<metric_name STRING, date_window STRING, metric_value FLOAT64>('Quotes','last_6_months' , SAFE_DIVIDE(qts_w180,130)),
   STRUCT<metric_name STRING, date_window STRING, metric_value FLOAT64>('Quotes','last_12_months', SAFE_DIVIDE(qts_w365,260)),
-
-  -- Funded Agreements
   STRUCT<metric_name STRING, date_window STRING, metric_value FLOAT64>('Funded Agreements','last_7_days'   , SAFE_DIVIDE(fa_w7,    5)),
   STRUCT<metric_name STRING, date_window STRING, metric_value FLOAT64>('Funded Agreements','last_28_days'  , SAFE_DIVIDE(fa_w28,  20)),
   STRUCT<metric_name STRING, date_window STRING, metric_value FLOAT64>('Funded Agreements','last_3_months' , SAFE_DIVIDE(fa_w90,  65)),

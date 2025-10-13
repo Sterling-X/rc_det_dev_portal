@@ -1,5 +1,4 @@
---09302025 genesis - Genesis Reporting (consult completed) update On 7/29/20025, there was a change to the field that populated CF_Consult_Completed_Date.
-  -- Update Webleads for genesis
+--10092025 SLO Filter methods
 
 
 -- Date parser
@@ -29,7 +28,6 @@ slo_dedup AS (
     lead_CreatedDate,
     opportunity_Consult_Date_Time__c,
     opportunity_Consult_Completed__c,
-    opportunity_Consult_Status__c,
     opportunity_AccountId, 
     lead_Web_Lead__c,
     lead_LeadSource,
@@ -102,35 +100,14 @@ slo AS (
 
     to_iso_date_string(lead_CreatedDate)    AS Lead_Create_Date,
     
-    CASE
-      WHEN NOT (REGEXP_CONTAINS(
-            COALESCE(opportunity_AccountId, ''),
-            r'(?i)(?:^|[^A-Za-z0-9_])participant(?:$|[^A-Za-z0-9_])'
-          ))
-      THEN to_iso_date_string(opportunity_Consult_Date_Time__c) 
-      ELSE NULL
-    END                                     AS Consultation_Date,
-
-    CASE
-      WHEN opportunity_Consult_Status__c IN ('Signed in Person - Paid', 'Signed in Person - UnPaid', 'Consult Completed', 'Complete')
-      THEN to_iso_date_string(opportunity_Consult_Completed__c)
-      ELSE NULL
-    END                                     AS Consult_Completed_Date,
-
+    to_iso_date_string(opportunity_Consult_Date_Time__c) AS Consultation_Date,
+    to_iso_date_string(opportunity_Consult_Completed__c) AS Consult_Completed_Date,
     CAST(NULL AS STRING)                    AS Retainer_Sent_Date,
     CAST(NULL AS STRING)                    AS Retainer_Signed_Date,
     CAST(NULL AS STRING)                    AS Retainer_Funded_Date,
 
     CASE 
-      WHEN lead_Web_Lead__c = TRUE  AND
-          lead_NPS_Score__c IS NULL AND 
-          lead_IsConverted = FALSE AND 
-          lead_Potential_Lead__c = FALSE AND 
-          NOT (REGEXP_CONTAINS(
-            COALESCE(opportunity_AccountId, ''),
-            r'(?i)(?:^|[^A-Za-z0-9_])participant(?:$|[^A-Za-z0-9_])'
-          ))
-      THEN 'true'
+      WHEN lead_Web_Lead__c = TRUE THEN 'true'
       ELSE NULL
     END                                     AS Web_Lead_Indicator,
 
@@ -145,7 +122,31 @@ slo AS (
     CAST(lead_Google_Source__c AS STRING)   AS UTM_Source,
     CAST(lead_Google_Term__c AS STRING)     AS UTM_Term,
     CAST(lead_GCLID__c AS STRING)           AS gclid,
-    CAST(NULL AS STRING)                    AS QPC,
+   -- Filter 1 condition
+    (
+      lead_NPS_Score__c IS NULL
+      AND lead_IsConverted = FALSE
+      AND lead_Potential_Lead__c = FALSE
+      AND REGEXP_CONTAINS(COALESCE(opportunity_AccountId, ''), r'(?i)(?:^|[^A-Za-z0-9_])participant(?:$|[^A-Za-z0-9_])')
+    ) AS _f1,
+
+    -- Filter 2 “Referred Out”
+    (
+      (SAFE_CAST(lead_Referred_Out_Date__c AS BOOL) IS TRUE OR to_date_safe(lead_Referred_Out_Date__c) IS NOT NULL)
+      AND lead_NPS_Score__c IS NULL
+      AND lead_IsConverted = FALSE
+      AND lead_Potential_Lead__c = FALSE
+      AND REGEXP_CONTAINS(COALESCE(opportunity_AccountId, ''), r'(?i)(?:^|[^A-Za-z0-9_])participant(?:$|[^A-Za-z0-9_])')
+    ) AS _f2,
+
+    -- Final QPC = Filter1 MINUS Filter2
+    CASE WHEN
+      (lead_NPS_Score__c IS NULL
+       AND lead_IsConverted = FALSE
+       AND lead_Potential_Lead__c = FALSE
+       AND REGEXP_CONTAINS(COALESCE(opportunity_AccountId, ''), r'(?i)(?:^|[^A-Za-z0-9_])participant(?:$|[^A-Za-z0-9_])'))
+      AND NOT (SAFE_CAST(lead_Referred_Out_Date__c AS BOOL) IS TRUE OR to_date_safe(lead_Referred_Out_Date__c) IS NOT NULL)
+    THEN 'true' ELSE NULL END AS QPC,                   AS QPC,
     CAST(lead_Google_ICT_Reference_Number__c AS STRING) AS UTM_ICT_Reference_Number,
     CAST(lead_Google_ClientID__c AS STRING) AS ga_client_id,
     CAST(lead_Google_UserID__c AS STRING)   AS ga_user_id
