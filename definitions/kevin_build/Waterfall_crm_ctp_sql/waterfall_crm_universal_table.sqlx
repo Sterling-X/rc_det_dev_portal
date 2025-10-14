@@ -6,8 +6,9 @@
 CREATE TEMP FUNCTION to_date_safe(x ANY TYPE) AS (
   COALESCE(
     SAFE.PARSE_DATE('%Y-%m-%d', TRIM(CAST(x AS STRING))),
-    SAFE.PARSE_DATE('%B %e, %Y', TRIM(CAST(x AS STRING))),  -- September 30, 2024
-    SAFE.PARSE_DATE('%b %e, %Y',  TRIM(CAST(x AS STRING))), -- Sep 30, 2024
+    SAFE.PARSE_DATE('%m/%d/%Y', TRIM(CAST(x AS STRING))), 
+    SAFE.PARSE_DATE('%B %e, %Y', TRIM(CAST(x AS STRING))),
+    SAFE.PARSE_DATE('%b %e, %Y',  TRIM(CAST(x AS STRING))),
     SAFE.DATE(SAFE.PARSE_TIMESTAMP('%Y-%m-%dT%H:%M:%E*S%Ez', TRIM(CAST(x AS STRING)))),
     SAFE.DATE(SAFE.PARSE_TIMESTAMP('%Y-%m-%d %H:%M:%E*S%Ez', TRIM(CAST(x AS STRING)))),
     SAFE.DATE(SAFE.PARSE_TIMESTAMP('%Y-%m-%d %H:%M:%S',      TRIM(CAST(x AS STRING))))
@@ -20,6 +21,14 @@ CREATE TEMP FUNCTION to_iso_date_string(x ANY TYPE) AS (
     CAST(x AS STRING)
   )
 );
+
+CREATE TEMP FUNCTION is_truth (x ANY TYPE) AS (
+  REGEXP_CONTAINS(
+    LOWER(TRIM(CAST(x AS STRING))),
+    r'(^|\W)(true|t|yes|y|1)($|\W)'
+  )
+);
+
 
 CREATE OR REPLACE TABLE `focused-sentry-464713-u0.crm_universal_tables.genesis_crm_universal_table` AS
 -- Dedup source
@@ -74,7 +83,8 @@ smb_dedup AS (
     opp__cf_opportunity_retainer_sent_date,
     opp__cf_opportunity_date_new_lead_became_a_client,
     opp__cf_opportunity_date_new_lead_became_a_qualified_lead,
-    opp__source,                                           -- Lead Source
+    opp__cf_opportunity_date_consult_is_recorded,
+    opp__source,                                           
     contact__source,          
     contact__tags,           
 
@@ -309,40 +319,36 @@ vdl AS (
 smb AS (
   SELECT
     'SMB-smb1002'                                 AS Firm_Unique_ID,
-    'Scott M Brown'                               AS Firm_Name,
+    'Scott M Brown'                                AS Firm_Name,
+    CAST(opp__id AS STRING)                        AS Lead_Unique_ID,
+    to_iso_date_string(opp__createdat)             AS Lead_Create_Date,
 
-    -- Lead ID + Created
-    CAST(opp__id AS STRING)                       AS Lead_Unique_ID,
-    to_iso_date_string(opp__createdat)            AS Lead_Create_Date,
+    -- Consultation Date (e.g., '9/8/2025')
+    to_iso_date_string(opp__cf_opportunity_date_consult_is_recorded) AS Consultation_Date,
 
-    -- Consultation Date
-    to_iso_date_string(opp__cf_opportunity_consult_date) AS Consultation_Date,
-
-    -- Consult Completed Date:
-    -- "When the Consult Completed Date is Null on the universal table:
-    --      If opp__cf_opportunity_consult_completed = True -> use opp__cf_opportunity_consult_date
-    --  When NOT Null on the universal table: Do not update"
+    -- Consult Completed Date: if completed flag is “truth” (e.g., ["Yes"]), use the consult date
     CASE
-      WHEN TRUE = SAFE_CAST(opp__cf_opportunity_consult_completed AS BOOL)
+      WHEN is_truth(opp__cf_opportunity_consult_completed)
         THEN to_iso_date_string(opp__cf_opportunity_consult_date)
       ELSE NULL
-    END                                            AS Consult_Completed_Date,
-    to_iso_date_string(opp__cf_opportunity_retainer_sent_date)    AS Retainer_Sent_Date,
-    CAST(NULL AS STRING)                           AS Retainer_Signed_Date,
+    END AS Consult_Completed_Date,
+
+    to_iso_date_string(opp__cf_opportunity_retainer_sent_date) AS Retainer_Sent_Date,
+    CAST(NULL AS STRING)                                       AS Retainer_Signed_Date,
     to_iso_date_string(opp__cf_opportunity_date_new_lead_became_a_client) AS Retainer_Funded_Date,
 
-    -- Web Lead Indicator:
-    -- (Contact_Source contains 'website') OR
-    -- (Contact_Source does NOT contain 'website' AND Contact_Tags contains 'website')
-    -- If matched, return the CREATED date (as instructed); else NULL.
-    CASE
-      WHEN REGEXP_CONTAINS(LOWER(CAST(contact__source AS STRING)), r'website')
-        THEN to_iso_date_string(opp__createdat)
-      WHEN NOT REGEXP_CONTAINS(LOWER(CAST(contact__source AS STRING)), r'website')
-           AND REGEXP_CONTAINS(LOWER(CAST(contact__tags AS STRING)), r'website')
-        THEN to_iso_date_string(opp__createdat)
-      ELSE NULL
-    END                                            AS Web_Lead_Indicator,
+    -- Web Lead Indicator from Contact_Source/Tags -> createdat date
+CASE
+  WHEN REGEXP_CONTAINS(LOWER(CAST(contact__source AS STRING)), r'website')
+       AND REGEXP_CONTAINS(LOWER(CAST(contact__tags   AS STRING)), r'website')
+    THEN NULL
+  WHEN REGEXP_CONTAINS(LOWER(CAST(contact__tags   AS STRING)), r'website')
+    THEN CAST(contact__tags AS STRING)
+  WHEN REGEXP_CONTAINS(LOWER(CAST(contact__source AS STRING)), r'website')
+    THEN CAST(contact__source AS STRING)
+  ELSE NULL
+END AS Web_Lead_Indicator,
+
 
     CAST(opp__source AS STRING)                    AS Lead_Source,
     CAST(NULL AS STRING)                           AS Marketing_Channel,
@@ -355,17 +361,13 @@ smb AS (
     CAST(NULL AS STRING)                           AS UTM_Source,
     CAST(NULL AS STRING)                           AS UTM_Term,
     CAST(NULL AS STRING)                           AS gclid,
-
-    -- QPC
     to_iso_date_string(opp__cf_opportunity_date_new_lead_became_a_qualified_lead) AS QPC,
-
     CAST(NULL AS STRING)                           AS UTM_ICT_Reference_Number,
     CAST(NULL AS STRING)                           AS ga_client_id,
     CAST(NULL AS STRING)                           AS ga_user_id
   FROM smb_dedup
   WHERE rn = 1
 ),
-
 
 summit AS (
   SELECT
