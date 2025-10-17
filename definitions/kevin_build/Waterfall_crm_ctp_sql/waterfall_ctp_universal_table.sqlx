@@ -55,7 +55,7 @@ base_vdl AS (
       SAFE.PARSE_TIMESTAMP('%Y-%m-%d %H:%M:%S%Ez',  TRIM(CAST(start_time AS STRING))),
       CAST(start_time AS TIMESTAMP)
     ) AS start_datetime,
-    CAST(NULL AS STRING) AS source,
+    source               AS source,
     CAST(NULL AS STRING) AS practice_area,
     CAST(NULL AS STRING) AS marketing_channel,
     CAST(NULL AS STRING) AS utm_campaign,
@@ -94,7 +94,7 @@ base_smb AS (
       SAFE.PARSE_TIMESTAMP('%Y-%m-%d %H:%M:%S%Ez',  TRIM(CAST(start_time AS STRING))),
       CAST(start_time AS TIMESTAMP)
     ) AS start_datetime,
-    CAST(NULL AS STRING) AS source,
+    source               AS source,
     CAST(NULL AS STRING) AS practice_area,
     CAST(NULL AS STRING) AS marketing_channel,
     CAST(NULL AS STRING) AS utm_campaign,
@@ -175,7 +175,7 @@ base_meyerpink AS (
       SAFE.PARSE_TIMESTAMP('%Y-%m-%d %H:%M:%S%Ez',  TRIM(CAST(start_time AS STRING))),
       CAST(start_time AS TIMESTAMP)
     ) AS start_datetime,
-    CAST(NULL AS STRING) AS source,
+    source               AS source,
     CAST(NULL AS STRING) AS practice_area,
     CAST(NULL AS STRING) AS marketing_channel,
     CAST(NULL AS STRING) AS utm_campaign,
@@ -202,26 +202,25 @@ ranked_meyerpink AS (
 base_auritmediation AS (
   SELECT
     'auritmediation-am1007'               AS firm_unique_id,
-    'Aurit Mediation'                     AS firm_name,
-    CAST(calls_answered AS BOOL)          AS answered,
-    calls_direction                       AS direction,
-    SAFE_CAST(calls_recording_duration AS INT64) AS recording_duration,
-    calls_id                              AS call_tracking_unique_id,
-    SAFE_CAST(calls_recording_duration AS INT64) AS call_recording_duration,
+    'Aurit Mediation'                      AS firm_name,
+    CAST(answered AS BOOL)                  AS answered,
+    direction                               AS direction,
+    SAFE_CAST(recording_duration AS INT64)  AS recording_duration,
+    id                              AS call_tracking_unique_id,
+    SAFE_CAST(recording_duration AS INT64) AS call_recording_duration,
     COALESCE(
-      SAFE.PARSE_TIMESTAMP('%Y-%m-%dT%H:%M:%E*S%Ez', TRIM(CAST(calls_start_time AS STRING))),
-      SAFE.PARSE_TIMESTAMP('%Y-%m-%d %H:%M:%E*S%Ez', TRIM(CAST(calls_start_time AS STRING))),
-      SAFE.PARSE_TIMESTAMP('%Y-%m-%d %H:%M:%S%Ez',  TRIM(CAST(calls_start_time AS STRING))),
-      CAST(calls_start_time AS TIMESTAMP)
+      SAFE.PARSE_TIMESTAMP('%Y-%m-%dT%H:%M:%E*S%Ez', TRIM(CAST(start_time AS STRING))),
+      SAFE.PARSE_TIMESTAMP('%Y-%m-%d %H:%M:%E*S%Ez', TRIM(CAST(start_time AS STRING))),
+      SAFE.PARSE_TIMESTAMP('%Y-%m-%d %H:%M:%S%Ez',  TRIM(CAST(start_time AS STRING))),
+      CAST(start_time AS TIMESTAMP)
     ) AS start_datetime,
-    -- New fields from your mapping
-    forms_source            AS source,
+    source                  AS source,
     CAST(NULL AS STRING)    AS practice_area,            
     CAST(NULL AS STRING)    AS marketing_channel,       
-    forms_campaign          AS utm_campaign,
+    campaign                AS utm_campaign,
     CAST(NULL AS STRING)    AS utm_content,             
     CAST(NULL AS STRING)    AS utm_ict_reference_number, 
-    forms_medium            AS utm_medium,
+    medium                  AS utm_medium,
     CAST(NULL AS INT64)     AS utm_pageview_count,       
     CAST(NULL AS INT64)     AS utm_session_count,      
     CAST(NULL AS STRING)    AS utm_source,               
@@ -231,7 +230,7 @@ base_auritmediation AS (
     CAST(NULL AS STRING)    AS gclid,
     CAST(NULL AS STRING)    AS google_ads              
   FROM `focused-sentry-464713-u0.callrail_auritmediation.callrail_alldata_delta`
-  WHERE REGEXP_CONTAINS(COALESCE(calls_direction, ''), r'(?i)^\s*inbound\s*$')
+  WHERE REGEXP_CONTAINS(COALESCE(direction, ''), r'(?i)^\s*inbound\s*$')
 ),
 ranked_auritmediation AS (
   SELECT *, ROW_NUMBER() OVER (PARTITION BY call_tracking_unique_id ORDER BY start_datetime DESC) AS row_num
@@ -293,7 +292,7 @@ base_brucelaw AS (
       SAFE.PARSE_TIMESTAMP('%Y-%m-%d %H:%M:%S%Ez',  TRIM(CAST(start_time AS STRING))),
       CAST(start_time AS TIMESTAMP)
     ) AS start_datetime,
-    CAST(NULL AS STRING) AS source,
+    source AS source,
     CAST(NULL AS STRING) AS practice_area,
     CAST(NULL AS STRING) AS marketing_channel,
     CAST(NULL AS STRING) AS utm_campaign,
@@ -332,7 +331,7 @@ base_drakelaw AS (
       SAFE.PARSE_TIMESTAMP('%Y-%m-%d %H:%M:%S%Ez',  TRIM(CAST(start_time AS STRING))),
       CAST(start_time AS TIMESTAMP)
     ) AS start_datetime,
-    CAST(NULL AS STRING) AS source,
+    source AS source,
     CAST(NULL AS STRING) AS practice_area,
     CAST(NULL AS STRING) AS marketing_channel,
     CAST(NULL AS STRING) AS utm_campaign,
@@ -455,7 +454,7 @@ base_ramage AS (
       SAFE.PARSE_TIMESTAMP('%Y-%m-%d %H:%M:%S%Ez',  TRIM(CAST(start_time AS STRING))),
       CAST(start_time AS TIMESTAMP)
     ) AS start_datetime,
-    CAST(NULL AS STRING) AS source,
+    source AS source,
     CAST(NULL AS STRING) AS practice_area,
     CAST(NULL AS STRING) AS marketing_channel,
     CAST(NULL AS STRING) AS utm_campaign,
