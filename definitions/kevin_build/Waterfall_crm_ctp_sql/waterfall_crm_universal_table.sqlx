@@ -183,6 +183,7 @@ slo_dedup AS (
     lead_CreatedDate,
     opportunity_Consult_Date_Time__c,
     opportunity_Consult_Completed__c,
+    opportunity_AccountId, 
     lead_Web_Lead__c,
     lead_LeadSource,
     lead_Form_Submit_URL__c,
@@ -198,10 +199,12 @@ slo_dedup AS (
     lead_Google_ClientID__c,
     lead_Google_UserID__c,
     lead_GCLID__c,
+    lead_NPS_Score__c, 
+    lead_IsConverted, 
+    lead_Potential_Lead__c, 
     ROW_NUMBER() OVER (PARTITION BY lead_Id ORDER BY lead_CreatedDate DESC) AS rn
   FROM `focused-sentry-464713-u0.salesforce_slo.slo_alldata_delta`
 ),
-
 /* =========================
    OUTPUT BRANCHES (25 columns)
    1  Firm_Unique_ID
@@ -505,42 +508,7 @@ aurit AS (
   WHERE rn = 1
 ),
 
--- NEW: Sterling Law Office (Salesforce
-slo AS (
-  SELECT
-    'SterlingLawOffice-1010'                AS Firm_Unique_ID,
-    'Sterling Law Office'                   AS Firm_Name,
-    CAST(lead_Id AS STRING)                 AS Lead_Unique_ID,
-    to_iso_date_string(lead_CreatedDate)    AS Lead_Create_Date,
-    to_iso_date_string(opportunity_Consult_Date_Time__c) AS Consultation_Date,
-    to_iso_date_string(opportunity_Consult_Completed__c) AS Consult_Completed_Date,
-    CAST(NULL AS STRING)                    AS Retainer_Sent_Date,
-    CAST(NULL AS STRING)                    AS Retainer_Signed_Date,
-    CAST(NULL AS STRING)                    AS Retainer_Funded_Date,
 
-    CASE 
-      WHEN lead_Web_Lead__c = TRUE THEN 'true'
-      ELSE NULL
-    END                                     AS Web_Lead_Indicator,
-
-    CAST(lead_LeadSource AS STRING)         AS Lead_Source,
-    CAST(NULL AS STRING)                    AS Marketing_Channel,
-    CAST(lead_Form_Submit_URL__c AS STRING) AS Form_Submit_URL,
-    CAST(lead_Google_Campaign__c AS STRING) AS UTM_Campaign,
-    CAST(lead_Google_Content__c AS STRING)  AS UTM_Content,
-    CAST(COALESCE(lead_Google_Medium__c, lead_GA_Source_Medium__c) AS STRING) AS UTM_Medium,
-    CAST(lead_Google_Count_of_Pageviews__c AS STRING) AS UTM_Pageview_Count,
-    CAST(lead_Google_Count_of_Sessions__c AS STRING)  AS UTM_Session_Count,
-    CAST(lead_Google_Source__c AS STRING)   AS UTM_Source,
-    CAST(lead_Google_Term__c AS STRING)     AS UTM_Term,
-    CAST(lead_GCLID__c AS STRING)           AS gclid,
-    CAST(NULL AS STRING)                    AS QPC,
-    CAST(lead_Google_ICT_Reference_Number__c AS STRING) AS UTM_ICT_Reference_Number,
-    CAST(lead_Google_ClientID__c AS STRING) AS ga_client_id,
-    CAST(lead_Google_UserID__c AS STRING)   AS ga_user_id
-  FROM slo_dedup
-  WHERE rn = 1
-)
 
 -- Final union
 SELECT * FROM genesis

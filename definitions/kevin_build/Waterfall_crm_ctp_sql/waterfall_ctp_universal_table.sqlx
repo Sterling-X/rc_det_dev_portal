@@ -70,7 +70,7 @@ base_vdl AS (
     CAST(NULL AS STRING) AS ga_user_id,
     CAST(NULL AS STRING) AS gclid,
     CAST(NULL AS STRING) AS google_ads
-  FROM `focused-sentry-464713-u0.callrail_vdl.callrail_historical_delta`
+  FROM `focused-sentry-464713-u0.callrail_vdl.callrail_alldata_delta`
   WHERE REGEXP_CONTAINS(COALESCE(direction, ''), r'(?i)^\s*inbound\s*$')
 ),
 ranked_vdl AS (
@@ -109,7 +109,7 @@ base_smb AS (
     CAST(NULL AS STRING) AS ga_user_id,
     CAST(NULL AS STRING) AS gclid,
     CAST(NULL AS STRING) AS google_ads
-  FROM `focused-sentry-464713-u0.callrail_smb.callrail_initial_alldata_staging`
+  FROM `focused-sentry-464713-u0.callrail_smb.callrail_alldata_delta`
   WHERE REGEXP_CONTAINS(COALESCE(direction, ''), r'(?i)^\s*inbound\s*$')
 ),
 ranked_smb AS (
