@@ -22,29 +22,14 @@ CREATE TEMP FUNCTION to_iso_date_string(x ANY TYPE) AS (
 CREATE OR REPLACE TABLE `focused-sentry-464713-u0.crm_universal_tables.slo_crm_universal_table` AS
 WITH slo_dedup AS (
   SELECT
-    lead_Id,
-    lead_CreatedDate,
-    opportunity_Consult_Date_Time__c,
-    opportunity_Consult_Completed__c,
-    opportunity_AccountId, 
-    lead_Web_Lead__c,
-    lead_LeadSource,
-    lead_Form_Submit_URL__c,
-    lead_Google_Campaign__c,
-    lead_Google_Content__c,
-    lead_Google_ICT_Reference_Number__c,
-    lead_Google_Medium__c,
-    lead_GA_Source_Medium__c,
-    lead_Google_Count_of_Pageviews__c,
-    lead_Google_Count_of_Sessions__c,
-    lead_Google_Source__c,
-    lead_Google_Term__c,
-    lead_Google_ClientID__c,
-    lead_Google_UserID__c,
-    lead_GCLID__c,
-    lead_NPS_Score__c, 
-    lead_IsConverted, 
-    lead_Potential_Lead__c,
+    lead_Id, lead_CreatedDate, opportunity_Consult_Date_Time__c,
+    opportunity_Consult_Completed__c, opportunity_AccountId, 
+    lead_Web_Lead__c, lead_LeadSource, lead_Form_Submit_URL__c,
+    lead_Google_Campaign__c, lead_Google_Content__c, lead_Google_ICT_Reference_Number__c,
+    lead_Google_Medium__c, lead_GA_Source_Medium__c, lead_Google_Count_of_Pageviews__c,
+    lead_Google_Count_of_Sessions__c, lead_Google_Source__c, lead_Google_Term__c,
+    lead_Google_ClientID__c, lead_Google_UserID__c, lead_GCLID__c,
+    lead_NPS_Score__c, lead_IsConverted, lead_Potential_Lead__c,
     lead_Referred_Out_Date__c,
     ROW_NUMBER() OVER (PARTITION BY lead_Id ORDER BY lead_CreatedDate DESC) AS rn
   FROM `focused-sentry-464713-u0.salesforce_slo.slo_alldata_delta`
@@ -63,16 +48,15 @@ slo AS (
              COALESCE(opportunity_AccountId, ''),
              r'(?i)(?:^|[^A-Za-z0-9_])participant(?:$|[^A-Za-z0-9_])'
            )
-      THEN lead_Id 
-      ELSE NULL
+      THEN lead_Id ELSE NULL
     END AS Lead_Unique_ID,
 
-    to_iso_date_string(lead_CreatedDate)                    AS Lead_Create_Date,
+    to_iso_date_string(lead_CreatedDate)           AS Lead_Create_Date,
     to_iso_date_string(opportunity_Consult_Date_Time__c) AS Consultation_Date,
     to_iso_date_string(opportunity_Consult_Completed__c) AS Consult_Completed_Date,
-    CAST(NULL AS STRING)                                    AS Retainer_Sent_Date,
-    CAST(NULL AS STRING)                                    AS Retainer_Signed_Date,
-    to_iso_date_string(opportunity_Reinstituted_Funded_Date__c) AS Retainer_Funded_Date,
+    CAST(NULL AS STRING)                            AS Retainer_Sent_Date,
+    CAST(NULL AS STRING)                            AS Retainer_Signed_Date,
+    CAST(NULL AS STRING)                            AS Retainer_Funded_Date,
 
     CASE WHEN lead_Web_Lead__c = TRUE THEN 'true' ELSE NULL END AS Web_Lead_Indicator,
 
@@ -88,7 +72,6 @@ slo AS (
     CAST(lead_Google_Term__c AS STRING)     AS UTM_Term,
     CAST(lead_GCLID__c AS STRING)           AS gclid,
 
-    -- Filter 1 condition (participant present)
     (
       lead_NPS_Score__c IS NULL
       AND lead_IsConverted = FALSE
@@ -98,7 +81,7 @@ slo AS (
             r'(?i)(?:^|[^A-Za-z0-9_])participant(?:$|[^A-Za-z0-9_])'
           )
     ) AS _f1,
-    -- Filter 2 “Referred Out” (subset of Filter 1; date is non-null)
+
     (
       to_date_safe(lead_Referred_Out_Date__c) IS NOT NULL
       AND lead_NPS_Score__c IS NULL
@@ -109,7 +92,7 @@ slo AS (
             r'(?i)(?:^|[^A-Za-z0-9_])participant(?:$|[^A-Za-z0-9_])'
           )
     ) AS _f2,
-    -- QPC = Filter 1 MINUS Filter 2
+
     CASE
       WHEN
         (lead_NPS_Score__c IS NULL
@@ -129,5 +112,4 @@ slo AS (
   FROM slo_dedup
   WHERE rn = 1
 )
-
 SELECT * FROM slo;
