@@ -1,115 +1,113 @@
---10092025 SLO Filter methods
-
--- Date parser
-CREATE TEMP FUNCTION to_date_safe(x ANY TYPE) AS (
+CREATE TEMP FUNCTION to_ts_safe(x ANY TYPE) AS (
   COALESCE(
-    SAFE.PARSE_DATE('%Y-%m-%d', TRIM(CAST(x AS STRING))),
-    SAFE.PARSE_DATE('%B %e, %Y', TRIM(CAST(x AS STRING))),  -- September 30, 2024
-    SAFE.PARSE_DATE('%b %e, %Y',  TRIM(CAST(x AS STRING))), -- Sep 30, 2024
-    SAFE.DATE(SAFE.PARSE_TIMESTAMP('%Y-%m-%dT%H:%M:%E*S%Ez', TRIM(CAST(x AS STRING)))),
-    SAFE.DATE(SAFE.PARSE_TIMESTAMP('%Y-%m-%d %H:%M:%E*S%Ez', TRIM(CAST(x AS STRING)))),
-    SAFE.DATE(SAFE.PARSE_TIMESTAMP('%Y-%m-%d %H:%M:%S',      TRIM(CAST(x AS STRING))))
+    SAFE.PARSE_TIMESTAMP('%Y-%m-%dT%H:%M:%E*S%Ez', TRIM(CAST(x AS STRING))),
+    SAFE.PARSE_TIMESTAMP('%Y-%m-%d %H:%M:%E*S%Ez', TRIM(CAST(x AS STRING))),
+    SAFE.PARSE_TIMESTAMP('%Y-%m-%d %H:%M:%S%Ez',  TRIM(CAST(x AS STRING))),
+    SAFE.PARSE_TIMESTAMP('%Y-%m-%d %H:%M:%S',     TRIM(CAST(x AS STRING))),
+    SAFE.PARSE_TIMESTAMP('%Y-%m-%d',              TRIM(CAST(x AS STRING)))
   )
 );
 
-CREATE TEMP FUNCTION to_iso_date_string(x ANY TYPE) AS (
+CREATE TEMP FUNCTION to_utc_string(x ANY TYPE) AS (
+  CASE WHEN to_ts_safe(x) IS NOT NULL
+       THEN FORMAT_TIMESTAMP('%Y-%m-%d %H:%M:%S UTC', to_ts_safe(x))
+       ELSE NULL
+  END
+);
+
+CREATE TEMP FUNCTION to_date_safe(x ANY TYPE) AS (
   COALESCE(
-    FORMAT_DATE('%Y-%m-%d', to_date_safe(x)),
-    CAST(x AS STRING)
+    SAFE.PARSE_DATE('%Y-%m-%d', TRIM(CAST(x AS STRING))),
+    SAFE.PARSE_DATE('%B %e, %Y', TRIM(CAST(x AS STRING))),
+    SAFE.PARSE_DATE('%b %e, %Y', TRIM(CAST(x AS STRING))),
+    SAFE.DATE(to_ts_safe(x))
   )
 );
 
 CREATE OR REPLACE TABLE `focused-sentry-464713-u0.crm_universal_tables.slo_crm_universal_table` AS
-WITH slo_dedup AS (
+WITH base AS (
   SELECT
-    lead_Id, lead_CreatedDate, opportunity_Consult_Date_Time__c,
-    opportunity_Consult_Completed__c, opportunity_AccountId, 
-    lead_Web_Lead__c, lead_LeadSource, lead_Form_Submit_URL__c,
-    lead_Google_Campaign__c, lead_Google_Content__c, lead_Google_ICT_Reference_Number__c,
-    lead_Google_Medium__c, lead_GA_Source_Medium__c, lead_Google_Count_of_Pageviews__c,
-    lead_Google_Count_of_Sessions__c, lead_Google_Source__c, lead_Google_Term__c,
-    lead_Google_ClientID__c, lead_Google_UserID__c, lead_GCLID__c,
-    lead_NPS_Score__c, lead_IsConverted, lead_Potential_Lead__c,
+    CAST(lead_Id AS STRING) AS lead_Id,
+    lead_CreatedDate,
+    consult_CreatedDate,
+    opportunity_Consult_Status__c,
+    CAST(quote_Opportunity_Account_Name__c AS STRING) AS quote_Opportunity_Account_Name__c,
+    opportunity_Consult_Date_Time__c,
+    opportunity_Consult_Completed__c,
+    lead_Web_Lead__c,
+    lead_LeadSource,
+    lead_Form_Submit_URL__c,
+    lead_Google_Campaign__c,
+    lead_Google_Content__c,
+    lead_Google_ICT_Reference_Number__c,
+    lead_Google_Medium__c,
+    lead_GA_Source_Medium__c,
+    lead_Google_Count_of_Pageviews__c,
+    lead_Google_Count_of_Sessions__c,
+    lead_Google_Source__c,
+    lead_Google_Term__c,
+    lead_Google_ClientID__c,
+    lead_Google_UserID__c,
+    lead_GCLID__c,
+    lead_NPS_Score__c,
+    lead_IsConverted,
+    lead_Potential_Lead__c,
     lead_Referred_Out_Date__c,
     ROW_NUMBER() OVER (PARTITION BY lead_Id ORDER BY lead_CreatedDate DESC) AS rn
   FROM `focused-sentry-464713-u0.salesforce_slo.slo_alldata_delta`
-),
-
-slo AS (
+), dedup AS (
+  SELECT * FROM base WHERE rn = 1
+), flags AS (
   SELECT
-    'SterlingLawOffice-1010' AS Firm_Unique_ID,
-    'Sterling Law Office'    AS Firm_Name,
-
-    CASE
-      WHEN lead_NPS_Score__c IS NULL 
-       AND lead_IsConverted = FALSE 
-       AND lead_Potential_Lead__c = FALSE 
-       AND NOT REGEXP_CONTAINS(
-             COALESCE(opportunity_AccountId, ''),
-             r'(?i)(?:^|[^A-Za-z0-9_])participant(?:$|[^A-Za-z0-9_])'
-           )
-      THEN lead_Id ELSE NULL
-    END AS Lead_Unique_ID,
-
-    to_iso_date_string(lead_CreatedDate)           AS Lead_Create_Date,
-    to_iso_date_string(opportunity_Consult_Date_Time__c) AS Consultation_Date,
-    to_iso_date_string(opportunity_Consult_Completed__c) AS Consult_Completed_Date,
-    CAST(NULL AS STRING)                            AS Retainer_Sent_Date,
-    CAST(NULL AS STRING)                            AS Retainer_Signed_Date,
-    CAST(NULL AS STRING)                            AS Retainer_Funded_Date,
-
-    CASE WHEN lead_Web_Lead__c = TRUE THEN 'true' ELSE NULL END AS Web_Lead_Indicator,
-
-    CAST(lead_LeadSource AS STRING)         AS Lead_Source,
-    CAST(NULL AS STRING)                    AS Marketing_Channel,
-    CAST(lead_Form_Submit_URL__c AS STRING) AS Form_Submit_URL,
-    CAST(lead_Google_Campaign__c AS STRING) AS UTM_Campaign,
-    CAST(lead_Google_Content__c AS STRING)  AS UTM_Content,
-    CAST(COALESCE(lead_Google_Medium__c, lead_GA_Source_Medium__c) AS STRING) AS UTM_Medium,
-    CAST(lead_Google_Count_of_Pageviews__c AS STRING) AS UTM_Pageview_Count,
-    CAST(lead_Google_Count_of_Sessions__c AS STRING)  AS UTM_Session_Count,
-    CAST(lead_Google_Source__c AS STRING)   AS UTM_Source,
-    CAST(lead_Google_Term__c AS STRING)     AS UTM_Term,
-    CAST(lead_GCLID__c AS STRING)           AS gclid,
-
-    (
-      lead_NPS_Score__c IS NULL
-      AND lead_IsConverted = FALSE
-      AND lead_Potential_Lead__c = FALSE
-      AND REGEXP_CONTAINS(
-            COALESCE(opportunity_AccountId, ''),
-            r'(?i)(?:^|[^A-Za-z0-9_])participant(?:$|[^A-Za-z0-9_])'
-          )
-    ) AS _f1,
-
-    (
-      to_date_safe(lead_Referred_Out_Date__c) IS NOT NULL
-      AND lead_NPS_Score__c IS NULL
-      AND lead_IsConverted = FALSE
-      AND lead_Potential_Lead__c = FALSE
-      AND REGEXP_CONTAINS(
-            COALESCE(opportunity_AccountId, ''),
-            r'(?i)(?:^|[^A-Za-z0-9_])participant(?:$|[^A-Za-z0-9_])'
-          )
-    ) AS _f2,
-
-    CASE
-      WHEN
-        (lead_NPS_Score__c IS NULL
-         AND lead_IsConverted = FALSE
-         AND lead_Potential_Lead__c = FALSE
-         AND REGEXP_CONTAINS(
-               COALESCE(opportunity_AccountId, ''),
-               r'(?i)(?:^|[^A-Za-z0-9_])participant(?:$|[^A-Za-z0-9_])'
-             ))
-        AND to_date_safe(lead_Referred_Out_Date__c) IS NULL
-      THEN 'true' ELSE NULL
-    END AS QPC,
-
-    CAST(lead_Google_ICT_Reference_Number__c AS STRING) AS UTM_ICT_Reference_Number,
-    CAST(lead_Google_ClientID__c AS STRING) AS ga_client_id,
-    CAST(lead_Google_UserID__c AS STRING)   AS ga_user_id
-  FROM slo_dedup
-  WHERE rn = 1
+    d.*,
+    (lead_NPS_Score__c IS NULL
+     AND lead_IsConverted = FALSE
+     AND lead_Potential_Lead__c = FALSE
+     AND to_ts_safe(lead_CreatedDate) IS NOT NULL) AS f1,
+    (to_date_safe(lead_Referred_Out_Date__c) IS NOT NULL) AS f2,
+    REGEXP_CONTAINS(LOWER(COALESCE(quote_Opportunity_Account_Name__c,'')), r'participant') AS f3,
+    NOT REGEXP_CONTAINS(LOWER(COALESCE(quote_Opportunity_Account_Name__c,'')), r'participant') AS not_participant
+  FROM dedup d
 )
-SELECT * FROM slo;
+SELECT
+  'SterlingLawOffice-1010' AS Firm_Unique_ID,
+  'Sterling Law Office'    AS Firm_Name,
+  lead_Id                                    AS Lead_Unique_ID,
+  to_utc_string(lead_CreatedDate)            AS Lead_Create_Date,
+  CASE WHEN not_participant THEN to_utc_string(consult_CreatedDate) ELSE NULL END AS Consultation_Date,
+  CASE
+    WHEN LOWER(TRIM(CAST(opportunity_Consult_Status__c AS STRING))) IN
+      ('signed in person - paid','signed in person - unpaid','consult completed','complete')
+    THEN to_utc_string(consult_CreatedDate)
+    ELSE NULL
+  END AS Consult_Completed_Date,
+  CAST(NULL AS STRING) AS Retainer_Sent_Date,
+  CAST(NULL AS STRING) AS Retainer_Signed_Date,
+  CAST(NULL AS STRING) AS Retainer_Funded_Date,
+  CASE
+    WHEN lead_Web_Lead__c = TRUE AND f1 AND not_participant THEN 'true' ELSE NULL
+  END AS Web_Lead_Indicator,
+  CAST(lead_LeadSource AS STRING)         AS Lead_Source,
+  CAST(NULL AS STRING)                    AS Marketing_Channel,
+  CAST(lead_Form_Submit_URL__c AS STRING) AS Form_Submit_URL,
+  CAST(NULL AS STRING)                    AS user_ip,
+  CAST(lead_Google_Campaign__c AS STRING)             AS UTM_Campaign,
+  CAST(lead_Google_Content__c AS STRING)              AS UTM_Content,
+  CAST(lead_Google_ICT_Reference_Number__c AS STRING) AS UTM_ICT_Reference_Number,
+  CAST(COALESCE(lead_Google_Medium__c, lead_GA_Source_Medium__c) AS STRING) AS UTM_Medium,
+  CAST(lead_Google_Count_of_Pageviews__c AS STRING)   AS UTM_Pageview_Count,
+  CAST(lead_Google_Count_of_Sessions__c AS STRING)    AS UTM_Session_Count,
+  CAST(lead_Google_Source__c AS STRING)               AS UTM_Source,
+  CAST(lead_Google_Term__c AS STRING)                 AS UTM_Term,
+  CAST(lead_Google_ClientID__c AS STRING)             AS ga_client_id,
+  CAST(lead_Google_UserID__c AS STRING)               AS ga_user_id,
+  CAST(lead_GCLID__c AS STRING)                       AS gclid,
+  CASE
+    WHEN lead_GCLID__c IS NOT NULL AND TRIM(CAST(lead_GCLID__c AS STRING)) <> '' THEN 'true'
+    WHEN REGEXP_CONTAINS(LOWER(COALESCE(lead_Google_Source__c,'')), r'\bgoogle\b')
+     AND REGEXP_CONTAINS(LOWER(COALESCE(COALESCE(lead_Google_Medium__c, lead_GA_Source_Medium__c),'')), r'(cpc|ppc|paid)')
+    THEN 'true'
+    ELSE NULL
+  END AS Google_Ads,
+  CASE WHEN f1 AND NOT (f2 OR f3) THEN 'true' ELSE NULL END AS QPC
+FROM flags;
