@@ -1,4 +1,4 @@
--- slo_base_waterfall_sql (SterlingLawOffice-1010)
+
 CREATE OR REPLACE TABLE
   `rc-datamart-report-082025.genesis_looker_crm_ctp_universal_table.slo_tmp_historical_base` AS
 
@@ -8,7 +8,7 @@ WITH firm AS (
 ),
 date_spine AS (
   SELECT d AS metric_date
-  FROM UNNEST(GENERATE_DATE_ARRAY(DATE '2017-01-01', CURRENT_DATE())) d
+  FROM UNNEST(GENERATE_DATE_ARRAY(DATE '2022-01-01', CURRENT_DATE())) d
 ),
 src AS (
   SELECT * FROM `focused-sentry-464713-u0.salesforce_slo.slo_alldata_delta`
@@ -37,10 +37,10 @@ s AS (
     AS opportunity_created_central_d,
 
     DATE(COALESCE(
-      SAFE_CAST(consult_Start_Date_Time__c AS TIMESTAMP),
-      SAFE.PARSE_TIMESTAMP('%Y-%m-%dT%H:%M:%E*S%Ez', SAFE_CAST(consult_Start_Date_Time__c AS STRING)),
-      SAFE.PARSE_TIMESTAMP('%Y-%m-%d %H:%M:%E*S%Ez', SAFE_CAST(consult_Start_Date_Time__c AS STRING)),
-      SAFE.PARSE_TIMESTAMP('%Y-%m-%d %H:%M:%S UTC',  SAFE_CAST(consult_Start_Date_Time__c AS STRING))
+      SAFE_CAST(opportunity_Consult_Date_Time__c AS TIMESTAMP),
+      SAFE.PARSE_TIMESTAMP('%Y-%m-%dT%H:%M:%E*S%Ez', SAFE_CAST(opportunity_Consult_Date_Time__c AS STRING)),
+      SAFE.PARSE_TIMESTAMP('%Y-%m-%d %H:%M:%E*S%Ez', SAFE_CAST(opportunity_Consult_Date_Time__c AS STRING)),
+      SAFE.PARSE_TIMESTAMP('%Y-%m-%d %H:%M:%S UTC',  SAFE_CAST(opportunity_Consult_Date_Time__c AS STRING))
     ), 'America/Chicago')
     AS consult_start_central_d,
 
