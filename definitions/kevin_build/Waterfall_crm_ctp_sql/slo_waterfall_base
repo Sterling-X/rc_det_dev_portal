@@ -1,89 +1,128 @@
+-- slo_base_waterfall_sql (SterlingLawOffice-1010)
 CREATE OR REPLACE TABLE
   `rc-datamart-report-082025.genesis_looker_crm_ctp_universal_table.slo_tmp_historical_base` AS
 
--- ------------------------------------------------------------------
--- Helpers for safe parsing (string/TS/DATE with/without TZ)
--- ------------------------------------------------------------------
-CREATE TEMP FUNCTION to_ts_safe(x ANY TYPE) AS (
-  COALESCE(
-    SAFE.PARSE_TIMESTAMP('%Y-%m-%dT%H:%M:%E*S%Ez', TRIM(CAST(x AS STRING))),
-    SAFE.PARSE_TIMESTAMP('%Y-%m-%d %H:%M:%E*S%Ez', TRIM(CAST(x AS STRING))),
-    SAFE.PARSE_TIMESTAMP('%Y-%m-%d %H:%M:%S',       TRIM(CAST(x AS STRING))),
-    SAFE.PARSE_TIMESTAMP('%Y-%m-%d',                TRIM(CAST(x AS STRING)))
-  )
-);
-
-CREATE TEMP FUNCTION to_date_safe(x ANY TYPE) AS (
-  COALESCE(
-    SAFE.CAST(x AS DATE),
-    SAFE.PARSE_DATE('%Y-%m-%d', TRIM(CAST(x AS STRING))),
-    SAFE.DATE(to_ts_safe(x))
-  )
-);
-
--- Case-insensitive "contains"
-CREATE TEMP FUNCTION does_not_contain_ci(val ANY TYPE, needle STRING) AS (
-  NOT REGEXP_CONTAINS(COALESCE(CAST(val AS STRING), ''), CONCAT(r'(?i)', needle))
-);
-
--- Interpret "== true" allowing strings/bools
-CREATE TEMP FUNCTION is_trueish(val ANY TYPE) AS (
-  (SAFE_CAST(val AS BOOL) IS TRUE) OR
-  (LOWER(TRIM(CAST(val AS STRING))) IN ('true','t','1','yes','y'))
-);
-
--- Interpret "== false" allowing strings/bools
-CREATE TEMP FUNCTION is_falseish(val ANY TYPE) AS (
-  (SAFE_CAST(val AS BOOL) IS FALSE) OR
-  (LOWER(TRIM(CAST(val AS STRING))) IN ('false','f','0','no','n'))
-);
-
--- ------------------------------------------------------------------
--- 0) Constants
--- ------------------------------------------------------------------
 WITH firm AS (
   SELECT 'SterlingLawOffice-1010' AS Firm_Unique_ID,
          'Sterling Law Office'     AS Firm_Name
 ),
 
--- ------------------------------------------------------------------
--- 1) Date spine (full coverage)
--- ------------------------------------------------------------------
 date_spine AS (
   SELECT d AS metric_date
-  FROM UNNEST(GENERATE_DATE_ARRAY(DATE('2022-01-01'), CURRENT_DATE())) AS d
+  FROM UNNEST(GENERATE_DATE_ARRAY(DATE '2022-01-01', CURRENT_DATE())) d
 ),
 
--- ------------------------------------------------------------------
--- 2) Source
--- ------------------------------------------------------------------
 src AS (
   SELECT * FROM `focused-sentry-464713-u0.salesforce_slo.slo_alldata_delta`
 ),
 
--- ------------------------------------------------------------------
--- 3) Daily metrics (counts per metric_date)
--- ------------------------------------------------------------------
+-- Parse dates once and derive boolean/regex flags (case-insensitive)
+s AS (
+  SELECT
+    *,
+    -- Lead created
+    COALESCE(
+      SAFE_CAST(lead_CreatedDate AS DATE),
+      SAFE.PARSE_DATE('%Y-%m-%d', TRIM(SAFE_CAST(lead_CreatedDate AS STRING))),
+      SAFE.DATE(COALESCE(
+        SAFE.PARSE_TIMESTAMP('%Y-%m-%dT%H:%M:%E*S%Ez', TRIM(SAFE_CAST(lead_CreatedDate AS STRING))),
+        SAFE.PARSE_TIMESTAMP('%Y-%m-%d %H:%M:%E*S%Ez', TRIM(SAFE_CAST(lead_CreatedDate AS STRING))),
+        SAFE.PARSE_TIMESTAMP('%Y-%m-%d %H:%M:%S',       TRIM(SAFE_CAST(lead_CreatedDate AS STRING))),
+        SAFE.PARSE_TIMESTAMP('%Y-%m-%d',                TRIM(SAFE_CAST(lead_CreatedDate AS STRING)))
+      ))
+    ) AS lead_created_d,
 
--- Total Leads = (leads_total_daily + opportunity_total_daily)
+    -- Opportunity created
+    COALESCE(
+      SAFE_CAST(opportunity_CreatedDate AS DATE),
+      SAFE.PARSE_DATE('%Y-%m-%d', TRIM(SAFE_CAST(opportunity_CreatedDate AS STRING))),
+      SAFE.DATE(COALESCE(
+        SAFE.PARSE_TIMESTAMP('%Y-%m-%dT%H:%M:%E*S%Ez', TRIM(SAFE_CAST(opportunity_CreatedDate AS STRING))),
+        SAFE.PARSE_TIMESTAMP('%Y-%m-%d %H:%M:%E*S%Ez', TRIM(SAFE_CAST(opportunity_CreatedDate AS STRING))),
+        SAFE.PARSE_TIMESTAMP('%Y-%m-%d %H:%M:%S',       TRIM(SAFE_CAST(opportunity_CreatedDate AS STRING))),
+        SAFE.PARSE_TIMESTAMP('%Y-%m-%d',                TRIM(SAFE_CAST(opportunity_CreatedDate AS STRING)))
+      ))
+    ) AS opportunity_created_d,
+
+    -- Consult start
+    COALESCE(
+      SAFE_CAST(consult_Start_Date_Time__c AS DATE),
+      SAFE.PARSE_DATE('%Y-%m-%d', TRIM(SAFE_CAST(consult_Start_Date_Time__c AS STRING))),
+      SAFE.DATE(COALESCE(
+        SAFE.PARSE_TIMESTAMP('%Y-%m-%dT%H:%M:%E*S%Ez', TRIM(SAFE_CAST(consult_Start_Date_Time__c AS STRING))),
+        SAFE.PARSE_TIMESTAMP('%Y-%m-%d %H:%M:%E*S%Ez', TRIM(SAFE_CAST(consult_Start_Date_Time__c AS STRING))),
+        SAFE.PARSE_TIMESTAMP('%Y-%m-%d %H:%M:%S',       TRIM(SAFE_CAST(consult_Start_Date_Time__c AS STRING))),
+        SAFE.PARSE_TIMESTAMP('%Y-%m-%d',                TRIM(SAFE_CAST(consult_Start_Date_Time__c AS STRING)))
+      ))
+    ) AS consult_start_d,
+
+    -- Consult created
+    COALESCE(
+      SAFE_CAST(consult_CreatedDate AS DATE),
+      SAFE.PARSE_DATE('%Y-%m-%d', TRIM(SAFE_CAST(consult_CreatedDate AS STRING))),
+      SAFE.DATE(COALESCE(
+        SAFE.PARSE_TIMESTAMP('%Y-%m-%dT%H:%M:%E*S%Ez', TRIM(SAFE_CAST(consult_CreatedDate AS STRING))),
+        SAFE.PARSE_TIMESTAMP('%Y-%m-%d %H:%M:%E*S%Ez', TRIM(SAFE_CAST(consult_CreatedDate AS STRING))),
+        SAFE.PARSE_TIMESTAMP('%Y-%m-%d %H:%M:%S',       TRIM(SAFE_CAST(consult_CreatedDate AS STRING))),
+        SAFE.PARSE_TIMESTAMP('%Y-%m-%d',                TRIM(SAFE_CAST(consult_CreatedDate AS STRING)))
+      ))
+    ) AS consult_created_d,
+
+    -- Lead referred out
+    COALESCE(
+      SAFE_CAST(lead_Referred_Out_Date__c AS DATE),
+      SAFE.PARSE_DATE('%Y-%m-%d', TRIM(SAFE_CAST(lead_Referred_Out_Date__c AS STRING))),
+      SAFE.DATE(COALESCE(
+        SAFE.PARSE_TIMESTAMP('%Y-%m-%dT%H:%M:%E*S%Ez', TRIM(SAFE_CAST(lead_Referred_Out_Date__c AS STRING))),
+        SAFE.PARSE_TIMESTAMP('%Y-%m-%d %H:%M:%E*S%Ez', TRIM(SAFE_CAST(lead_Referred_Out_Date__c AS STRING))),
+        SAFE.PARSE_TIMESTAMP('%Y-%m-%d %H:%M:%S',       TRIM(SAFE_CAST(lead_Referred_Out_Date__c AS STRING))),
+        SAFE.PARSE_TIMESTAMP('%Y-%m-%d',                TRIM(SAFE_CAST(lead_Referred_Out_Date__c AS STRING)))
+      ))
+    ) AS lead_referred_out_d,
+
+    -- Funded reinstituted date
+    COALESCE(
+      SAFE_CAST(opportunity_Reinstituted_Funded_Date__c AS DATE),
+      SAFE.PARSE_DATE('%Y-%m-%d', TRIM(SAFE_CAST(opportunity_Reinstituted_Funded_Date__c AS STRING))),
+      SAFE.DATE(COALESCE(
+        SAFE.PARSE_TIMESTAMP('%Y-%m-%dT%H:%M:%E*S%Ez', TRIM(SAFE_CAST(opportunity_Reinstituted_Funded_Date__c AS STRING))),
+        SAFE.PARSE_TIMESTAMP('%Y-%m-%d %H:%M:%E*S%Ez', TRIM(SAFE_CAST(opportunity_Reinstituted_Funded_Date__c AS STRING))),
+        SAFE.PARSE_TIMESTAMP('%Y-%m-%d %H:%M:%S',       TRIM(SAFE_CAST(opportunity_Reinstituted_Funded_Date__c AS STRING))),
+        SAFE.PARSE_TIMESTAMP('%Y-%m-%d',                TRIM(SAFE_CAST(opportunity_Reinstituted_Funded_Date__c AS STRING)))
+      ))
+    ) AS funded_reinstituted_d,
+
+    -- Flags
+    NOT REGEXP_CONTAINS(COALESCE(SAFE_CAST(lead_LeadSource AS STRING), ''), r'(?i)nps') AS leadsource_not_nps,
+    (SAFE_CAST(lead_IsConverted AS BOOL) IS FALSE OR LOWER(TRIM(SAFE_CAST(lead_IsConverted AS STRING))) IN ('false','f','0','no','n')) AS is_converted_falseish,
+    (SAFE_CAST(lead_Potential_Lead__c AS BOOL) IS FALSE OR LOWER(TRIM(SAFE_CAST(lead_Potential_Lead__c AS STRING))) IN ('false','f','0','no','n')) AS is_potential_falseish,
+    (SAFE_CAST(lead_Web_Lead__c AS BOOL) IS TRUE  OR LOWER(TRIM(SAFE_CAST(lead_Web_Lead__c AS STRING)))  IN ('true','t','1','yes','y')) AS is_web_trueish,
+
+    NOT REGEXP_CONTAINS(COALESCE(SAFE_CAST(quote_Opportunity_Account_Name__c AS STRING), ''), r'(?i)participant') AS oppacct_not_participant,
+    NOT REGEXP_CONTAINS(COALESCE(SAFE_CAST(opportunity_Name AS STRING), ''), r'(?i)test') AS oppname_not_test,
+    SAFE_CAST(quote_Opportunity__c AS STRING) = SAFE_CAST(opportunity_Id AS STRING) AS has_quote_link
+  FROM src
+),
+
+-- Total Leads = lead filter + opp filter (daily)
 leads_total_daily AS (
   SELECT
-    to_date_safe(lead_CreatedDate) AS metric_date,
+    lead_created_d AS metric_date,
     COUNT(DISTINCT lead_Id) AS leads_cnt
-  FROM src
-  WHERE to_date_safe(lead_CreatedDate) IS NOT NULL
-    AND does_not_contain_ci(lead_LeadSource, 'nps')
-    AND is_falseish(lead_IsConverted)
-    AND is_falseish(lead_Potential_Lead__c)
+  FROM s
+  WHERE lead_created_d IS NOT NULL
+    AND leadsource_not_nps
+    AND is_converted_falseish
+    AND is_potential_falseish
   GROUP BY metric_date
 ),
 opportunity_total_daily AS (
   SELECT
-    to_date_safe(opportunity_CreatedDate) AS metric_date,
+    opportunity_created_d AS metric_date,
     COUNT(DISTINCT opportunity_Id) AS opp_cnt
-  FROM src
-  WHERE to_date_safe(opportunity_CreatedDate) IS NOT NULL
-    AND does_not_contain_ci(quote_Opportunity_Account_Name__c, 'participant')
+  FROM s
+  WHERE opportunity_created_d IS NOT NULL
+    AND oppacct_not_participant
   GROUP BY metric_date
 ),
 total_leads_daily AS (
@@ -92,30 +131,30 @@ total_leads_daily AS (
     COALESCE(l.leads_cnt, 0) + COALESCE(o.opp_cnt, 0) AS total_leads_day
   FROM leads_total_daily l
   FULL JOIN opportunity_total_daily o
-    ON l.metric_date = o.metric_date
+  ON l.metric_date = o.metric_date
 ),
 
--- Web Leads = (web_leads_daily + web_opportunity_daily)
+-- Web Leads = web leads (lead filter + web true) + web opp (opp filter + web true)
 web_leads_daily AS (
   SELECT
-    to_date_safe(lead_CreatedDate) AS metric_date,
+    lead_created_d AS metric_date,
     COUNT(DISTINCT lead_Id) AS web_leads_cnt
-  FROM src
-  WHERE to_date_safe(lead_CreatedDate) IS NOT NULL
-    AND does_not_contain_ci(lead_LeadSource, 'nps')
-    AND is_falseish(lead_IsConverted)
-    AND is_falseish(lead_Potential_Lead__c)
-    AND is_trueish(lead_Web_Lead__c)
+  FROM s
+  WHERE lead_created_d IS NOT NULL
+    AND leadsource_not_nps
+    AND is_converted_falseish
+    AND is_potential_falseish
+    AND is_web_trueish
   GROUP BY metric_date
 ),
 web_opportunity_daily AS (
   SELECT
-    to_date_safe(opportunity_CreatedDate) AS metric_date,
+    opportunity_created_d AS metric_date,
     COUNT(DISTINCT opportunity_Id) AS web_opp_cnt
-  FROM src
-  WHERE to_date_safe(opportunity_CreatedDate) IS NOT NULL
-    AND does_not_contain_ci(quote_Opportunity_Account_Name__c, 'participant')
-    AND is_trueish(lead_Web_Lead__c)
+  FROM s
+  WHERE opportunity_created_d IS NOT NULL
+    AND oppacct_not_participant
+    AND is_web_trueish
   GROUP BY metric_date
 ),
 web_total_daily AS (
@@ -124,42 +163,39 @@ web_total_daily AS (
     COALESCE(l.web_leads_cnt, 0) + COALESCE(o.web_opp_cnt, 0) AS web_leads_day
   FROM web_leads_daily l
   FULL JOIN web_opportunity_daily o
-    ON l.metric_date = o.metric_date
+  ON l.metric_date = o.metric_date
 ),
 
--- QPCs = Filter1 - (Filter2 + Filter3)
--- F1: by lead_CreatedDate (same screeners as Total Leads on leads)
+-- QPCs = F1 - (F2 + F3)
 qpc_f1_daily AS (
   SELECT
-    to_date_safe(lead_CreatedDate) AS metric_date,
+    lead_created_d AS metric_date,
     COUNT(DISTINCT lead_Id) AS cnt
-  FROM src
-  WHERE to_date_safe(lead_CreatedDate) IS NOT NULL
-    AND does_not_contain_ci(lead_LeadSource, 'nps')
-    AND is_falseish(lead_IsConverted)
-    AND is_falseish(lead_Potential_Lead__c)
+  FROM s
+  WHERE lead_created_d IS NOT NULL
+    AND leadsource_not_nps
+    AND is_converted_falseish
+    AND is_potential_falseish
   GROUP BY metric_date
 ),
--- F2: by lead_Referred_Out_Date__c
 qpc_f2_daily AS (
   SELECT
-    to_date_safe(lead_Referred_Out_Date__c) AS metric_date,
+    lead_referred_out_d AS metric_date,
     COUNT(DISTINCT lead_Id) AS cnt
-  FROM src
-  WHERE to_date_safe(lead_Referred_Out_Date__c) IS NOT NULL
-    AND does_not_contain_ci(lead_LeadSource, 'nps')
-    AND is_falseish(lead_IsConverted)
-    AND is_falseish(lead_Potential_Lead__c)
+  FROM s
+  WHERE lead_referred_out_d IS NOT NULL
+    AND leadsource_not_nps
+    AND is_converted_falseish
+    AND is_potential_falseish
   GROUP BY metric_date
 ),
--- F3: opportunities (by opportunity_CreatedDate)
 qpc_f3_daily AS (
   SELECT
-    to_date_safe(opportunity_CreatedDate) AS metric_date,
+    opportunity_created_d AS metric_date,
     COUNT(DISTINCT opportunity_Id) AS cnt
-  FROM src
-  WHERE to_date_safe(opportunity_CreatedDate) IS NOT NULL
-    AND does_not_contain_ci(quote_Opportunity_Account_Name__c, 'participant')
+  FROM s
+  WHERE opportunity_created_d IS NOT NULL
+    AND oppacct_not_participant
   GROUP BY metric_date
 ),
 qpc_daily AS (
@@ -172,25 +208,25 @@ qpc_daily AS (
   LEFT JOIN qpc_f3_daily f3 USING (metric_date)
 ),
 
--- Consults Scheduled: by consult_Start_Date_Time__c (exclude "Participant")
+-- Consults Scheduled
 consults_sched_daily AS (
   SELECT
-    to_date_safe(consult_Start_Date_Time__c) AS metric_date,
+    consult_start_d AS metric_date,
     COUNT(DISTINCT opportunity_Id) AS consults_scheduled_day
-  FROM src
-  WHERE to_date_safe(consult_Start_Date_Time__c) IS NOT NULL
-    AND does_not_contain_ci(quote_Opportunity_Account_Name__c, 'participant')
+  FROM s
+  WHERE consult_start_d IS NOT NULL
+    AND oppacct_not_participant
   GROUP BY metric_date
 ),
 
--- Consults Completed: by consult_CreatedDate with status IN (...)
+-- Consults Completed
 consults_comp_daily AS (
   SELECT
-    to_date_safe(consult_CreatedDate) AS metric_date,
+    consult_created_d AS metric_date,
     COUNT(DISTINCT opportunity_Id) AS consults_completed_day
-  FROM src
-  WHERE to_date_safe(consult_CreatedDate) IS NOT NULL
-    AND LOWER(TRIM(CAST(consult_Consult_Status__c AS STRING))) IN (
+  FROM s
+  WHERE consult_created_d IS NOT NULL
+    AND LOWER(TRIM(SAFE_CAST(consult_Consult_Status__c AS STRING))) IN (
       'signed in person - paid',
       'signed in person - unpaid',
       'consult completed',
@@ -199,32 +235,30 @@ consults_comp_daily AS (
   GROUP BY metric_date
 ),
 
--- Funded Agreements: by opportunity_Reinstituted_Funded_Date__c
+-- Funded Agreements
 funded_daily AS (
   SELECT
-    to_date_safe(opportunity_Reinstituted_Funded_Date__c) AS metric_date,
+    funded_reinstituted_d AS metric_date,
     COUNT(DISTINCT opportunity_Id) AS funded_agreements_day
-  FROM src
-  WHERE to_date_safe(opportunity_Reinstituted_Funded_Date__c) IS NOT NULL
+  FROM s
+  WHERE funded_reinstituted_d IS NOT NULL
   GROUP BY metric_date
 ),
 
--- Quotes: by consult_Start_Date_Time__c; has quote linked; exclude "Participant" and "test"
+-- Quotes
 quotes_daily AS (
   SELECT
-    to_date_safe(consult_Start_Date_Time__c) AS metric_date,
+    consult_start_d AS metric_date,
     COUNT(DISTINCT opportunity_Id) AS quotes_day
-  FROM src
-  WHERE to_date_safe(consult_Start_Date_Time__c) IS NOT NULL
-    AND does_not_contain_ci(quote_Opportunity_Account_Name__c, 'participant')
-    AND does_not_contain_ci(opportunity_Name, 'test')
-    AND CAST(quote_Opportunity__c AS STRING) = CAST(opportunity_Id AS STRING)
+  FROM s
+  WHERE consult_start_d IS NOT NULL
+    AND oppacct_not_participant
+    AND oppname_not_test
+    AND has_quote_link
   GROUP BY metric_date
 ),
 
--- ------------------------------------------------------------------
--- 4) Dense firm-date grid + zero-fill
--- ------------------------------------------------------------------
+-- Dense grid + zero fill
 dense AS (
   SELECT
     f.Firm_Unique_ID,
@@ -239,22 +273,20 @@ dense AS (
     COALESCE(fu.funded_agreements_day, 0)   AS funded_agreements_day
   FROM firm f
   CROSS JOIN date_spine d
-  LEFT JOIN total_leads_daily   t  USING (metric_date)
-  LEFT JOIN web_total_daily     w  USING (metric_date)
-  LEFT JOIN qpc_daily           q  USING (metric_date)
+  LEFT JOIN total_leads_daily    t  USING (metric_date)
+  LEFT JOIN web_total_daily      w  USING (metric_date)
+  LEFT JOIN qpc_daily            q  USING (metric_date)
   LEFT JOIN consults_sched_daily cs USING (metric_date)
   LEFT JOIN consults_comp_daily  cc USING (metric_date)
-  LEFT JOIN quotes_daily        qu USING (metric_date)
-  LEFT JOIN funded_daily        fu USING (metric_date)
+  LEFT JOIN quotes_daily         qu USING (metric_date)
+  LEFT JOIN funded_daily         fu USING (metric_date)
 ),
 
--- ------------------------------------------------------------------
--- 5) Rolling windows (exclude current day, match main_base_waterfall_sql)
--- ------------------------------------------------------------------
+-- Rolling windows (exclude current day like main_base_waterfall_sql)
 roll AS (
   SELECT
     *,
-    -- Totals
+    -- Leads
     SUM(total_leads_day)        OVER (PARTITION BY Firm_Unique_ID, Firm_Name ORDER BY metric_date ROWS BETWEEN 7   PRECEDING AND 1 PRECEDING)  AS leads_w7,
     SUM(total_leads_day)        OVER (PARTITION BY Firm_Unique_ID, Firm_Name ORDER BY metric_date ROWS BETWEEN 28  PRECEDING AND 1 PRECEDING)  AS leads_w28,
     SUM(total_leads_day)        OVER (PARTITION BY Firm_Unique_ID, Firm_Name ORDER BY metric_date ROWS BETWEEN 90  PRECEDING AND 1 PRECEDING)  AS leads_w90,
@@ -295,7 +327,7 @@ roll AS (
     SUM(quotes_day)             OVER (PARTITION BY Firm_Unique_ID, Firm_Name ORDER BY metric_date ROWS BETWEEN 180 PRECEDING AND 1 PRECEDING)  AS qts_w180,
     SUM(quotes_day)             OVER (PARTITION BY Firm_Unique_ID, Firm_Name ORDER BY metric_date ROWS BETWEEN 365 PRECEDING AND 1 PRECEDING)  AS qts_w365,
 
-    -- Funded Agreements
+    -- Funded
     SUM(funded_agreements_day)  OVER (PARTITION BY Firm_Unique_ID, Firm_Name ORDER BY metric_date ROWS BETWEEN 7   PRECEDING AND 1 PRECEDING)  AS fa_w7,
     SUM(funded_agreements_day)  OVER (PARTITION BY Firm_Unique_ID, Firm_Name ORDER BY metric_date ROWS BETWEEN 28  PRECEDING AND 1 PRECEDING)  AS fa_w28,
     SUM(funded_agreements_day)  OVER (PARTITION BY Firm_Unique_ID, Firm_Name ORDER BY metric_date ROWS BETWEEN 90  PRECEDING AND 1 PRECEDING)  AS fa_w90,
@@ -304,15 +336,13 @@ roll AS (
   FROM dense
 )
 
--- ------------------------------------------------------------------
--- 6) Final tall output (same schema & window denom as main)
--- ------------------------------------------------------------------
+-- Final tall output (same schema/windows as main_base_waterfall_sql)
 SELECT
   r.metric_date,
   m.date_window,
   r.Firm_Unique_ID,
   r.Firm_Name,
-  CAST(NULL AS STRING) AS Marketing_Channel,
+  SAFE_CAST(NULL AS STRING) AS Marketing_Channel,
   m.metric_name,
   m.metric_value
 FROM roll r
