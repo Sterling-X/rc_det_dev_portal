@@ -6,123 +6,104 @@ WITH firm AS (
   SELECT 'SterlingLawOffice-1010' AS Firm_Unique_ID,
          'Sterling Law Office'     AS Firm_Name
 ),
-
 date_spine AS (
   SELECT d AS metric_date
-  FROM UNNEST(GENERATE_DATE_ARRAY(DATE '2022-01-01', CURRENT_DATE())) d
+  FROM UNNEST(GENERATE_DATE_ARRAY(DATE '2017-01-01', CURRENT_DATE())) d
 ),
-
 src AS (
   SELECT * FROM `focused-sentry-464713-u0.salesforce_slo.slo_alldata_delta`
 ),
 
--- Parse dates once and derive boolean/regex flags (case-insensitive)
+-- Parse + normalize once; apply UTC->America/Chicago for timestamp-like fields
 s AS (
   SELECT
-    *,
-    -- Lead created
-    COALESCE(
-      SAFE_CAST(lead_CreatedDate AS DATE),
-      SAFE.PARSE_DATE('%Y-%m-%d', TRIM(SAFE_CAST(lead_CreatedDate AS STRING))),
-      SAFE.DATE(COALESCE(
-        SAFE.PARSE_TIMESTAMP('%Y-%m-%dT%H:%M:%E*S%Ez', TRIM(SAFE_CAST(lead_CreatedDate AS STRING))),
-        SAFE.PARSE_TIMESTAMP('%Y-%m-%d %H:%M:%E*S%Ez', TRIM(SAFE_CAST(lead_CreatedDate AS STRING))),
-        SAFE.PARSE_TIMESTAMP('%Y-%m-%d %H:%M:%S',       TRIM(SAFE_CAST(lead_CreatedDate AS STRING))),
-        SAFE.PARSE_TIMESTAMP('%Y-%m-%d',                TRIM(SAFE_CAST(lead_CreatedDate AS STRING)))
-      ))
-    ) AS lead_created_d,
+    s.*,
 
-    -- Opportunity created
-    COALESCE(
-      SAFE_CAST(opportunity_CreatedDate AS DATE),
-      SAFE.PARSE_DATE('%Y-%m-%d', TRIM(SAFE_CAST(opportunity_CreatedDate AS STRING))),
-      SAFE.DATE(COALESCE(
-        SAFE.PARSE_TIMESTAMP('%Y-%m-%dT%H:%M:%E*S%Ez', TRIM(SAFE_CAST(opportunity_CreatedDate AS STRING))),
-        SAFE.PARSE_TIMESTAMP('%Y-%m-%d %H:%M:%E*S%Ez', TRIM(SAFE_CAST(opportunity_CreatedDate AS STRING))),
-        SAFE.PARSE_TIMESTAMP('%Y-%m-%d %H:%M:%S',       TRIM(SAFE_CAST(opportunity_CreatedDate AS STRING))),
-        SAFE.PARSE_TIMESTAMP('%Y-%m-%d',                TRIM(SAFE_CAST(opportunity_CreatedDate AS STRING)))
-      ))
-    ) AS opportunity_created_d,
+    -- UTC -> Central date for TIMESTAMP-like strings
+    DATE(COALESCE(
+      SAFE_CAST(lead_CreatedDate AS TIMESTAMP),
+      SAFE.PARSE_TIMESTAMP('%Y-%m-%dT%H:%M:%E*S%Ez', SAFE_CAST(lead_CreatedDate AS STRING)),
+      SAFE.PARSE_TIMESTAMP('%Y-%m-%d %H:%M:%E*S%Ez', SAFE_CAST(lead_CreatedDate AS STRING)),
+      SAFE.PARSE_TIMESTAMP('%Y-%m-%d %H:%M:%S UTC',  SAFE_CAST(lead_CreatedDate AS STRING))
+    ), 'America/Chicago')
+    AS lead_created_central_d,
 
-    -- Consult start
-    COALESCE(
-      SAFE_CAST(consult_Start_Date_Time__c AS DATE),
-      SAFE.PARSE_DATE('%Y-%m-%d', TRIM(SAFE_CAST(consult_Start_Date_Time__c AS STRING))),
-      SAFE.DATE(COALESCE(
-        SAFE.PARSE_TIMESTAMP('%Y-%m-%dT%H:%M:%E*S%Ez', TRIM(SAFE_CAST(consult_Start_Date_Time__c AS STRING))),
-        SAFE.PARSE_TIMESTAMP('%Y-%m-%d %H:%M:%E*S%Ez', TRIM(SAFE_CAST(consult_Start_Date_Time__c AS STRING))),
-        SAFE.PARSE_TIMESTAMP('%Y-%m-%d %H:%M:%S',       TRIM(SAFE_CAST(consult_Start_Date_Time__c AS STRING))),
-        SAFE.PARSE_TIMESTAMP('%Y-%m-%d',                TRIM(SAFE_CAST(consult_Start_Date_Time__c AS STRING)))
-      ))
-    ) AS consult_start_d,
+    DATE(COALESCE(
+      SAFE_CAST(opportunity_CreatedDate AS TIMESTAMP),
+      SAFE.PARSE_TIMESTAMP('%Y-%m-%dT%H:%M:%E*S%Ez', SAFE_CAST(opportunity_CreatedDate AS STRING)),
+      SAFE.PARSE_TIMESTAMP('%Y-%m-%d %H:%M:%E*S%Ez', SAFE_CAST(opportunity_CreatedDate AS STRING)),
+      SAFE.PARSE_TIMESTAMP('%Y-%m-%d %H:%M:%S UTC',  SAFE_CAST(opportunity_CreatedDate AS STRING))
+    ), 'America/Chicago')
+    AS opportunity_created_central_d,
 
-    -- Consult created
-    COALESCE(
-      SAFE_CAST(consult_CreatedDate AS DATE),
-      SAFE.PARSE_DATE('%Y-%m-%d', TRIM(SAFE_CAST(consult_CreatedDate AS STRING))),
-      SAFE.DATE(COALESCE(
-        SAFE.PARSE_TIMESTAMP('%Y-%m-%dT%H:%M:%E*S%Ez', TRIM(SAFE_CAST(consult_CreatedDate AS STRING))),
-        SAFE.PARSE_TIMESTAMP('%Y-%m-%d %H:%M:%E*S%Ez', TRIM(SAFE_CAST(consult_CreatedDate AS STRING))),
-        SAFE.PARSE_TIMESTAMP('%Y-%m-%d %H:%M:%S',       TRIM(SAFE_CAST(consult_CreatedDate AS STRING))),
-        SAFE.PARSE_TIMESTAMP('%Y-%m-%d',                TRIM(SAFE_CAST(consult_CreatedDate AS STRING)))
-      ))
-    ) AS consult_created_d,
+    DATE(COALESCE(
+      SAFE_CAST(consult_Start_Date_Time__c AS TIMESTAMP),
+      SAFE.PARSE_TIMESTAMP('%Y-%m-%dT%H:%M:%E*S%Ez', SAFE_CAST(consult_Start_Date_Time__c AS STRING)),
+      SAFE.PARSE_TIMESTAMP('%Y-%m-%d %H:%M:%E*S%Ez', SAFE_CAST(consult_Start_Date_Time__c AS STRING)),
+      SAFE.PARSE_TIMESTAMP('%Y-%m-%d %H:%M:%S UTC',  SAFE_CAST(consult_Start_Date_Time__c AS STRING))
+    ), 'America/Chicago')
+    AS consult_start_central_d,
 
-    -- Lead referred out
+    DATE(COALESCE(
+      SAFE_CAST(consult_CreatedDate AS TIMESTAMP),
+      SAFE.PARSE_TIMESTAMP('%Y-%m-%dT%H:%M:%E*S%Ez', SAFE_CAST(consult_CreatedDate AS STRING)),
+      SAFE.PARSE_TIMESTAMP('%Y-%m-%d %H:%M:%E*S%Ez', SAFE_CAST(consult_CreatedDate AS STRING)),
+      SAFE.PARSE_TIMESTAMP('%Y-%m-%d %H:%M:%S UTC',  SAFE_CAST(consult_CreatedDate AS STRING))
+    ), 'America/Chicago')
+    AS consult_created_central_d,
+
+    -- DATE fields: parse as DATE 
     COALESCE(
       SAFE_CAST(lead_Referred_Out_Date__c AS DATE),
-      SAFE.PARSE_DATE('%Y-%m-%d', TRIM(SAFE_CAST(lead_Referred_Out_Date__c AS STRING))),
-      SAFE.DATE(COALESCE(
-        SAFE.PARSE_TIMESTAMP('%Y-%m-%dT%H:%M:%E*S%Ez', TRIM(SAFE_CAST(lead_Referred_Out_Date__c AS STRING))),
-        SAFE.PARSE_TIMESTAMP('%Y-%m-%d %H:%M:%E*S%Ez', TRIM(SAFE_CAST(lead_Referred_Out_Date__c AS STRING))),
-        SAFE.PARSE_TIMESTAMP('%Y-%m-%d %H:%M:%S',       TRIM(SAFE_CAST(lead_Referred_Out_Date__c AS STRING))),
-        SAFE.PARSE_TIMESTAMP('%Y-%m-%d',                TRIM(SAFE_CAST(lead_Referred_Out_Date__c AS STRING)))
-      ))
+      SAFE.PARSE_DATE('%Y-%m-%d', SAFE_CAST(lead_Referred_Out_Date__c AS STRING)),
+      SAFE.PARSE_DATE('%m/%d/%Y', SAFE_CAST(lead_Referred_Out_Date__c AS STRING)),
+      SAFE.PARSE_DATE('%Y-%m-%d.', SAFE_CAST(lead_Referred_Out_Date__c AS STRING))
     ) AS lead_referred_out_d,
 
-    -- Funded reinstituted date
     COALESCE(
       SAFE_CAST(opportunity_Reinstituted_Funded_Date__c AS DATE),
-      SAFE.PARSE_DATE('%Y-%m-%d', TRIM(SAFE_CAST(opportunity_Reinstituted_Funded_Date__c AS STRING))),
-      SAFE.DATE(COALESCE(
-        SAFE.PARSE_TIMESTAMP('%Y-%m-%dT%H:%M:%E*S%Ez', TRIM(SAFE_CAST(opportunity_Reinstituted_Funded_Date__c AS STRING))),
-        SAFE.PARSE_TIMESTAMP('%Y-%m-%d %H:%M:%E*S%Ez', TRIM(SAFE_CAST(opportunity_Reinstituted_Funded_Date__c AS STRING))),
-        SAFE.PARSE_TIMESTAMP('%Y-%m-%d %H:%M:%S',       TRIM(SAFE_CAST(opportunity_Reinstituted_Funded_Date__c AS STRING))),
-        SAFE.PARSE_TIMESTAMP('%Y-%m-%d',                TRIM(SAFE_CAST(opportunity_Reinstituted_Funded_Date__c AS STRING)))
-      ))
+      SAFE.PARSE_DATE('%Y-%m-%d', SAFE_CAST(opportunity_Reinstituted_Funded_Date__c AS STRING)),
+      SAFE.PARSE_DATE('%m/%d/%Y', SAFE_CAST(opportunity_Reinstituted_Funded_Date__c AS STRING)),
+      SAFE.PARSE_DATE('%Y-%m-%d.', SAFE_CAST(opportunity_Reinstituted_Funded_Date__c AS STRING))
     ) AS funded_reinstituted_d,
 
-    -- Flags
-    NOT REGEXP_CONTAINS(COALESCE(SAFE_CAST(lead_LeadSource AS STRING), ''), r'(?i)nps') AS leadsource_not_nps,
+    -- Case-insensitive flags
+    NOT REGEXP_CONTAINS(COALESCE(SAFE_CAST(lead_LeadSource AS STRING), ''), r'(?i)nps')                         AS leadsource_not_nps,
     (SAFE_CAST(lead_IsConverted AS BOOL) IS FALSE OR LOWER(TRIM(SAFE_CAST(lead_IsConverted AS STRING))) IN ('false','f','0','no','n')) AS is_converted_falseish,
     (SAFE_CAST(lead_Potential_Lead__c AS BOOL) IS FALSE OR LOWER(TRIM(SAFE_CAST(lead_Potential_Lead__c AS STRING))) IN ('false','f','0','no','n')) AS is_potential_falseish,
     (SAFE_CAST(lead_Web_Lead__c AS BOOL) IS TRUE  OR LOWER(TRIM(SAFE_CAST(lead_Web_Lead__c AS STRING)))  IN ('true','t','1','yes','y')) AS is_web_trueish,
 
     NOT REGEXP_CONTAINS(COALESCE(SAFE_CAST(quote_Opportunity_Account_Name__c AS STRING), ''), r'(?i)participant') AS oppacct_not_participant,
-    NOT REGEXP_CONTAINS(COALESCE(SAFE_CAST(opportunity_Name AS STRING), ''), r'(?i)test') AS oppname_not_test,
-    SAFE_CAST(quote_Opportunity__c AS STRING) = SAFE_CAST(opportunity_Id AS STRING) AS has_quote_link
-  FROM src
+    NOT REGEXP_CONTAINS(COALESCE(SAFE_CAST(opportunity_Name AS STRING), ''), r'(?i)test')                           AS oppname_not_test,
+    SAFE_CAST(quote_Opportunity__c AS STRING) = SAFE_CAST(opportunity_Id AS STRING)                                 AS has_quote_link
+  FROM src s
 ),
 
--- Total Leads = lead filter + opp filter (daily)
+/* ======================
+   Daily aggregates
+   ====================== */
+
+-- Total Leads = leads (created Central) + opportunities (created Central)
 leads_total_daily AS (
   SELECT
-    lead_created_d AS metric_date,
+    lead_created_central_d AS metric_date,
     COUNT(DISTINCT lead_Id) AS leads_cnt
   FROM s
-  WHERE lead_created_d IS NOT NULL
+  WHERE lead_created_central_d IS NOT NULL
     AND leadsource_not_nps
     AND is_converted_falseish
     AND is_potential_falseish
+    AND COALESCE(TRIM(SAFE_CAST(lead_Id AS STRING)), '') <> ''
   GROUP BY metric_date
 ),
 opportunity_total_daily AS (
   SELECT
-    opportunity_created_d AS metric_date,
+    opportunity_created_central_d AS metric_date,
     COUNT(DISTINCT opportunity_Id) AS opp_cnt
   FROM s
-  WHERE opportunity_created_d IS NOT NULL
+  WHERE opportunity_created_central_d IS NOT NULL
     AND oppacct_not_participant
+    AND COALESCE(TRIM(SAFE_CAST(opportunity_Id AS STRING)), '') <> ''
   GROUP BY metric_date
 ),
 total_leads_daily AS (
@@ -134,13 +115,13 @@ total_leads_daily AS (
   ON l.metric_date = o.metric_date
 ),
 
--- Web Leads = web leads (lead filter + web true) + web opp (opp filter + web true)
+-- Web Leads = (lead-created Central & web=true) + (opp-created Central & web=true)
 web_leads_daily AS (
   SELECT
-    lead_created_d AS metric_date,
+    lead_created_central_d AS metric_date,
     COUNT(DISTINCT lead_Id) AS web_leads_cnt
   FROM s
-  WHERE lead_created_d IS NOT NULL
+  WHERE lead_created_central_d IS NOT NULL
     AND leadsource_not_nps
     AND is_converted_falseish
     AND is_potential_falseish
@@ -149,10 +130,10 @@ web_leads_daily AS (
 ),
 web_opportunity_daily AS (
   SELECT
-    opportunity_created_d AS metric_date,
+    opportunity_created_central_d AS metric_date,
     COUNT(DISTINCT opportunity_Id) AS web_opp_cnt
   FROM s
-  WHERE opportunity_created_d IS NOT NULL
+  WHERE opportunity_created_central_d IS NOT NULL
     AND oppacct_not_participant
     AND is_web_trueish
   GROUP BY metric_date
@@ -166,13 +147,13 @@ web_total_daily AS (
   ON l.metric_date = o.metric_date
 ),
 
--- QPCs = F1 - (F2 + F3)
+-- QPCs = (F1 - F2) + F3
 qpc_f1_daily AS (
   SELECT
-    lead_created_d AS metric_date,
+    lead_created_central_d AS metric_date,
     COUNT(DISTINCT lead_Id) AS cnt
   FROM s
-  WHERE lead_created_d IS NOT NULL
+  WHERE lead_created_central_d IS NOT NULL
     AND leadsource_not_nps
     AND is_converted_falseish
     AND is_potential_falseish
@@ -180,7 +161,7 @@ qpc_f1_daily AS (
 ),
 qpc_f2_daily AS (
   SELECT
-    lead_referred_out_d AS metric_date,
+    lead_created_central_d AS metric_date,
     COUNT(DISTINCT lead_Id) AS cnt
   FROM s
   WHERE lead_referred_out_d IS NOT NULL
@@ -191,17 +172,17 @@ qpc_f2_daily AS (
 ),
 qpc_f3_daily AS (
   SELECT
-    opportunity_created_d AS metric_date,
+    opportunity_created_central_d AS metric_date,
     COUNT(DISTINCT opportunity_Id) AS cnt
   FROM s
-  WHERE opportunity_created_d IS NOT NULL
+  WHERE opportunity_created_central_d IS NOT NULL
     AND oppacct_not_participant
   GROUP BY metric_date
 ),
 qpc_daily AS (
   SELECT
     d.metric_date,
-    COALESCE(f1.cnt, 0) - (COALESCE(f2.cnt, 0) + COALESCE(f3.cnt, 0)) AS qpc_day
+    (COALESCE(f1.cnt, 0) - COALESCE(f2.cnt, 0)) + COALESCE(f3.cnt, 0) AS qpc_day
   FROM date_spine d
   LEFT JOIN qpc_f1_daily f1 USING (metric_date)
   LEFT JOIN qpc_f2_daily f2 USING (metric_date)
@@ -211,10 +192,10 @@ qpc_daily AS (
 -- Consults Scheduled
 consults_sched_daily AS (
   SELECT
-    consult_start_d AS metric_date,
+    consult_start_central_d AS metric_date,
     COUNT(DISTINCT opportunity_Id) AS consults_scheduled_day
   FROM s
-  WHERE consult_start_d IS NOT NULL
+  WHERE consult_start_central_d IS NOT NULL
     AND oppacct_not_participant
   GROUP BY metric_date
 ),
@@ -222,10 +203,10 @@ consults_sched_daily AS (
 -- Consults Completed
 consults_comp_daily AS (
   SELECT
-    consult_created_d AS metric_date,
+    consult_created_central_d AS metric_date,
     COUNT(DISTINCT opportunity_Id) AS consults_completed_day
   FROM s
-  WHERE consult_created_d IS NOT NULL
+  WHERE consult_created_central_d IS NOT NULL
     AND LOWER(TRIM(SAFE_CAST(consult_Consult_Status__c AS STRING))) IN (
       'signed in person - paid',
       'signed in person - unpaid',
@@ -235,7 +216,7 @@ consults_comp_daily AS (
   GROUP BY metric_date
 ),
 
--- Funded Agreements
+-- Funded Agreements 
 funded_daily AS (
   SELECT
     funded_reinstituted_d AS metric_date,
@@ -245,20 +226,19 @@ funded_daily AS (
   GROUP BY metric_date
 ),
 
--- Quotes
+-- Quotes + has quote + filters
 quotes_daily AS (
   SELECT
-    consult_start_d AS metric_date,
+    consult_start_central_d AS metric_date,
     COUNT(DISTINCT opportunity_Id) AS quotes_day
   FROM s
-  WHERE consult_start_d IS NOT NULL
+  WHERE consult_start_central_d IS NOT NULL
     AND oppacct_not_participant
     AND oppname_not_test
     AND has_quote_link
   GROUP BY metric_date
 ),
 
--- Dense grid + zero fill
 dense AS (
   SELECT
     f.Firm_Unique_ID,
@@ -282,32 +262,28 @@ dense AS (
   LEFT JOIN funded_daily         fu USING (metric_date)
 ),
 
--- Rolling windows (exclude current day like main_base_waterfall_sql)
+-- Rolling windows
 roll AS (
   SELECT
     *,
-    -- Leads
     SUM(total_leads_day)        OVER (PARTITION BY Firm_Unique_ID, Firm_Name ORDER BY metric_date ROWS BETWEEN 7   PRECEDING AND 1 PRECEDING)  AS leads_w7,
     SUM(total_leads_day)        OVER (PARTITION BY Firm_Unique_ID, Firm_Name ORDER BY metric_date ROWS BETWEEN 28  PRECEDING AND 1 PRECEDING)  AS leads_w28,
     SUM(total_leads_day)        OVER (PARTITION BY Firm_Unique_ID, Firm_Name ORDER BY metric_date ROWS BETWEEN 90  PRECEDING AND 1 PRECEDING)  AS leads_w90,
     SUM(total_leads_day)        OVER (PARTITION BY Firm_Unique_ID, Firm_Name ORDER BY metric_date ROWS BETWEEN 180 PRECEDING AND 1 PRECEDING)  AS leads_w180,
     SUM(total_leads_day)        OVER (PARTITION BY Firm_Unique_ID, Firm_Name ORDER BY metric_date ROWS BETWEEN 365 PRECEDING AND 1 PRECEDING)  AS leads_w365,
 
-    -- Web
     SUM(web_leads_day)          OVER (PARTITION BY Firm_Unique_ID, Firm_Name ORDER BY metric_date ROWS BETWEEN 7   PRECEDING AND 1 PRECEDING)  AS web_w7,
     SUM(web_leads_day)          OVER (PARTITION BY Firm_Unique_ID, Firm_Name ORDER BY metric_date ROWS BETWEEN 28  PRECEDING AND 1 PRECEDING)  AS web_w28,
     SUM(web_leads_day)          OVER (PARTITION BY Firm_Unique_ID, Firm_Name ORDER BY metric_date ROWS BETWEEN 90  PRECEDING AND 1 PRECEDING)  AS web_w90,
     SUM(web_leads_day)          OVER (PARTITION BY Firm_Unique_ID, Firm_Name ORDER BY metric_date ROWS BETWEEN 180 PRECEDING AND 1 PRECEDING)  AS web_w180,
     SUM(web_leads_day)          OVER (PARTITION BY Firm_Unique_ID, Firm_Name ORDER BY metric_date ROWS BETWEEN 365 PRECEDING AND 1 PRECEDING)  AS web_w365,
 
-    -- QPCs
     SUM(qpc_day)                OVER (PARTITION BY Firm_Unique_ID, Firm_Name ORDER BY metric_date ROWS BETWEEN 7   PRECEDING AND 1 PRECEDING)  AS qpc_w7,
     SUM(qpc_day)                OVER (PARTITION BY Firm_Unique_ID, Firm_Name ORDER BY metric_date ROWS BETWEEN 28  PRECEDING AND 1 PRECEDING)  AS qpc_w28,
     SUM(qpc_day)                OVER (PARTITION BY Firm_Unique_ID, Firm_Name ORDER BY metric_date ROWS BETWEEN 90  PRECEDING AND 1 PRECEDING)  AS qpc_w90,
     SUM(qpc_day)                OVER (PARTITION BY Firm_Unique_ID, Firm_Name ORDER BY metric_date ROWS BETWEEN 180 PRECEDING AND 1 PRECEDING)  AS qpc_w180,
     SUM(qpc_day)                OVER (PARTITION BY Firm_Unique_ID, Firm_Name ORDER BY metric_date ROWS BETWEEN 365 PRECEDING AND 1 PRECEDING)  AS qpc_w365,
 
-    -- Consults
     SUM(consults_scheduled_day) OVER (PARTITION BY Firm_Unique_ID, Firm_Name ORDER BY metric_date ROWS BETWEEN 7   PRECEDING AND 1 PRECEDING)  AS cs_w7,
     SUM(consults_scheduled_day) OVER (PARTITION BY Firm_Unique_ID, Firm_Name ORDER BY metric_date ROWS BETWEEN 28  PRECEDING AND 1 PRECEDING)  AS cs_w28,
     SUM(consults_scheduled_day) OVER (PARTITION BY Firm_Unique_ID, Firm_Name ORDER BY metric_date ROWS BETWEEN 90  PRECEDING AND 1 PRECEDING)  AS cs_w90,
@@ -320,14 +296,12 @@ roll AS (
     SUM(consults_completed_day) OVER (PARTITION BY Firm_Unique_ID, Firm_Name ORDER BY metric_date ROWS BETWEEN 180 PRECEDING AND 1 PRECEDING)  AS cc_w180,
     SUM(consults_completed_day) OVER (PARTITION BY Firm_Unique_ID, Firm_Name ORDER BY metric_date ROWS BETWEEN 365 PRECEDING AND 1 PRECEDING)  AS cc_w365,
 
-    -- Quotes
     SUM(quotes_day)             OVER (PARTITION BY Firm_Unique_ID, Firm_Name ORDER BY metric_date ROWS BETWEEN 7   PRECEDING AND 1 PRECEDING)  AS qts_w7,
     SUM(quotes_day)             OVER (PARTITION BY Firm_Unique_ID, Firm_Name ORDER BY metric_date ROWS BETWEEN 28  PRECEDING AND 1 PRECEDING)  AS qts_w28,
     SUM(quotes_day)             OVER (PARTITION BY Firm_Unique_ID, Firm_Name ORDER BY metric_date ROWS BETWEEN 90  PRECEDING AND 1 PRECEDING)  AS qts_w90,
     SUM(quotes_day)             OVER (PARTITION BY Firm_Unique_ID, Firm_Name ORDER BY metric_date ROWS BETWEEN 180 PRECEDING AND 1 PRECEDING)  AS qts_w180,
     SUM(quotes_day)             OVER (PARTITION BY Firm_Unique_ID, Firm_Name ORDER BY metric_date ROWS BETWEEN 365 PRECEDING AND 1 PRECEDING)  AS qts_w365,
 
-    -- Funded
     SUM(funded_agreements_day)  OVER (PARTITION BY Firm_Unique_ID, Firm_Name ORDER BY metric_date ROWS BETWEEN 7   PRECEDING AND 1 PRECEDING)  AS fa_w7,
     SUM(funded_agreements_day)  OVER (PARTITION BY Firm_Unique_ID, Firm_Name ORDER BY metric_date ROWS BETWEEN 28  PRECEDING AND 1 PRECEDING)  AS fa_w28,
     SUM(funded_agreements_day)  OVER (PARTITION BY Firm_Unique_ID, Firm_Name ORDER BY metric_date ROWS BETWEEN 90  PRECEDING AND 1 PRECEDING)  AS fa_w90,
@@ -336,7 +310,7 @@ roll AS (
   FROM dense
 )
 
--- Final tall output (same schema/windows as main_base_waterfall_sql)
+-- Final tall output 
 SELECT
   r.metric_date,
   m.date_window,
@@ -347,56 +321,48 @@ SELECT
   m.metric_value
 FROM roll r
 CROSS JOIN UNNEST([
-  -- Total Leads
   STRUCT<metric_name STRING, date_window STRING, metric_value FLOAT64>('Total Leads','last_7_days'   , SAFE_DIVIDE(leads_w7,    5)),
   STRUCT<metric_name STRING, date_window STRING, metric_value FLOAT64>('Total Leads','last_28_days'  , SAFE_DIVIDE(leads_w28,  20)),
   STRUCT<metric_name STRING, date_window STRING, metric_value FLOAT64>('Total Leads','last_3_months' , SAFE_DIVIDE(leads_w90,  65)),
   STRUCT<metric_name STRING, date_window STRING, metric_value FLOAT64>('Total Leads','last_6_months' , SAFE_DIVIDE(leads_w180,130)),
   STRUCT<metric_name STRING, date_window STRING, metric_value FLOAT64>('Total Leads','last_12_months', SAFE_DIVIDE(leads_w365,260)),
 
-  -- Inbound Leads = Total - Web
   STRUCT<metric_name STRING, date_window STRING, metric_value FLOAT64>('Inbound Leads','last_7_days'   , SAFE_DIVIDE(leads_w7   - web_w7,    5)),
   STRUCT<metric_name STRING, date_window STRING, metric_value FLOAT64>('Inbound Leads','last_28_days'  , SAFE_DIVIDE(leads_w28  - web_w28,  20)),
   STRUCT<metric_name STRING, date_window STRING, metric_value FLOAT64>('Inbound Leads','last_3_months' , SAFE_DIVIDE(leads_w90  - web_w90,  65)),
   STRUCT<metric_name STRING, date_window STRING, metric_value FLOAT64>('Inbound Leads','last_6_months' , SAFE_DIVIDE(leads_w180 - web_w180,130)),
   STRUCT<metric_name STRING, date_window STRING, metric_value FLOAT64>('Inbound Leads','last_12_months', SAFE_DIVIDE(leads_w365 - web_w365,260)),
 
-  -- Web Leads
   STRUCT<metric_name STRING, date_window STRING, metric_value FLOAT64>('Web Leads','last_7_days'   , SAFE_DIVIDE(web_w7,    5)),
   STRUCT<metric_name STRING, date_window STRING, metric_value FLOAT64>('Web Leads','last_28_days'  , SAFE_DIVIDE(web_w28,  20)),
   STRUCT<metric_name STRING, date_window STRING, metric_value FLOAT64>('Web Leads','last_3_months' , SAFE_DIVIDE(web_w90,  65)),
   STRUCT<metric_name STRING, date_window STRING, metric_value FLOAT64>('Web Leads','last_6_months' , SAFE_DIVIDE(web_w180,130)),
   STRUCT<metric_name STRING, date_window STRING, metric_value FLOAT64>('Web Leads','last_12_months', SAFE_DIVIDE(web_w365,260)),
 
-  -- QPCs
   STRUCT<metric_name STRING, date_window STRING, metric_value FLOAT64>('QPCs','last_7_days'   , SAFE_DIVIDE(qpc_w7,    5)),
   STRUCT<metric_name STRING, date_window STRING, metric_value FLOAT64>('QPCs','last_28_days'  , SAFE_DIVIDE(qpc_w28,  20)),
   STRUCT<metric_name STRING, date_window STRING, metric_value FLOAT64>('QPCs','last_3_months' , SAFE_DIVIDE(qpc_w90,  65)),
   STRUCT<metric_name STRING, date_window STRING, metric_value FLOAT64>('QPCs','last_6_months' , SAFE_DIVIDE(qpc_w180,130)),
   STRUCT<metric_name STRING, date_window STRING, metric_value FLOAT64>('QPCs','last_12_months', SAFE_DIVIDE(qpc_w365,260)),
 
-  -- Consults Scheduled
   STRUCT<metric_name STRING, date_window STRING, metric_value FLOAT64>('Consults Scheduled','last_7_days'   , SAFE_DIVIDE(cs_w7,    5)),
   STRUCT<metric_name STRING, date_window STRING, metric_value FLOAT64>('Consults Scheduled','last_28_days'  , SAFE_DIVIDE(cs_w28,  20)),
   STRUCT<metric_name STRING, date_window STRING, metric_value FLOAT64>('Consults Scheduled','last_3_months' , SAFE_DIVIDE(cs_w90,  65)),
   STRUCT<metric_name STRING, date_window STRING, metric_value FLOAT64>('Consults Scheduled','last_6_months' , SAFE_DIVIDE(cs_w180,130)),
   STRUCT<metric_name STRING, date_window STRING, metric_value FLOAT64>('Consults Scheduled','last_12_months', SAFE_DIVIDE(cs_w365,260)),
 
-  -- Consults Completed
   STRUCT<metric_name STRING, date_window STRING, metric_value FLOAT64>('Consults Completed','last_7_days'   , SAFE_DIVIDE(cc_w7,    5)),
   STRUCT<metric_name STRING, date_window STRING, metric_value FLOAT64>('Consults Completed','last_28_days'  , SAFE_DIVIDE(cc_w28,  20)),
   STRUCT<metric_name STRING, date_window STRING, metric_value FLOAT64>('Consults Completed','last_3_months' , SAFE_DIVIDE(cc_w90,  65)),
   STRUCT<metric_name STRING, date_window STRING, metric_value FLOAT64>('Consults Completed','last_6_months' , SAFE_DIVIDE(cc_w180,130)),
   STRUCT<metric_name STRING, date_window STRING, metric_value FLOAT64>('Consults Completed','last_12_months', SAFE_DIVIDE(cc_w365,260)),
 
-  -- Quotes
   STRUCT<metric_name STRING, date_window STRING, metric_value FLOAT64>('Quotes','last_7_days'   , SAFE_DIVIDE(qts_w7,    5)),
   STRUCT<metric_name STRING, date_window STRING, metric_value FLOAT64>('Quotes','last_28_days'  , SAFE_DIVIDE(qts_w28,  20)),
   STRUCT<metric_name STRING, date_window STRING, metric_value FLOAT64>('Quotes','last_3_months' , SAFE_DIVIDE(qts_w90,  65)),
   STRUCT<metric_name STRING, date_window STRING, metric_value FLOAT64>('Quotes','last_6_months' , SAFE_DIVIDE(qts_w180,130)),
   STRUCT<metric_name STRING, date_window STRING, metric_value FLOAT64>('Quotes','last_12_months', SAFE_DIVIDE(qts_w365,260)),
 
-  -- Funded Agreements
   STRUCT<metric_name STRING, date_window STRING, metric_value FLOAT64>('Funded Agreements','last_7_days'   , SAFE_DIVIDE(fa_w7,    5)),
   STRUCT<metric_name STRING, date_window STRING, metric_value FLOAT64>('Funded Agreements','last_28_days'  , SAFE_DIVIDE(fa_w28,  20)),
   STRUCT<metric_name STRING, date_window STRING, metric_value FLOAT64>('Funded Agreements','last_3_months' , SAFE_DIVIDE(fa_w90,  65)),
