@@ -2,11 +2,40 @@ CREATE OR REPLACE TABLE
   `rc-datamart-report-082025.genesis_looker_crm_ctp_universal_table.genesis_historical_waterfallreport` AS
 
 WITH all_metrics AS (
-  SELECT *
+  -- Base
+  SELECT
+    metric_date,
+    date_window,
+    Firm_Unique_ID,
+    Firm_Name,
+    Marketing_Channel,
+    metric_name,
+    metric_value
   FROM `rc-datamart-report-082025.genesis_looker_crm_ctp_universal_table.tmp_historical_base`
+
   UNION ALL
-  SELECT *
+  -- Combined
+  SELECT
+    metric_date,
+    date_window,
+    Firm_Unique_ID,
+    Firm_Name,
+    Marketing_Channel,
+    metric_name,
+    metric_value
   FROM `rc-datamart-report-082025.genesis_looker_crm_ctp_universal_table.tmp_historical_combined`
+
+  UNION ALL
+  -- SLO base (same schema)
+  SELECT
+    metric_date,
+    date_window,
+    Firm_Unique_ID,
+    Firm_Name,
+    Marketing_Channel,
+    metric_name,
+    metric_value
+  FROM `rc-datamart-report-082025.genesis_looker_crm_ctp_universal_table.slo_tmp_historical_base`
 ),
 
 wide_metrics AS (
@@ -15,7 +44,7 @@ wide_metrics AS (
     date_window,
     Firm_Unique_ID,
     Firm_Name,
-    ANY_VALUE(Marketing_Channel) AS Marketing_Channel,   -- ✅ Added here, consistent across firms
+    ANY_VALUE(Marketing_Channel) AS Marketing_Channel,   -- assumes single channel per grain; otherwise use rules
     MAX(IF(metric_name = 'Total Calls',            metric_value, NULL)) AS `Calls`,
     MAX(IF(metric_name = 'Answered Calls',         metric_value, NULL)) AS `Answered Calls`,
     MAX(IF(metric_name = 'Total Leads',            metric_value, NULL)) AS `Total Leads`,
@@ -41,7 +70,7 @@ wide_metrics AS (
     Firm_Name
 )
 
--- Output: Both wide and long (flexible)
+-- Output long+wide for flexible Looker usage
 SELECT
   w.*,
   m.metric_name,
