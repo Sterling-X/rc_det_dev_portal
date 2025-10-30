@@ -1,0 +1,64 @@
+DECLARE project_id STRING DEFAULT 'focused-sentry-464713-u0';
+DECLARE dataset_id STRING DEFAULT 'leaddocket_kalishandjaggars';
+
+DECLARE opp_table STRING DEFAULT FORMAT('%s.%s.opportunities_full', project_id, dataset_id);
+DECLARE lead_table STRING DEFAULT FORMAT('%s.%s.leads_full',        project_id, dataset_id);
+DECLARE con_table  STRING DEFAULT FORMAT('%s.%s.contacts_full',     project_id, dataset_id);
+DECLARE out_table  STRING DEFAULT FORMAT('%s.%s.initial_alldata',   project_id, dataset_id);
+
+DECLARE opp_cols STRING;
+DECLARE lead_cols STRING;
+DECLARE con_cols  STRING;
+DECLARE select_list STRING;
+
+SET opp_cols = (
+  SELECT STRING_AGG(
+           '  o.`' || column_name || '` AS `opportunity_' || LOWER(column_name) || '`',
+           ',\n' ORDER BY ordinal_position
+         )
+  FROM `focused-sentry-464713-u0.leaddocket_kalishandjaggars.INFORMATION_SCHEMA.COLUMNS`
+  WHERE table_name = 'opportunities_full'
+    AND LOWER(column_name) NOT IN ('id','leadid')
+);
+
+SET lead_cols = (
+  SELECT STRING_AGG(
+           '  l.`' || column_name || '` AS `lead_' || LOWER(column_name) || '`',
+           ',\n' ORDER BY ordinal_position
+         )
+  FROM `focused-sentry-464713-u0.leaddocket_kalishandjaggars.INFORMATION_SCHEMA.COLUMNS`
+  WHERE table_name = 'leads_full'
+    AND LOWER(column_name) NOT IN ('id','contactid')
+);
+
+SET con_cols = (
+  SELECT STRING_AGG(
+           '  c.`' || column_name || '` AS `contacts_' || LOWER(column_name) || '`',
+           ',\n' ORDER BY ordinal_position
+         )
+  FROM `focused-sentry-464713-u0.leaddocket_kalishandjaggars.INFORMATION_SCHEMA.COLUMNS`
+  WHERE table_name = 'contacts_full'
+    AND LOWER(column_name) NOT IN ('id')
+);
+
+SET select_list = CONCAT(
+  '  CAST(o.Id AS STRING) AS opportunity_id,\n',
+  '  CAST(o.LeadId AS STRING) AS opportunity_lead_id,\n',
+  '  CAST(l.Id AS STRING) AS lead_id,\n',
+  '  CAST(l.ContactId AS STRING) AS lead_contact_id,\n',
+  '  CAST(c.Id AS STRING) AS contact_id',
+  IF(opp_cols IS NULL OR opp_cols = '', '', CONCAT(',\n', opp_cols)),
+  IF(lead_cols IS NULL OR lead_cols = '', '', CONCAT(',\n', lead_cols)),
+  IF(con_cols  IS NULL OR con_cols  = '', '', CONCAT(',\n', con_cols ))
+);
+
+EXECUTE IMMEDIATE CONCAT(
+  'CREATE OR REPLACE TABLE `', out_table, '` AS\n',
+  'SELECT\n',
+  select_list, '\n',
+  'FROM `', opp_table, '` AS o\n',
+  'LEFT JOIN `', lead_table, '` AS l\n',
+  '  ON l.Id = o.LeadId\n',
+  'LEFT JOIN `', con_table, '` AS c\n',
+  '  ON c.Id = l.ContactId'
+);
