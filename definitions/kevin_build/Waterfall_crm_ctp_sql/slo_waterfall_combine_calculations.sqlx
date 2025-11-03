@@ -12,7 +12,7 @@ SELECT
   a.date_window,
   a.Firm_Unique_ID,
   a.Firm_Name,
-  a.Marketing_Channel,                -- NEW
+  a.Marketing_Channel,               
   'Answer Rate' AS metric_name,
   SAFE_DIVIDE(ans.metric_value, tc.metric_value) AS metric_value
 FROM (
