@@ -45,6 +45,7 @@ WITH genesis_dedup AS (
     ROW_NUMBER() OVER (PARTITION BY prospectid ORDER BY updated_at DESC) AS rn
   FROM `focused-sentry-464713-u0.lawmatics_genesis.genesis_alldata_delta`
 ),
+
 vdl_dedup AS (
   SELECT 
     prospectid, created_at, cf_discovery_session_date, cf_consult_completed_date,
@@ -69,6 +70,27 @@ smb_dedup AS (
       ORDER BY opp__updatedat DESC, opp__createdat DESC
     ) AS rn
   FROM `focused-sentry-464713-u0.turbine_smb.smb_alldata_delta`
+),
+haffner_dedup AS (
+  SELECT
+    CAST(lead_id AS STRING)        AS lead_id,
+    lead_lastupdatedate,
+    ROW_NUMBER() OVER (
+      PARTITION BY CAST(lead_id AS STRING)
+      ORDER BY lead_lastupdatedate DESC
+    ) AS rn
+  FROM `focused-sentry-464713-u0.leaddocket_haffner.initialdata_delta`
+),
+
+kalish_dedup AS (
+  SELECT
+    CAST(lead_id AS STRING)        AS lead_id,
+    lead_lastupdatedate,
+    ROW_NUMBER() OVER (
+      PARTITION BY CAST(lead_id AS STRING)
+      ORDER BY lead_lastupdatedate DESC
+    ) AS rn
+  FROM `focused-sentry-464713-u0.leaddocket_kalishandjaggars.initialdata_delta`
 ),
 summit_dedup AS (
   SELECT
@@ -386,7 +408,73 @@ aurit AS (
     CAST(NULL AS STRING)                  AS ga_user_id
   FROM aurit_dedup
   WHERE rn = 1
+),
+haffner AS (
+  SELECT
+    'haffner-haffner1009'                 AS Firm_Unique_ID,
+    'Haffner Law'                         AS Firm_Name,
+    lead_id                                AS Lead_Unique_ID,
+    to_iso_date_string(lead_lastupdatedate) AS Lead_Create_Date,
+    CAST(NULL AS STRING)                   AS Consultation_Date,
+    CAST(NULL AS STRING)                   AS Consult_Completed_Date,
+    CAST(NULL AS STRING)                   AS Retainer_Sent_Date,
+    CAST(NULL AS STRING)                   AS Retainer_Signed_Date,
+    CAST(NULL AS STRING)                   AS Retainer_Funded_Date,
+    CAST(NULL AS STRING)                   AS Web_Lead_Indicator,
+    CAST(NULL AS STRING)                   AS Lead_Source,
+    CAST(NULL AS STRING)                   AS Marketing_Channel,
+    CAST(NULL AS STRING)                   AS Form_Submit_URL,
+    CAST(NULL AS STRING)                   AS UTM_Campaign,
+    CAST(NULL AS STRING)                   AS UTM_Content,
+    CAST(NULL AS STRING)                   AS UTM_Medium,
+    CAST(NULL AS STRING)                   AS UTM_Pageview_Count,
+    CAST(NULL AS STRING)                   AS UTM_Session_Count,
+    CAST(NULL AS STRING)                   AS UTM_Source,
+    CAST(NULL AS STRING)                   AS UTM_Term,
+    CAST(NULL AS STRING)                   AS gclid,
+    CAST(NULL AS BOOL)                     AS _f1,
+    CAST(NULL AS BOOL)                     AS _f2,
+    CAST(NULL AS STRING)                   AS QPC,
+    CAST(NULL AS STRING)                   AS UTM_ICT_Reference_Number,
+    CAST(NULL AS STRING)                   AS ga_client_id,
+    CAST(NULL AS STRING)                   AS ga_user_id
+  FROM haffner_dedup
+  WHERE rn = 1
+),
+
+kalish AS (
+  SELECT
+    'kalishandjaggars-1013'                AS Firm_Unique_ID,
+    'Kalish And Jaggars'                   AS Firm_Name,
+    lead_id                                AS Lead_Unique_ID,
+    to_iso_date_string(lead_lastupdatedate) AS Lead_Create_Date,
+    CAST(NULL AS STRING)                   AS Consultation_Date,
+    CAST(NULL AS STRING)                   AS Consult_Completed_Date,
+    CAST(NULL AS STRING)                   AS Retainer_Sent_Date,
+    CAST(NULL AS STRING)                   AS Retainer_Signed_Date,
+    CAST(NULL AS STRING)                   AS Retainer_Funded_Date,
+    CAST(NULL AS STRING)                   AS Web_Lead_Indicator,
+    CAST(NULL AS STRING)                   AS Lead_Source,
+    CAST(NULL AS STRING)                   AS Marketing_Channel,
+    CAST(NULL AS STRING)                   AS Form_Submit_URL,
+    CAST(NULL AS STRING)                   AS UTM_Campaign,
+    CAST(NULL AS STRING)                   AS UTM_Content,
+    CAST(NULL AS STRING)                   AS UTM_Medium,
+    CAST(NULL AS STRING)                   AS UTM_Pageview_Count,
+    CAST(NULL AS STRING)                   AS UTM_Session_Count,
+    CAST(NULL AS STRING)                   AS UTM_Source,
+    CAST(NULL AS STRING)                   AS UTM_Term,
+    CAST(NULL AS STRING)                   AS gclid,
+    CAST(NULL AS BOOL)                     AS _f1,
+    CAST(NULL AS BOOL)                     AS _f2,
+    CAST(NULL AS STRING)                   AS QPC,
+    CAST(NULL AS STRING)                   AS UTM_ICT_Reference_Number,
+    CAST(NULL AS STRING)                   AS ga_client_id,
+    CAST(NULL AS STRING)                   AS ga_user_id
+  FROM kalish_dedup
+  WHERE rn = 1
 )
+
 -- Final union
 SELECT * FROM genesis
 UNION ALL SELECT * FROM vdl
@@ -394,4 +482,6 @@ UNION ALL SELECT * FROM smb
 UNION ALL SELECT * FROM summit
 UNION ALL SELECT * FROM rosenblum
 UNION ALL SELECT * FROM meyerpink
-UNION ALL SELECT * FROM aurit;
+UNION ALL SELECT * FROM aurit
+UNION ALL SELECT * FROM haffner
+UNION ALL SELECT * FROM kalish;

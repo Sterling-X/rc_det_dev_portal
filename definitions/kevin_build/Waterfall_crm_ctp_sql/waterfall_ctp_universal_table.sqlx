@@ -535,7 +535,6 @@ base_kalishjaggars AS (
       SAFE.TIMESTAMP(called_at),
       SAFE.TIMESTAMP_SECONDS(SAFE_CAST(unix_time AS INT64))
     ) AS start_datetime,
-    /* mapping sheet says keep these NULL even though source columns exist */
     CAST(NULL AS STRING) AS source,
     CAST(NULL AS STRING) AS practice_area,
     CAST(NULL AS STRING) AS marketing_channel,
