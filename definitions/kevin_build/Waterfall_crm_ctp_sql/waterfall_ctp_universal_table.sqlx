@@ -357,7 +357,7 @@ ranked_drakelaw AS (
 base_haffner AS (
   SELECT
     'haffner-haffner1009' AS firm_unique_id,
-    'Haffner'             AS firm_name,
+    'Haffner Law'             AS firm_name,
     CAST(LOWER(call_status) = 'answered' AS BOOL) AS answered,
     direction,
     SAFE_CAST(duration AS INT64) AS recording_duration,
@@ -515,7 +515,7 @@ ranked_chisholm AS (
   FROM base_chisholm
 ),
 
--- 14) KALISH AND JAGGARS (CallTracking)
+-- 14) KALISH AND JAGGARS
 base_kalishjaggars AS (
   SELECT
     'kalishandjaggars-1013'                  AS firm_unique_id,

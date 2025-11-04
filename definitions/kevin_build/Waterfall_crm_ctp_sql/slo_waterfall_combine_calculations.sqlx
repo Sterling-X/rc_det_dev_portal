@@ -6,7 +6,6 @@ config {
   tags: ["waterfall","slo","derived"]
 }
 
--- SLO combined KPI calculations
 WITH base AS (
   SELECT *
   FROM `rc-datamart-report-082025.genesis_looker_crm_ctp_universal_table.slo_tmp_historical_base`
@@ -18,9 +17,6 @@ anchor AS (
   FROM base
 ),
 
-/* =====================
-   Each KPI as a block
-   ===================== */
 
 answer_rate AS (
   -- Answer Rate = Answered Calls / Total Calls
@@ -46,8 +42,7 @@ answer_rate AS (
 ),
 
 inbound_lead_to_call AS (
-  -- Calls per Inbound Lead (keep as originally defined).
-  -- If you later want "Inbound Leads per Call", flip the division.
+  -- Calls per Inbound Lead
   SELECT
     a.metric_date, a.date_window, a.Firm_Unique_ID, a.Firm_Name, a.Marketing_Channel,
     'Inbound Lead to Call' AS metric_name,
@@ -184,7 +179,6 @@ close_rate AS (
     AND cs.metric_name = 'Consults Scheduled'
 )
 
--- Emit the union
 SELECT * FROM answer_rate
 UNION ALL SELECT * FROM inbound_lead_to_call
 UNION ALL SELECT * FROM qpc_rate

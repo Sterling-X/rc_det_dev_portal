@@ -27,6 +27,7 @@ firms AS (
   SELECT DISTINCT u.Firm_Unique_ID, u.Firm_Name, COALESCE(tz.tz, 'UTC') AS tz
   FROM `rc-datamart-report-082025.genesis_looker_crm_ctp_universal_table.genesis_crm_ctp_universal_table` u
   LEFT JOIN firm_tz tz USING (Firm_Unique_ID)
+WHERE u.Firm_Unique_ID <> 'SterlingLawOffice-1010' 
 ),
 
 -- 2) Daily aggregates
@@ -57,7 +58,7 @@ leads_daily AS (
   GROUP BY u.Firm_Unique_ID, u.Firm_Name, metric_date
 ),
 
--- Other CRM dates: parse YYYY-MM-DD (no tz shift)
+-- Other CRM dates
 consult_sched_daily AS (
   SELECT
     u.Firm_Unique_ID, u.Firm_Name,

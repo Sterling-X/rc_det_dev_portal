@@ -1,4 +1,3 @@
-
 CREATE OR REPLACE TABLE
   `rc-datamart-report-082025.genesis_looker_crm_ctp_universal_table.slo_tmp_historical_base` AS
 
@@ -14,12 +13,11 @@ src AS (
   SELECT * FROM `focused-sentry-464713-u0.salesforce_slo.slo_alldata_delta`
 ),
 
--- Parse + normalize once; apply UTC->America/Chicago for timestamp-like fields
 s AS (
   SELECT
     s.*,
 
-    -- UTC -> Central date for TIMESTAMP-like strings
+    -- UTC -> Central date
     DATE(COALESCE(
       SAFE_CAST(lead_CreatedDate AS TIMESTAMP),
       SAFE.PARSE_TIMESTAMP('%Y-%m-%dT%H:%M:%E*S%Ez', SAFE_CAST(lead_CreatedDate AS STRING)),
@@ -52,7 +50,6 @@ s AS (
     ), 'America/Chicago')
     AS consult_created_central_d,
 
-    -- DATE fields: parse as DATE 
     COALESCE(
       SAFE_CAST(lead_Referred_Out_Date__c AS DATE),
       SAFE.PARSE_DATE('%Y-%m-%d', SAFE_CAST(lead_Referred_Out_Date__c AS STRING)),
@@ -79,9 +76,21 @@ s AS (
   FROM src s
 ),
 
-/* ======================
-   Daily aggregates
-   ====================== */
+-- === NEW: Calls (Chicago-local), sourced from the universal CRM+CTP table ===
+calls_daily AS (
+  SELECT
+    f.Firm_Unique_ID,
+    f.Firm_Name,
+    DATE(DATETIME(SAFE_CAST(u.start_datetime AS TIMESTAMP), 'America/Chicago')) AS metric_date,
+    COUNT(u.Call_Tracking_Unique_ID) AS calls_total_day,
+    SUM(CASE WHEN SAFE_CAST(u.Answered AS BOOL) THEN 1 ELSE 0 END) AS calls_answered_day
+  FROM `rc-datamart-report-082025.genesis_looker_crm_ctp_universal_table.genesis_crm_ctp_universal_table` u
+  JOIN firm f
+    ON u.Firm_Unique_ID = f.Firm_Unique_ID
+   AND u.Firm_Name      = f.Firm_Name
+  WHERE u.start_datetime IS NOT NULL
+  GROUP BY f.Firm_Unique_ID, f.Firm_Name, metric_date
+),
 
 -- Total Leads = leads (created Central) + opportunities (created Central)
 leads_total_daily AS (
@@ -115,7 +124,7 @@ total_leads_daily AS (
   ON l.metric_date = o.metric_date
 ),
 
--- Web Leads = (lead-created Central & web=true) + (opp-created Central & web=true)
+-- Web Leads
 web_leads_daily AS (
   SELECT
     lead_created_central_d AS metric_date,
@@ -244,6 +253,8 @@ dense AS (
     f.Firm_Unique_ID,
     f.Firm_Name,
     d.metric_date,
+    COALESCE(c.calls_total_day, 0)          AS calls_total_day,       -- NEW
+    COALESCE(c.calls_answered_day, 0)       AS calls_answered_day,    -- NEW
     COALESCE(t.total_leads_day, 0)          AS total_leads_day,
     COALESCE(w.web_leads_day, 0)            AS web_leads_day,
     COALESCE(q.qpc_day, 0)                  AS qpc_day,
@@ -253,19 +264,35 @@ dense AS (
     COALESCE(fu.funded_agreements_day, 0)   AS funded_agreements_day
   FROM firm f
   CROSS JOIN date_spine d
-  LEFT JOIN total_leads_daily    t  USING (metric_date)
-  LEFT JOIN web_total_daily      w  USING (metric_date)
-  LEFT JOIN qpc_daily            q  USING (metric_date)
-  LEFT JOIN consults_sched_daily cs USING (metric_date)
-  LEFT JOIN consults_comp_daily  cc USING (metric_date)
-  LEFT JOIN quotes_daily         qu USING (metric_date)
-  LEFT JOIN funded_daily         fu USING (metric_date)
+  LEFT JOIN calls_daily           c  ON c.metric_date = d.metric_date AND c.Firm_Unique_ID = f.Firm_Unique_ID AND c.Firm_Name = f.Firm_Name
+  LEFT JOIN total_leads_daily     t  USING (metric_date)
+  LEFT JOIN web_total_daily       w  USING (metric_date)
+  LEFT JOIN qpc_daily             q  USING (metric_date)
+  LEFT JOIN consults_sched_daily  cs USING (metric_date)
+  LEFT JOIN consults_comp_daily   cc USING (metric_date)
+  LEFT JOIN quotes_daily          qu USING (metric_date)
+  LEFT JOIN funded_daily          fu USING (metric_date)
 ),
 
--- Rolling windows
+-- Rolling windows (add calls/answered)
 roll AS (
   SELECT
     *,
+    -- NEW: Calls
+    SUM(calls_total_day)        OVER (PARTITION BY Firm_Unique_ID, Firm_Name ORDER BY metric_date ROWS BETWEEN 7   PRECEDING AND 1 PRECEDING)  AS calls_w7,
+    SUM(calls_total_day)        OVER (PARTITION BY Firm_Unique_ID, Firm_Name ORDER BY metric_date ROWS BETWEEN 28  PRECEDING AND 1 PRECEDING)  AS calls_w28,
+    SUM(calls_total_day)        OVER (PARTITION BY Firm_Unique_ID, Firm_Name ORDER BY metric_date ROWS BETWEEN 90  PRECEDING AND 1 PRECEDING)  AS calls_w90,
+    SUM(calls_total_day)        OVER (PARTITION BY Firm_Unique_ID, Firm_Name ORDER BY metric_date ROWS BETWEEN 180 PRECEDING AND 1 PRECEDING)  AS calls_w180,
+    SUM(calls_total_day)        OVER (PARTITION BY Firm_Unique_ID, Firm_Name ORDER BY metric_date ROWS BETWEEN 365 PRECEDING AND 1 PRECEDING)  AS calls_w365,
+
+    -- NEW: Answered
+    SUM(calls_answered_day)     OVER (PARTITION BY Firm_Unique_ID, Firm_Name ORDER BY metric_date ROWS BETWEEN 7   PRECEDING AND 1 PRECEDING)  AS ans_w7,
+    SUM(calls_answered_day)     OVER (PARTITION BY Firm_Unique_ID, Firm_Name ORDER BY metric_date ROWS BETWEEN 28  PRECEDING AND 1 PRECEDING)  AS ans_w28,
+    SUM(calls_answered_day)     OVER (PARTITION BY Firm_Unique_ID, Firm_Name ORDER BY metric_date ROWS BETWEEN 90  PRECEDING AND 1 PRECEDING)  AS ans_w90,
+    SUM(calls_answered_day)     OVER (PARTITION BY Firm_Unique_ID, Firm_Name ORDER BY metric_date ROWS BETWEEN 180 PRECEDING AND 1 PRECEDING)  AS ans_w180,
+    SUM(calls_answered_day)     OVER (PARTITION BY Firm_Unique_ID, Firm_Name ORDER BY metric_date ROWS BETWEEN 365 PRECEDING AND 1 PRECEDING)  AS ans_w365,
+
+    -- Existing windows
     SUM(total_leads_day)        OVER (PARTITION BY Firm_Unique_ID, Firm_Name ORDER BY metric_date ROWS BETWEEN 7   PRECEDING AND 1 PRECEDING)  AS leads_w7,
     SUM(total_leads_day)        OVER (PARTITION BY Firm_Unique_ID, Firm_Name ORDER BY metric_date ROWS BETWEEN 28  PRECEDING AND 1 PRECEDING)  AS leads_w28,
     SUM(total_leads_day)        OVER (PARTITION BY Firm_Unique_ID, Firm_Name ORDER BY metric_date ROWS BETWEEN 90  PRECEDING AND 1 PRECEDING)  AS leads_w90,
@@ -310,7 +337,7 @@ roll AS (
   FROM dense
 )
 
--- Final tall output 
+-- Final tall output (add Calls)
 SELECT
   r.metric_date,
   m.date_window,
@@ -321,6 +348,20 @@ SELECT
   m.metric_value
 FROM roll r
 CROSS JOIN UNNEST([
+  -- NEW: Calls
+  STRUCT<metric_name STRING, date_window STRING, metric_value FLOAT64>('Total Calls','last_7_days'   , SAFE_DIVIDE(calls_w7,    5)),
+  STRUCT<metric_name STRING, date_window STRING, metric_value FLOAT64>('Total Calls','last_28_days'  , SAFE_DIVIDE(calls_w28,  20)),
+  STRUCT<metric_name STRING, date_window STRING, metric_value FLOAT64>('Total Calls','last_3_months' , SAFE_DIVIDE(calls_w90,  65)),
+  STRUCT<metric_name STRING, date_window STRING, metric_value FLOAT64>('Total Calls','last_6_months' , SAFE_DIVIDE(calls_w180,130)),
+  STRUCT<metric_name STRING, date_window STRING, metric_value FLOAT64>('Total Calls','last_12_months', SAFE_DIVIDE(calls_w365,260)),
+
+  STRUCT<metric_name STRING, date_window STRING, metric_value FLOAT64>('Answered Calls','last_7_days'   , SAFE_DIVIDE(ans_w7,    5)),
+  STRUCT<metric_name STRING, date_window STRING, metric_value FLOAT64>('Answered Calls','last_28_days'  , SAFE_DIVIDE(ans_w28,  20)),
+  STRUCT<metric_name STRING, date_window STRING, metric_value FLOAT64>('Answered Calls','last_3_months' , SAFE_DIVIDE(ans_w90,  65)),
+  STRUCT<metric_name STRING, date_window STRING, metric_value FLOAT64>('Answered Calls','last_6_months' , SAFE_DIVIDE(ans_w180,130)),
+  STRUCT<metric_name STRING, date_window STRING, metric_value FLOAT64>('Answered Calls','last_12_months', SAFE_DIVIDE(ans_w365,260)),
+
+  -- Existing metrics
   STRUCT<metric_name STRING, date_window STRING, metric_value FLOAT64>('Total Leads','last_7_days'   , SAFE_DIVIDE(leads_w7,    5)),
   STRUCT<metric_name STRING, date_window STRING, metric_value FLOAT64>('Total Leads','last_28_days'  , SAFE_DIVIDE(leads_w28,  20)),
   STRUCT<metric_name STRING, date_window STRING, metric_value FLOAT64>('Total Leads','last_3_months' , SAFE_DIVIDE(leads_w90,  65)),
