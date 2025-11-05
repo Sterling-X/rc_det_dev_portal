@@ -23,28 +23,28 @@ s AS (
       SAFE.PARSE_TIMESTAMP('%Y-%m-%dT%H:%M:%E*S%Ez', SAFE_CAST(lead_CreatedDate AS STRING)),
       SAFE.PARSE_TIMESTAMP('%Y-%m-%d %H:%M:%E*S%Ez', SAFE_CAST(lead_CreatedDate AS STRING)),
       SAFE.PARSE_TIMESTAMP('%Y-%m-%d %H:%M:%S UTC',  SAFE_CAST(lead_CreatedDate AS STRING))
-    ), 'America/Chicago') AS lead_created_central_d,
+    ), 'America/Phoenix') AS lead_created_central_d,
 
     DATE(COALESCE(
       SAFE_CAST(opportunity_CreatedDate AS TIMESTAMP),
       SAFE.PARSE_TIMESTAMP('%Y-%m-%dT%H:%M:%E*S%Ez', SAFE_CAST(opportunity_CreatedDate AS STRING)),
       SAFE.PARSE_TIMESTAMP('%Y-%m-%d %H:%M:%E*S%Ez', SAFE_CAST(opportunity_CreatedDate AS STRING)),
       SAFE.PARSE_TIMESTAMP('%Y-%m-%d %H:%M:%S UTC',  SAFE_CAST(opportunity_CreatedDate AS STRING))
-    ), 'America/Chicago') AS opportunity_created_central_d,
+    ), 'America/Phoenix') AS opportunity_created_central_d,
 
     DATE(COALESCE(
       SAFE_CAST(opportunity_Consult_Date_Time__c AS TIMESTAMP),
       SAFE.PARSE_TIMESTAMP('%Y-%m-%dT%H:%M:%E*S%Ez', SAFE_CAST(opportunity_Consult_Date_Time__c AS STRING)),
       SAFE.PARSE_TIMESTAMP('%Y-%m-%d %H:%M:%E*S%Ez', SAFE_CAST(opportunity_Consult_Date_Time__c AS STRING)),
       SAFE.PARSE_TIMESTAMP('%Y-%m-%d %H:%M:%S UTC',  SAFE_CAST(opportunity_Consult_Date_Time__c AS STRING))
-    ), 'America/Chicago') AS consult_start_central_d,
+    ), 'America/Phoenix') AS consult_start_central_d,
 
     DATE(COALESCE(
       SAFE_CAST(consult_CreatedDate AS TIMESTAMP),
       SAFE.PARSE_TIMESTAMP('%Y-%m-%dT%H:%M:%E*S%Ez', SAFE_CAST(consult_CreatedDate AS STRING)),
       SAFE.PARSE_TIMESTAMP('%Y-%m-%d %H:%M:%E*S%Ez', SAFE_CAST(consult_CreatedDate AS STRING)),
       SAFE.PARSE_TIMESTAMP('%Y-%m-%d %H:%M:%S UTC',  SAFE_CAST(consult_CreatedDate AS STRING))
-    ), 'America/Chicago') AS consult_created_central_d,
+    ), 'America/Phoenix') AS consult_created_central_d,
 
     COALESCE(
       SAFE_CAST(lead_Referred_Out_Date__c AS DATE),
@@ -72,12 +72,12 @@ s AS (
   FROM src s
 ),
 
--- Calls (Chicago-local) from universal table
+-- Calls (Phoenix-local) from universal table
 calls_daily AS (
   SELECT
     f.Firm_Unique_ID,
     f.Firm_Name,
-    DATE(DATETIME(SAFE_CAST(u.start_datetime AS TIMESTAMP), 'America/Chicago')) AS metric_date,
+    DATE(DATETIME(SAFE_CAST(u.start_datetime AS TIMESTAMP), 'America/Phoenix')) AS metric_date,
     COUNT(u.Call_Tracking_Unique_ID) AS calls_total_day,
     SUM(CASE WHEN SAFE_CAST(u.Answered AS BOOL) THEN 1 ELSE 0 END) AS calls_answered_day
   FROM `rc-datamart-report-082025.genesis_looker_crm_ctp_universal_table.genesis_crm_ctp_universal_table` u

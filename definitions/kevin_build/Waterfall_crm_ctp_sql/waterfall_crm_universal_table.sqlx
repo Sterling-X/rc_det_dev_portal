@@ -109,6 +109,7 @@ summit_dedup AS (
     contact_date_entered_sales_qualified_lead_lifecycle_stage_pipeline,
     contact_latest_disqualified_lead_date,
     contact_last_modified_date,
+    contact_lead_status,
     ROW_NUMBER() OVER (
       PARTITION BY contact_record_id
       ORDER BY contact_last_modified_date DESC, contact_create_date DESC
@@ -297,11 +298,11 @@ summit AS (
     CAST(contact_gclid AS STRING)                                        AS gclid,
     CAST(NULL AS BOOL)                                                   AS _f1,
     CAST(NULL AS BOOL)                                                   AS _f2,
+
     CASE
-      WHEN contact_latest_disqualified_lead_date IS NULL
-        OR to_date_safe(contact_create_date) < to_date_safe(contact_latest_disqualified_lead_date)
-      THEN to_iso_date_string(contact_date_entered_sales_qualified_lead_lifecycle_stage_pipeline)
-      ELSE NULL
+      WHEN REGEXP_CONTAINS(LOWER(CAST(contact_lead_status AS STRING)), r'disqualified')
+        THEN NULL
+      ELSE to_iso_date_string(contact_date_entered_sales_qualified_lead_lifecycle_stage_pipeline)
     END                                                                 AS QPC,
     CAST(NULL AS STRING)                                                AS UTM_ICT_Reference_Number,
     CAST(NULL AS STRING)                                                AS ga_client_id,
