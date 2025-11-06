@@ -1,54 +1,39 @@
--- config {
---   "type": "table",
---   "schema": "callrail_slo",
---   "name": "fct_callrail_slo",
---   "description": "Inbound weekday calls, duration >= 4s, exclude unwanted sources and spam tags, restricted to 8AM–5PM Central Time."
--- }
-
 CREATE OR REPLACE TABLE `rc-datamart-report-082025.callrail_slo.fct_callrail_slo` AS
 WITH src AS (
-SELECT
-*,
-COALESCE(
-SAFE.TIMESTAMP_SECONDS(CAST(unix_time AS INT64)),
-SAFE.PARSE_TIMESTAMP('%Y-%m-%dT%H:%M:%E*S%Ez', called_at),
-SAFE.PARSE_TIMESTAMP('%Y-%m-%d %H:%M:%E*S%Ez', called_at),
-SAFE.PARSE_TIMESTAMP('%Y-%m-%d %H:%M:%S', called_at),
-SAFE.PARSE_TIMESTAMP('%Y-%m-%d', called_at)
-) AS called_ts
-FROM
-`focused-sentry-464713-u0.calltracking_slo.ctp_initialdata_delta`
+  SELECT
+    *,
+    COALESCE(
+      SAFE.TIMESTAMP_SECONDS(SAFE_CAST(unix_time AS INT64)),
+      SAFE.PARSE_TIMESTAMP('%Y-%m-%dT%H:%M:%E*S%Ez', CAST(called_at AS STRING)),
+      SAFE.PARSE_TIMESTAMP('%Y-%m-%d %H:%M:%E*S%Ez', CAST(called_at AS STRING)),
+      SAFE.PARSE_TIMESTAMP('%Y-%m-%d %H:%M:%S', CAST(called_at AS STRING)),
+      SAFE.PARSE_TIMESTAMP('%Y-%m-%d', CAST(called_at AS STRING))
+    ) AS called_ts
+  FROM `focused-sentry-464713-u0.calltracking_slo.ctp_initialdata_delta`
 )
-
+ 
 SELECT
-*
-FROM
-src
+  *
+FROM src
 WHERE
--- Inbound only
-LOWER(COALESCE(direction, '')) = 'inbound'
+  -- Inbound only
+  LOWER(COALESCE(direction, '')) = 'inbound'
+  -- Duration >= 4 seconds
+  AND COALESCE(SAFE_CAST(duration AS INT64), 0) >= 4
+  -- Valid, non-banned source
+  AND source IS NOT NULL
+  AND REGEXP_REPLACE(CAST(source AS STRING), r'[\s\p{Zs}\p{Zl}\p{Zp}]+', '') <> ''
+  AND LOWER(TRIM(source)) NOT IN (
+    'pbn','agent','agent - css','dead nap','consult recordings',
+    'credit card authorization recordings'
+  )
 
--- Duration >= 4 seconds
-AND COALESCE(CAST(duration AS INT64), 0) >= 4
+  AND NOT REGEXP_CONTAINS(LOWER(COALESCE(tag_list, '')), r'\bspam\b')
 
--- Filter for sources
-AND source IS NOT NULL
-AND TRIM(source) <> ''
-AND LOWER(TRIM(source)) NOT IN (
-'pbn',
-'agent',
-'agent - css',
-'dead nap',
-'consult recordings',
-'credit card authorization recordings'
-)
+  AND called_ts IS NOT NULL
 
--- Exclude spam tag
-AND NOT REGEXP_CONTAINS(LOWER(COALESCE(tag_list, '')), r'\bspam\b')
+  AND EXTRACT(DAYOFWEEK FROM called_ts AT TIME ZONE "America/Chicago") NOT IN (1,7)
 
--- Exclude weekends (1=Sunday, 7=Saturday)
-AND called_ts IS NOT NULL
-AND EXTRACT(DAYOFWEEK FROM called_ts) NOT IN (1, 7)
+  AND EXTRACT(HOUR FROM called_ts AT TIME ZONE "America/Chicago") BETWEEN 8 AND 17
 
--- Restrict to 8:00–17:00 Central Time
-AND EXTRACT(HOUR FROM called_ts AT TIME ZONE "America/Chicago") BETWEEN 8 AND 17;
+;
