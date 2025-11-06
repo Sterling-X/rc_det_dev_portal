@@ -1,7 +1,4 @@
--- Build / refresh the universal CRM table with local-date preservation
--- for Lead_Create_Date in Genesis, Vasquez de Lara, Rosenblum, MeyerPink.
 
--- Date parser
 CREATE TEMP FUNCTION to_date_safe(x ANY TYPE) AS (
   COALESCE(
     SAFE.PARSE_DATE('%Y-%m-%d', TRIM(CAST(x AS STRING))),
