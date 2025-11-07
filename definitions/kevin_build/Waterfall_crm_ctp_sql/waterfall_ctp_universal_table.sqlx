@@ -7,7 +7,7 @@ WITH base_genesis AS (
     CAST(answered AS BOOL) AS answered,
     direction,
     SAFE_CAST(duration AS INT64) AS recording_duration,
-    CAST(id AS STRING) AS call_tracking_unique_id,
+    id AS call_tracking_unique_id,
     SAFE_CAST(recording_duration AS INT64) AS call_recording_duration,
     COALESCE(
       SAFE.PARSE_TIMESTAMP('%Y-%m-%dT%H:%M:%E*S%Ez', TRIM(CAST(start_time AS STRING))),
@@ -46,7 +46,7 @@ base_vdl AS (
     CAST(answered AS BOOL) AS answered,
     direction,
     SAFE_CAST(duration AS INT64) AS recording_duration,
-    CAST(id AS STRING) AS call_tracking_unique_id,
+    id AS call_tracking_unique_id,
     SAFE_CAST(recording_duration AS INT64) AS call_recording_duration,
     COALESCE(
       SAFE.PARSE_TIMESTAMP('%Y-%m-%dT%H:%M:%E*S%Ez', TRIM(CAST(start_time AS STRING))),
@@ -85,7 +85,7 @@ base_smb AS (
     CAST(answered AS BOOL) AS answered,
     direction,
     SAFE_CAST(duration AS INT64) AS recording_duration,
-    CAST(id AS STRING) AS call_tracking_unique_id,
+    id AS call_tracking_unique_id,
     SAFE_CAST(recording_duration AS INT64) AS call_recording_duration,
     COALESCE(
       SAFE.PARSE_TIMESTAMP('%Y-%m-%dT%H:%M:%E*S%Ez', TRIM(CAST(start_time AS STRING))),
@@ -124,7 +124,7 @@ base_rosenblum AS (
     CAST(LOWER(call_status) = 'answered' AS BOOL) AS answered,
     direction,
     CAST(NULL AS INT64)       AS recording_duration,
-    CAST(id AS STRING)        AS call_tracking_unique_id,
+    sid                       AS call_tracking_unique_id,
     CAST(NULL AS INT64)       AS call_recording_duration,
     COALESCE(
       SAFE.PARSE_TIMESTAMP('%Y-%m-%d %I:%M %p %Ez', TRIM(CAST(called_at AS STRING))),
@@ -166,7 +166,7 @@ base_meyerpink AS (
     CAST(answered AS BOOL) AS answered,
     direction,
     SAFE_CAST(recording_duration AS INT64) AS recording_duration,
-    CAST(id AS STRING) AS call_tracking_unique_id,
+    id AS call_tracking_unique_id,
     SAFE_CAST(recording_duration AS INT64) AS call_recording_duration,
     COALESCE(
       SAFE.PARSE_TIMESTAMP('%Y-%m-%dT%H:%M:%E*S%Ez', TRIM(CAST(start_time AS STRING))),
@@ -205,7 +205,7 @@ base_auritmediation AS (
     CAST(answered AS BOOL)                  AS answered,
     direction                               AS direction,
     SAFE_CAST(recording_duration AS INT64)  AS recording_duration,
-    CAST(id AS STRING)                       AS call_tracking_unique_id,
+    id                                      AS call_tracking_unique_id,
     SAFE_CAST(recording_duration AS INT64) AS call_recording_duration,
     COALESCE(
       SAFE.PARSE_TIMESTAMP('%Y-%m-%dT%H:%M:%E*S%Ez', TRIM(CAST(start_time AS STRING))),
@@ -244,7 +244,7 @@ base_summit AS (
     CAST(answered AS BOOL) AS answered,
     direction,
     SAFE_CAST(duration AS INT64) AS recording_duration,
-    CAST(id AS STRING) AS call_tracking_unique_id,
+    id AS call_tracking_unique_id,
     SAFE_CAST(recording_duration AS INT64) AS call_recording_duration,
     COALESCE(
       SAFE.PARSE_TIMESTAMP('%Y-%m-%dT%H:%M:%E*S%Ez', TRIM(CAST(start_time AS STRING))),
@@ -283,7 +283,7 @@ base_brucelaw AS (
     CAST(answered AS BOOL) AS answered,
     direction,
     COALESCE(SAFE_CAST(duration AS INT64), SAFE_CAST(recording_duration AS INT64)) AS recording_duration,
-    CAST(id AS STRING) AS call_tracking_unique_id,
+    id AS call_tracking_unique_id,
     SAFE_CAST(recording_duration AS INT64) AS call_recording_duration,
     COALESCE(
       SAFE.PARSE_TIMESTAMP('%Y-%m-%dT%H:%M:%E*S%Ez', TRIM(CAST(start_time AS STRING))),
@@ -322,7 +322,7 @@ base_drakelaw AS (
     CAST(answered AS BOOL) AS answered,
     direction,
     COALESCE(SAFE_CAST(duration AS INT64), SAFE_CAST(recording_duration AS INT64)) AS recording_duration,
-    CAST(id AS STRING) AS call_tracking_unique_id,
+    id AS call_tracking_unique_id,
     SAFE_CAST(recording_duration AS INT64) AS call_recording_duration,
     COALESCE(
       SAFE.PARSE_TIMESTAMP('%Y-%m-%dT%H:%M:%E*S%Ez', TRIM(CAST(start_time AS STRING))),
@@ -361,7 +361,7 @@ base_haffner AS (
     CAST(LOWER(call_status) = 'answered' AS BOOL) AS answered,
     direction,
     SAFE_CAST(duration AS INT64) AS recording_duration,
-    CAST(id AS STRING) AS call_tracking_unique_id,
+    sid AS call_tracking_unique_id,
     CAST(NULL AS INT64)  AS call_recording_duration,
     COALESCE(
       SAFE.PARSE_TIMESTAMP('%Y-%m-%d %I:%M %p %Ez', TRIM(CAST(called_at AS STRING))),
@@ -415,7 +415,7 @@ base_slo AS (
     CAST(LOWER(call_status) = 'answered' AS BOOL) AS answered,
     direction,
     COALESCE(SAFE_CAST(duration AS INT64), 0) AS recording_duration,
-    CAST(id AS STRING) AS call_tracking_unique_id,
+    sid AS call_tracking_unique_id,
     CAST(NULL AS INT64) AS call_recording_duration,
     called_ts AS start_datetime,
     source,
@@ -463,7 +463,7 @@ base_ramage AS (
     CAST(answered AS BOOL)   AS answered,
     direction,
     SAFE_CAST(recording_duration AS INT64) AS recording_duration,
-    CAST(id AS STRING) AS call_tracking_unique_id,
+    id AS call_tracking_unique_id,
     SAFE_CAST(recording_duration AS INT64) AS call_recording_duration,
     COALESCE(
       SAFE.PARSE_TIMESTAMP('%Y-%m-%dT%H:%M:%E*S%Ez', TRIM(CAST(start_time AS STRING))),
@@ -502,7 +502,7 @@ base_chisholm AS (
     CAST(answered AS BOOL) AS answered,
     direction,
     SAFE_CAST(recording_duration AS INT64) AS recording_duration,
-    CAST(id AS STRING) AS call_tracking_unique_id,
+    id AS call_tracking_unique_id,
     SAFE_CAST(recording_duration AS INT64) AS call_recording_duration,
     COALESCE(
       SAFE.PARSE_TIMESTAMP('%Y-%m-%dT%H:%M:%E*S%Ez', TRIM(CAST(start_time AS STRING))),
@@ -536,13 +536,13 @@ ranked_chisholm AS (
 -- 14) KALISH AND JAGGARS
 base_kalishjaggars AS (
   SELECT
-    'kalishandjaggars-1013'                       AS firm_unique_id,
-    'Kalish And Jaggars'                          AS firm_name,
+    'kalishandjaggars-1013'                  AS firm_unique_id,
+    'Kalish And Jaggars'                     AS firm_name,
     CAST(LOWER(call_status) = 'answered' AS BOOL) AS answered,
     direction,
-    SAFE_CAST(duration AS INT64)                   AS recording_duration,
-    CAST(id AS STRING)                              AS call_tracking_unique_id,
-    CAST(NULL AS INT64)                             AS call_recording_duration,
+    SAFE_CAST(duration AS INT64)             AS recording_duration,
+    sid                                      AS call_tracking_unique_id,
+    CAST(NULL AS INT64)                      AS call_recording_duration,
     COALESCE(
       SAFE.PARSE_TIMESTAMP('%Y-%m-%d %I:%M %p %Ez', TRIM(CAST(called_at AS STRING))),
       SAFE.PARSE_TIMESTAMP('%Y-%m-%d %I:%M %p %z',  TRIM(CAST(called_at AS STRING))),
@@ -566,7 +566,7 @@ base_kalishjaggars AS (
     CAST(NULL AS STRING) AS utm_term,
     CAST(NULL AS STRING) AS ga_client_id,
     CAST(NULL AS STRING) AS ga_user_id,
-    gclid AS gclid,
+    ga.gclid             AS gclid,
     CAST(NULL AS STRING) AS google_ads
   FROM `focused-sentry-464713-u0.calltracking_kalishandjaggars.ctp_initialdata_delta`
   WHERE REGEXP_CONTAINS(COALESCE(direction, ''), r'(?i)^\s*inbound\s*$')
