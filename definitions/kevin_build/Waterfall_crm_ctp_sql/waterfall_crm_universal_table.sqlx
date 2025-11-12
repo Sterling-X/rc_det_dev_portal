@@ -19,25 +19,6 @@ CREATE TEMP FUNCTION
     CREATE OR REPLACE TABLE
       `focused-sentry-464713-u0.crm_universal_tables.genesis_crm_universal_table` AS
     WITH
-      genesis_dedup AS (
-      SELECT
-        prospectid,
-        created_at,
-        cf_date_of_consult,
-        cf_consult_completed_date,
-        cf_fee_agreement_sent_date,
-        cf_form_url,
-        cf_source,
-        utm_campaign,
-        utm_medium,
-        utm_source,
-        cf_utm_term,
-        gclid,
-        cf_qcp_date,
-        updated_at,
-        ROW_NUMBER() OVER (PARTITION BY prospectid ORDER BY updated_at DESC) AS rn
-      FROM
-        `focused-sentry-464713-u0.lawmatics_genesis.genesis_alldata_delta` ),
       vdl_dedup AS (
       SELECT
         prospectid,
@@ -170,48 +151,6 @@ CREATE TEMP FUNCTION
         ROW_NUMBER() OVER (PARTITION BY lead_Id ORDER BY lead_CreatedDate DESC) AS rn
       FROM
         `focused-sentry-464713-u0.salesforce_auritmediation.auritmediation_alldata_delta` ),
-      genesis AS (
-      SELECT
-        'Genesis-glg1000' AS Firm_Unique_ID,
-        'Genesis' AS Firm_Name,
-        CAST(prospectid AS STRING) AS Lead_Unique_ID,
-        -- CHANGED: keep local date from ISO string
-        to_iso_date_keep_local(created_at) AS Lead_Create_Date,
-        to_iso_date_string(cf_date_of_consult) AS Consultation_Date,
-        CASE
-          WHEN COALESCE( SAFE.PARSE_DATE('%Y-%m-%d', CAST(cf_consult_completed_date AS STRING)), SAFE.PARSE_DATE('%m/%d/%Y', CAST(cf_consult_completed_date AS STRING)), SAFE.PARSE_DATE('%b %d, %Y', CAST(cf_consult_completed_date AS STRING)), SAFE.PARSE_DATE('%B %d, %Y', CAST(cf_consult_completed_date AS STRING)) ) >= DATE '2025-07-29' THEN to_iso_date_string(cf_consult_completed_date)
-          ELSE NULL
-      END
-        AS Consult_Completed_Date,
-        to_iso_date_string(cf_fee_agreement_sent_date) AS Retainer_Sent_Date,
-        CAST(NULL AS STRING) AS Retainer_Signed_Date,
-        to_iso_date_string(cf_fee_agreement_sent_date) AS Retainer_Funded_Date,
-        CASE
-          WHEN REGEXP_CONTAINS(LOWER(CAST(cf_form_url AS STRING)), r'https?://') THEN REGEXP_REPLACE(CAST(cf_form_url AS STRING), r'(?i)^https?://', '')
-          ELSE NULL
-      END
-        AS Web_Lead_Indicator,
-        CAST(cf_source AS STRING) AS Lead_Source,
-        CAST(NULL AS STRING) AS Marketing_Channel,
-        CAST(cf_form_url AS STRING) AS Form_Submit_URL,
-        CAST(utm_campaign AS STRING) AS UTM_Campaign,
-        CAST(NULL AS STRING) AS UTM_Content,
-        CAST(utm_medium AS STRING) AS UTM_Medium,
-        CAST(NULL AS STRING) AS UTM_Pageview_Count,
-        CAST(NULL AS STRING) AS UTM_Session_Count,
-        CAST(utm_source AS STRING) AS UTM_Source,
-        CAST(cf_utm_term AS STRING) AS UTM_Term,
-        CAST(gclid AS STRING) AS gclid,
-        CAST(NULL AS BOOL) AS _f1,
-        CAST(NULL AS BOOL) AS _f2,
-        to_iso_date_string(cf_qcp_date) AS QPC,
-        CAST(NULL AS STRING) AS UTM_ICT_Reference_Number,
-        CAST(NULL AS STRING) AS ga_client_id,
-        CAST(NULL AS STRING) AS ga_user_id
-      FROM
-        genesis_dedup
-      WHERE
-        rn = 1 ),
       vdl AS (
       SELECT
         'VDL-vdl1001' AS Firm_Unique_ID,
@@ -497,12 +436,6 @@ summit AS (
         kalish_dedup
       WHERE
         rn = 1 )
-        -- Final union
-    SELECT
-      *
-    FROM
-      genesis
-    UNION ALL
     SELECT
       *
     FROM
