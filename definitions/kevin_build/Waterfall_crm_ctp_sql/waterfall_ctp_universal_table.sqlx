@@ -1,6 +1,10 @@
-CREATE OR REPLACE TABLE `focused-sentry-464713-u0.ctp_universal_tables.genesis_ctp_universal_table` AS 
+CREATE OR REPLACE TABLE `focused-sentry-464713-u0.ctp_universal_tables.genesis_ctp_universal_table` AS
+
+-- CTP Universal table (CallRail + CallTracking sources)
+WITH
+
 -- 1) GENESIS
-WITH base_genesis AS (
+base_genesis AS (
   SELECT
     'Genesis-glg1000' AS firm_unique_id,
     'Genesis' AS firm_name,
@@ -201,11 +205,11 @@ ranked_meyerpink AS (
 base_auritmediation AS (
   SELECT
     'auritmediation-am1007'               AS firm_unique_id,
-    'Aurit Mediation'                      AS firm_name,
-    CAST(answered AS BOOL)                  AS answered,
-    direction                               AS direction,
-    SAFE_CAST(recording_duration AS INT64)  AS recording_duration,
-    id                                      AS call_tracking_unique_id,
+    'Aurit Mediation'                     AS firm_name,
+    CAST(answered AS BOOL)                 AS answered,
+    direction                              AS direction,
+    SAFE_CAST(recording_duration AS INT64) AS recording_duration,
+    id                                     AS call_tracking_unique_id,
     SAFE_CAST(recording_duration AS INT64) AS call_recording_duration,
     COALESCE(
       SAFE.PARSE_TIMESTAMP('%Y-%m-%dT%H:%M:%E*S%Ez', TRIM(CAST(start_time AS STRING))),
@@ -214,20 +218,20 @@ base_auritmediation AS (
       CAST(start_time AS TIMESTAMP)
     ) AS start_datetime,
     source                  AS source,
-    CAST(NULL AS STRING)    AS practice_area,            
-    CAST(NULL AS STRING)    AS marketing_channel,       
+    CAST(NULL AS STRING)    AS practice_area,
+    CAST(NULL AS STRING)    AS marketing_channel,
     campaign                AS utm_campaign,
-    CAST(NULL AS STRING)    AS utm_content,             
-    CAST(NULL AS STRING)    AS utm_ict_reference_number, 
+    CAST(NULL AS STRING)    AS utm_content,
+    CAST(NULL AS STRING)    AS utm_ict_reference_number,
     medium                  AS utm_medium,
-    CAST(NULL AS INT64)     AS utm_pageview_count,       
-    CAST(NULL AS INT64)     AS utm_session_count,      
-    CAST(NULL AS STRING)    AS utm_source,               
-    CAST(NULL AS STRING)    AS utm_term,             
+    CAST(NULL AS INT64)     AS utm_pageview_count,
+    CAST(NULL AS INT64)     AS utm_session_count,
+    CAST(NULL AS STRING)    AS utm_source,
+    CAST(NULL AS STRING)    AS utm_term,
     CAST(NULL AS STRING)    AS ga_client_id,
     CAST(NULL AS STRING)    AS ga_user_id,
     CAST(NULL AS STRING)    AS gclid,
-    CAST(NULL AS STRING)    AS google_ads              
+    CAST(NULL AS STRING)    AS google_ads
   FROM `focused-sentry-464713-u0.callrail_auritmediation.callrail_alldata_delta`
   WHERE REGEXP_CONTAINS(COALESCE(direction, ''), r'(?i)^\s*inbound\s*$')
 ),
@@ -318,7 +322,7 @@ ranked_brucelaw AS (
 base_drakelaw AS (
   SELECT
     'drakelaw-dl1008' AS firm_unique_id,
-    'Drake Law'         AS firm_name,
+    'Drake Law'       AS firm_name,
     CAST(answered AS BOOL) AS answered,
     direction,
     COALESCE(SAFE_CAST(duration AS INT64), SAFE_CAST(recording_duration AS INT64)) AS recording_duration,
@@ -357,7 +361,7 @@ ranked_drakelaw AS (
 base_haffner AS (
   SELECT
     'haffner-haffner1009' AS firm_unique_id,
-    'Haffner Law'             AS firm_name,
+    'Haffner'             AS firm_name,
     CAST(LOWER(call_status) = 'answered' AS BOOL) AS answered,
     direction,
     SAFE_CAST(duration AS INT64) AS recording_duration,
@@ -395,7 +399,7 @@ ranked_haffner AS (
   FROM base_haffner
 ),
 
--- 11) SLO (Sterling Law Office) — inlined filters
+-- 11) SLO (Sterling Law Office) — inlined filters and parser
 slo_src AS (
   SELECT
     t.*,
@@ -449,9 +453,7 @@ base_slo AS (
     AND EXTRACT(HOUR FROM called_ts AT TIME ZONE "America/Chicago") BETWEEN 8 AND 17
 ),
 ranked_slo AS (
-  SELECT
-    *,
-    ROW_NUMBER() OVER (PARTITION BY call_tracking_unique_id ORDER BY start_datetime DESC) AS row_num
+  SELECT *, ROW_NUMBER() OVER (PARTITION BY call_tracking_unique_id ORDER BY start_datetime DESC) AS row_num
   FROM base_slo
 ),
 
@@ -533,16 +535,16 @@ ranked_chisholm AS (
   FROM base_chisholm
 ),
 
--- 14) KALISH AND JAGGARS
+-- 14) KALISH AND JAGGARS (CallTracking)
 base_kalishjaggars AS (
   SELECT
-    'kalishandjaggars-1013'                  AS firm_unique_id,
-    'Kalish And Jaggars'                     AS firm_name,
+    'kalishandjaggars-1013'                     AS firm_unique_id,
+    'Kalish And Jaggars'                        AS firm_name,
     CAST(LOWER(call_status) = 'answered' AS BOOL) AS answered,
     direction,
-    SAFE_CAST(duration AS INT64)             AS recording_duration,
-    sid                                      AS call_tracking_unique_id,
-    CAST(NULL AS INT64)                      AS call_recording_duration,
+    SAFE_CAST(duration AS INT64)                AS recording_duration,
+    sid                                         AS call_tracking_unique_id,
+    CAST(NULL AS INT64)                         AS call_recording_duration,
     COALESCE(
       SAFE.PARSE_TIMESTAMP('%Y-%m-%d %I:%M %p %Ez', TRIM(CAST(called_at AS STRING))),
       SAFE.PARSE_TIMESTAMP('%Y-%m-%d %I:%M %p %z',  TRIM(CAST(called_at AS STRING))),
@@ -553,7 +555,7 @@ base_kalishjaggars AS (
       SAFE.TIMESTAMP(called_at),
       SAFE.TIMESTAMP_SECONDS(SAFE_CAST(unix_time AS INT64))
     ) AS start_datetime,
-    CAST(NULL AS STRING) AS source,
+    CAST(NULL AS STRING) AS source,              -- mapping sheet: NULL
     CAST(NULL AS STRING) AS practice_area,
     CAST(NULL AS STRING) AS marketing_channel,
     CAST(NULL AS STRING) AS utm_campaign,
@@ -576,13 +578,70 @@ ranked_kalishjaggars AS (
   FROM base_kalishjaggars
 ),
 
-unioned AS (
+-- 15) FANASH FAMILY LAW (CallRail)
+base_fanash AS (
   SELECT
-    firm_unique_id, firm_name, answered, direction, recording_duration,
-    call_tracking_unique_id, call_recording_duration, start_datetime,
-    source, practice_area, marketing_channel, utm_campaign, utm_content,
-    utm_ict_reference_number, utm_medium, utm_pageview_count, utm_session_count,
-    utm_source, utm_term, ga_client_id, ga_user_id, gclid, google_ads
+    'fanashfamilylaw-1013' AS firm_unique_id,
+    'Fanash Family Law'   AS firm_name,
+    CAST(answered AS BOOL) AS answered,
+    direction,
+    SAFE_CAST(duration AS INT64) AS recording_duration,
+    id AS call_tracking_unique_id,
+    SAFE_CAST(recording_duration AS INT64) AS call_recording_duration,
+    COALESCE(
+      SAFE.PARSE_TIMESTAMP('%Y-%m-%dT%H:%M:%E*S%Ez', TRIM(CAST(start_time AS STRING))),
+      SAFE.PARSE_TIMESTAMP('%Y-%m-%d %H:%M:%E*S%Ez', TRIM(CAST(start_time AS STRING))),
+      SAFE.PARSE_TIMESTAMP('%Y-%m-%d %H:%M:%S%Ez',  TRIM(CAST(start_time AS STRING))),
+      CAST(start_time AS TIMESTAMP)
+    ) AS start_datetime,
+    CAST(NULL AS STRING) AS source,
+    CAST(NULL AS STRING) AS practice_area,
+    CAST(NULL AS STRING) AS marketing_channel,
+    CAST(NULL AS STRING) AS utm_campaign,
+    CAST(NULL AS STRING) AS utm_content,
+    CAST(NULL AS STRING) AS utm_ict_reference_number,
+    CAST(NULL AS STRING) AS utm_medium,
+    CAST(NULL AS INT64)  AS utm_pageview_count,
+    CAST(NULL AS INT64)  AS utm_session_count,
+    CAST(NULL AS STRING) AS utm_source,
+    CAST(NULL AS STRING) AS utm_term,
+    CAST(NULL AS STRING) AS ga_client_id,
+    CAST(NULL AS STRING) AS ga_user_id,
+     CAST(NULL AS STRING) AS gclid,
+    CAST(NULL AS STRING) AS google_ads
+  FROM `focused-sentry-464713-u0.callrail_fanashfamilylaw.callrail_alldata_delta`
+  WHERE REGEXP_CONTAINS(COALESCE(direction, ''), r'(?i)^\s*inbound\s*$')
+),
+ranked_fanash AS (
+  SELECT *, ROW_NUMBER() OVER (PARTITION BY call_tracking_unique_id ORDER BY start_datetime DESC) AS row_num
+  FROM base_fanash
+)
+
+, unioned AS (
+  SELECT
+    firm_unique_id            AS firm_unique_id,
+    firm_name                 AS firm_name,
+    answered                  AS answered,
+    direction                 AS direction,
+    recording_duration        AS recording_duration,
+    call_tracking_unique_id   AS call_tracking_unique_id,
+    call_recording_duration   AS call_recording_duration,
+    start_datetime            AS start_datetime,
+    source                    AS source,
+    practice_area             AS practice_area,
+    marketing_channel         AS marketing_channel,
+    utm_campaign              AS utm_campaign,
+    utm_content               AS utm_content,
+    utm_ict_reference_number  AS utm_ict_reference_number,
+    utm_medium                AS utm_medium,
+    utm_pageview_count        AS utm_pageview_count,
+    utm_session_count         AS utm_session_count,
+    utm_source                AS utm_source,
+    utm_term                  AS utm_term,
+    ga_client_id              AS ga_client_id,
+    ga_user_id                AS ga_user_id,
+    gclid                     AS gclid,
+    google_ads                AS google_ads
   FROM ranked_genesis WHERE row_num = 1
 
   UNION ALL
@@ -694,7 +753,7 @@ unioned AS (
   FROM ranked_chisholm WHERE row_num = 1
 
   UNION ALL
-  -- NEW: KALISH AND JAGGARS
+  -- KALISH AND JAGGARS
   SELECT
     firm_unique_id, firm_name, answered, direction, recording_duration,
     call_tracking_unique_id, call_recording_duration, start_datetime,
@@ -702,6 +761,16 @@ unioned AS (
     utm_ict_reference_number, utm_medium, utm_pageview_count, utm_session_count,
     utm_source, utm_term, ga_client_id, ga_user_id, gclid, google_ads
   FROM ranked_kalishjaggars WHERE row_num = 1
+
+  UNION ALL
+  -- FANASH FAMILY LAW
+  SELECT
+    firm_unique_id, firm_name, answered, direction, recording_duration,
+    call_tracking_unique_id, call_recording_duration, start_datetime,
+    source, practice_area, marketing_channel, utm_campaign, utm_content,
+    utm_ict_reference_number, utm_medium, utm_pageview_count, utm_session_count,
+    utm_source, utm_term, ga_client_id, ga_user_id, gclid, google_ads
+  FROM ranked_fanash WHERE row_num = 1
 )
 
 SELECT
