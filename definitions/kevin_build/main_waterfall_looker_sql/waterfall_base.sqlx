@@ -3,7 +3,7 @@ CREATE OR REPLACE TABLE
 
 -- 0) Firm_Unique_ID → timezone map (kept)
 WITH firm_tz AS (
-  SELECT 'Genesis-glg1000' AS Firm_Unique_ID, 'America/Chicago' AS tz UNION ALL
+
   SELECT 'VDL-vdl1001'     , 'America/Chicago' UNION ALL
   SELECT 'SMB-smb1002'     , 'America/Chicago' UNION ALL
   SELECT 'Brucelaw-blg-1003','America/Chicago' UNION ALL
