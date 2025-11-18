@@ -376,7 +376,7 @@ slo_src AS (
 base_slo AS (
   SELECT
     'SterlingLawOffice-1010' AS firm_unique_id,
-    'Sterling Law Office'    AS firm_name,
+    'Sterling Lawyers'    AS firm_name,
     CAST(LOWER(call_status) = 'answered' AS BOOL) AS answered,
     direction,
     COALESCE(SAFE_CAST(duration AS INT64), 0) AS recording_duration,

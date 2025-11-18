@@ -3,7 +3,7 @@ CREATE OR REPLACE TABLE
 
 WITH firm AS (
   SELECT 'SterlingLawOffice-1010' AS Firm_Unique_ID,
-         'Sterling Law Office'     AS Firm_Name
+         'Sterling Lawyers'     AS Firm_Name
 ),
 date_spine AS (
   SELECT d AS metric_date
