@@ -333,7 +333,7 @@ SELECT
   r.Firm_Name,
   SAFE_CAST(NULL AS STRING) AS Marketing_Channel,
   m.metric_name,
-  m.metric_value
+  ROUND(m.metric_value, 1) AS metric_value         -- 🔹 rounded to 1 decimal place
 FROM roll r
 CROSS JOIN UNNEST([
   STRUCT<metric_name STRING, date_window STRING, metric_value FLOAT64>('Total Calls','last_7_days'   , SAFE_DIVIDE(calls_w7,    5)),

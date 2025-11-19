@@ -1,20 +1,19 @@
 CREATE OR REPLACE TABLE
   `rc-datamart-report-082025.genesis_looker_crm_ctp_universal_table.tmp_historical_base` AS
 
--- 0) Firm_Unique_ID → timezone map (kept)
+-- 0) Firm_Unique_ID → timezone map (fixed with column aliases)
 WITH firm_tz AS (
-
-  SELECT 'VDL-vdl1001'     , 'America/Chicago' UNION ALL
-  SELECT 'SMB-smb1002'     , 'America/Chicago' UNION ALL
-  SELECT 'Brucelaw-blg-1003','America/Chicago' UNION ALL
-  SELECT 'Rosenblum-ral1004','America/Chicago' UNION ALL
-  SELECT 'meyerpinklaw-mpl1005','America/Chicago' UNION ALL
-  SELECT 'sumitfamilylawinc-sfl1006','America/Chicago' UNION ALL
-  SELECT 'auritmediation-am1007','America/Chicago' UNION ALL
-  SELECT 'drakelaw-dl1008' , 'America/Chicago' UNION ALL
-  SELECT 'haffner-haffner1009','America/Chicago' UNION ALL
-  SELECT 'theramagelawgroup-1011','America/Chicago' UNION ALL
-  SELECT 'chisholmlawfirm-1012','America/Chicago'
+  SELECT 'VDL-vdl1001'              AS Firm_Unique_ID, 'America/Chicago' AS tz UNION ALL
+  SELECT 'SMB-smb1002'              AS Firm_Unique_ID, 'America/Chicago' AS tz UNION ALL
+  SELECT 'Brucelaw-blg-1003'        AS Firm_Unique_ID, 'America/Chicago' AS tz UNION ALL
+  SELECT 'Rosenblum-ral1004'        AS Firm_Unique_ID, 'America/Chicago' AS tz UNION ALL
+  SELECT 'meyerpinklaw-mpl1005'     AS Firm_Unique_ID, 'America/Chicago' AS tz UNION ALL
+  SELECT 'sumitfamilylawinc-sfl1006'AS Firm_Unique_ID, 'America/Chicago' AS tz UNION ALL
+  SELECT 'auritmediation-am1007'    AS Firm_Unique_ID, 'America/Chicago' AS tz UNION ALL
+  SELECT 'drakelaw-dl1008'          AS Firm_Unique_ID, 'America/Chicago' AS tz UNION ALL
+  SELECT 'haffner-haffner1009'      AS Firm_Unique_ID, 'America/Chicago' AS tz UNION ALL
+  SELECT 'theramagelawgroup-1011'   AS Firm_Unique_ID, 'America/Chicago' AS tz UNION ALL
+  SELECT 'chisholmlawfirm-1012'     AS Firm_Unique_ID, 'America/Chicago' AS tz
 ),
 
 -- 1) Date spine & firms (kept)
@@ -23,7 +22,10 @@ date_spine AS (
   FROM UNNEST(GENERATE_DATE_ARRAY(DATE('2022-01-01'), CURRENT_DATE())) AS d
 ),
 firms AS (
-  SELECT DISTINCT u.Firm_Unique_ID, u.Firm_Name, COALESCE(tz.tz, 'UTC') AS tz
+  SELECT DISTINCT
+    u.Firm_Unique_ID,
+    u.Firm_Name,
+    COALESCE(tz.tz, 'UTC') AS tz
   FROM `rc-datamart-report-082025.genesis_looker_crm_ctp_universal_table.genesis_crm_ctp_universal_table` u
   LEFT JOIN firm_tz tz USING (Firm_Unique_ID)
 ),
@@ -32,7 +34,8 @@ firms AS (
 -- Calls: keep tz conversion (start_datetime is a timestamp)
 calls_daily AS (
   SELECT
-    u.Firm_Unique_ID, u.Firm_Name,
+    u.Firm_Unique_ID,
+    u.Firm_Name,
     DATE(DATETIME(u.start_datetime, f.tz)) AS metric_date,
     COUNT(u.Call_Tracking_Unique_ID) AS calls_total_day,
     SUM(CASE WHEN SAFE_CAST(u.Answered AS BOOL) THEN 1 ELSE 0 END) AS calls_answered_day
@@ -46,7 +49,7 @@ leads_daily AS (
   SELECT
     u.Firm_Unique_ID,
     u.Firm_Name,
-    SAFE_CAST(u.Lead_Create_Date AS DATE) AS metric_date, 
+    SAFE_CAST(u.Lead_Create_Date AS DATE) AS metric_date,
     COUNT(DISTINCT u.Lead_Unique_ID) AS leads_total_day,
     COUNT(DISTINCT CASE WHEN u.Web_Lead_Indicator IS NOT NULL THEN u.Lead_Unique_ID END) AS web_leads_day
   FROM `rc-datamart-report-082025.genesis_looker_crm_ctp_universal_table.genesis_crm_ctp_universal_table` u
@@ -59,7 +62,8 @@ leads_daily AS (
 -- Other CRM dates
 consult_sched_daily AS (
   SELECT
-    u.Firm_Unique_ID, u.Firm_Name,
+    u.Firm_Unique_ID,
+    u.Firm_Name,
     SAFE.PARSE_DATE('%Y-%m-%d', CAST(u.Consultation_Date AS STRING)) AS metric_date,
     COUNT(*) AS consults_scheduled_day
   FROM `rc-datamart-report-082025.genesis_looker_crm_ctp_universal_table.genesis_crm_ctp_universal_table` u
@@ -69,7 +73,8 @@ consult_sched_daily AS (
 ),
 consult_comp_daily AS (
   SELECT
-    u.Firm_Unique_ID, u.Firm_Name,
+    u.Firm_Unique_ID,
+    u.Firm_Name,
     SAFE.PARSE_DATE('%Y-%m-%d', CAST(u.Consult_Completed_Date AS STRING)) AS metric_date,
     COUNT(*) AS consults_completed_day
   FROM `rc-datamart-report-082025.genesis_looker_crm_ctp_universal_table.genesis_crm_ctp_universal_table` u
@@ -79,7 +84,8 @@ consult_comp_daily AS (
 ),
 quotes_daily AS (
   SELECT
-    u.Firm_Unique_ID, u.Firm_Name,
+    u.Firm_Unique_ID,
+    u.Firm_Name,
     SAFE.PARSE_DATE('%Y-%m-%d', CAST(u.Retainer_Sent_Date AS STRING)) AS metric_date,
     COUNT(*) AS quotes_day
   FROM `rc-datamart-report-082025.genesis_looker_crm_ctp_universal_table.genesis_crm_ctp_universal_table` u
@@ -89,7 +95,8 @@ quotes_daily AS (
 ),
 funded_daily AS (
   SELECT
-    u.Firm_Unique_ID, u.Firm_Name,
+    u.Firm_Unique_ID,
+    u.Firm_Name,
     SAFE.PARSE_DATE('%Y-%m-%d', CAST(u.Retainer_Funded_Date AS STRING)) AS metric_date,
     COUNT(*) AS funded_agreements_day
   FROM `rc-datamart-report-082025.genesis_looker_crm_ctp_universal_table.genesis_crm_ctp_universal_table` u
@@ -99,7 +106,8 @@ funded_daily AS (
 ),
 qpc_daily AS (
   SELECT
-    u.Firm_Unique_ID, u.Firm_Name,
+    u.Firm_Unique_ID,
+    u.Firm_Name,
     SAFE.PARSE_DATE('%Y-%m-%d', CAST(u.QPC AS STRING)) AS metric_date,
     COUNT(*) AS qpc_count_day
   FROM `rc-datamart-report-082025.genesis_looker_crm_ctp_universal_table.genesis_crm_ctp_universal_table` u
@@ -111,25 +119,28 @@ qpc_daily AS (
 -- 3) Dense firm-date grid + zero-fill (kept)
 dense AS (
   SELECT
-    f.Firm_Unique_ID, f.Firm_Name, f.tz, d.metric_date,
-    COALESCE(c.calls_total_day, 0)          AS calls_total_day,
-    COALESCE(c.calls_answered_day, 0)       AS calls_answered_day,
-    COALESCE(l.leads_total_day, 0)          AS leads_total_day,
-    COALESCE(l.web_leads_day, 0)            AS web_leads_day,
-    COALESCE(q.qpc_count_day, 0)            AS qpc_count_day,
-    COALESCE(cs.consults_scheduled_day, 0)  AS consults_scheduled_day,
-    COALESCE(cc.consults_completed_day, 0)  AS consults_completed_day,
-    COALESCE(qu.quotes_day, 0)              AS quotes_day,
-    COALESCE(fu.funded_agreements_day, 0)   AS funded_agreements_day
+    f.Firm_Unique_ID,
+    f.Firm_Name,
+    f.tz,
+    d.metric_date,
+    COALESCE(c.calls_total_day, 0)         AS calls_total_day,
+    COALESCE(c.calls_answered_day, 0)      AS calls_answered_day,
+    COALESCE(l.leads_total_day, 0)         AS leads_total_day,
+    COALESCE(l.web_leads_day, 0)           AS web_leads_day,
+    COALESCE(q.qpc_count_day, 0)           AS qpc_count_day,
+    COALESCE(cs.consults_scheduled_day, 0) AS consults_scheduled_day,
+    COALESCE(cc.consults_completed_day, 0) AS consults_completed_day,
+    COALESCE(qu.quotes_day, 0)             AS quotes_day,
+    COALESCE(fu.funded_agreements_day, 0)  AS funded_agreements_day
   FROM firms f
   CROSS JOIN date_spine d
-  LEFT JOIN calls_daily           c  USING (Firm_Unique_ID, Firm_Name, metric_date)
-  LEFT JOIN leads_daily           l  USING (Firm_Unique_ID, Firm_Name, metric_date)
-  LEFT JOIN qpc_daily             q  USING (Firm_Unique_ID, Firm_Name, metric_date)
-  LEFT JOIN consult_sched_daily   cs USING (Firm_Unique_ID, Firm_Name, metric_date)
-  LEFT JOIN consult_comp_daily    cc USING (Firm_Unique_ID, Firm_Name, metric_date)
-  LEFT JOIN quotes_daily          qu USING (Firm_Unique_ID, Firm_Name, metric_date)
-  LEFT JOIN funded_daily          fu USING (Firm_Unique_ID, Firm_Name, metric_date)
+  LEFT JOIN calls_daily         c  USING (Firm_Unique_ID, Firm_Name, metric_date)
+  LEFT JOIN leads_daily         l  USING (Firm_Unique_ID, Firm_Name, metric_date)
+  LEFT JOIN qpc_daily           q  USING (Firm_Unique_ID, Firm_Name, metric_date)
+  LEFT JOIN consult_sched_daily cs USING (Firm_Unique_ID, Firm_Name, metric_date)
+  LEFT JOIN consult_comp_daily  cc USING (Firm_Unique_ID, Firm_Name, metric_date)
+  LEFT JOIN quotes_daily        qu USING (Firm_Unique_ID, Firm_Name, metric_date)
+  LEFT JOIN funded_daily        fu USING (Firm_Unique_ID, Firm_Name, metric_date)
 ),
 
 -- 4) Rolling sums (kept)
@@ -199,9 +210,9 @@ SELECT
   m.date_window,
   r.Firm_Unique_ID,
   r.Firm_Name,
-  CAST(NULL AS STRING) AS Marketing_Channel,  -- overall metrics (no replication)
+  CAST(NULL AS STRING) AS Marketing_Channel,
   m.metric_name,
-  m.metric_value
+  ROUND(m.metric_value, 1) AS metric_value  -- rounded to 1 decimal place
 FROM roll r
 CROSS JOIN UNNEST([
   STRUCT<metric_name STRING, date_window STRING, metric_value FLOAT64>('Total Calls','last_7_days'   , SAFE_DIVIDE(calls_w7,    5)),
