@@ -110,7 +110,10 @@ smb_dedup_ranked AS (
         contact_lead_status,
         ROW_NUMBER() OVER (PARTITION BY contact_record_id ORDER BY contact_last_modified_date DESC, contact_create_date DESC ) AS rn
       FROM
-        `focused-sentry-464713-u0.hubspot_summit.summit_alldata_delta` ),
+        `focused-sentry-464713-u0.hubspot_summit.summit_alldata_delta`
+  WHERE
+    to_date_safe(contact_create_date) >= DATE '2025-04-01'
+	),
       rosenblum_dedup AS (
       SELECT
         prospectid,
