@@ -4,6 +4,10 @@ CREATE OR REPLACE TABLE
 WITH base AS (
   SELECT * 
   FROM `rc-datamart-report-082025.genesis_looker_crm_ctp_universal_table.tmp_historical_base`
+  WHERE NOT (
+    Firm_Unique_ID = 'SterlingLawOffice-1010'
+    AND Firm_Name  = 'Sterling Lawyers'
+  )
 )
 
 -- Answer Rate
@@ -12,7 +16,7 @@ SELECT
   a.date_window,
   a.Firm_Unique_ID,
   a.Firm_Name,
-  a.Marketing_Channel,                -- NEW
+  a.Marketing_Channel,
   'Answer Rate' AS metric_name,
   SAFE_DIVIDE(ans.metric_value, tc.metric_value) AS metric_value
 FROM (
@@ -38,7 +42,7 @@ SELECT
   a.date_window,
   a.Firm_Unique_ID,
   a.Firm_Name,
-  a.Marketing_Channel,                -- NEW
+  a.Marketing_Channel,
   'Inbound Lead to Call' AS metric_name,
   SAFE_DIVIDE(tc.metric_value, inbound.metric_value) AS metric_value
 FROM (
@@ -64,7 +68,7 @@ SELECT
   a.date_window,
   a.Firm_Unique_ID,
   a.Firm_Name,
-  a.Marketing_Channel,                -- NEW
+  a.Marketing_Channel,
   'QPC Rate' AS metric_name,
   SAFE_DIVIDE(qpc.metric_value, tl.metric_value) AS metric_value
 FROM (
@@ -90,7 +94,7 @@ SELECT
   a.date_window,
   a.Firm_Unique_ID,
   a.Firm_Name,
-  a.Marketing_Channel,                -- NEW
+  a.Marketing_Channel,
   'QPC to Scheduled' AS metric_name,
   SAFE_DIVIDE(cs.metric_value, qpc.metric_value) AS metric_value
 FROM (
@@ -116,7 +120,7 @@ SELECT
   a.date_window,
   a.Firm_Unique_ID,
   a.Firm_Name,
-  a.Marketing_Channel,                -- NEW
+  a.Marketing_Channel,
   'Completion Rate' AS metric_name,
   SAFE_DIVIDE(cc.metric_value, cs.metric_value) AS metric_value
 FROM (
@@ -142,7 +146,7 @@ SELECT
   a.date_window,
   a.Firm_Unique_ID,
   a.Firm_Name,
-  a.Marketing_Channel,                -- NEW
+  a.Marketing_Channel,
   'Quote Rate' AS metric_name,
   SAFE_DIVIDE(qt.metric_value, cc.metric_value) AS metric_value
 FROM (
@@ -168,7 +172,7 @@ SELECT
   a.date_window,
   a.Firm_Unique_ID,
   a.Firm_Name,
-  a.Marketing_Channel,                -- NEW
+  a.Marketing_Channel,
   'Close Rate' AS metric_name,
   SAFE_DIVIDE(fa.metric_value, cs.metric_value) AS metric_value
 FROM (
