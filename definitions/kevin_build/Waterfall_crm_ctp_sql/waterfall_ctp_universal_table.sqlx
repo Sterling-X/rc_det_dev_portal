@@ -373,6 +373,50 @@ slo_src AS (
     ) AS called_ts
   FROM `focused-sentry-464713-u0.calltracking_slo.ctp_initialdata_delta` AS t
 ),
+base_slo AS (
+  SELECT
+    'SterlingLawOffice-1010' AS firm_unique_id,
+    'Sterling Lawyers'    AS firm_name,
+    CAST(LOWER(call_status) = 'answered' AS BOOL) AS answered,
+    direction,
+    COALESCE(SAFE_CAST(duration AS INT64), 0) AS recording_duration,
+    sid AS call_tracking_unique_id,
+    CAST(NULL AS INT64) AS call_recording_duration,
+    called_ts AS start_datetime,
+    source,
+    CAST(NULL AS STRING) AS practice_area,
+    CAST(NULL AS STRING) AS marketing_channel,
+    CAST(NULL AS STRING) AS utm_campaign,
+    CAST(NULL AS STRING) AS utm_content,
+    CAST(NULL AS STRING) AS utm_ict_reference_number,
+    CAST(NULL AS STRING) AS utm_medium,
+    CAST(NULL AS INT64)  AS utm_pageview_count,
+    CAST(NULL AS INT64)  AS utm_session_count,
+    CAST(NULL AS STRING) AS utm_source,
+    CAST(NULL AS STRING) AS utm_term,
+    CAST(NULL AS STRING) AS ga_client_id,
+    CAST(NULL AS STRING) AS ga_user_id,
+    CAST(NULL AS STRING) AS gclid,
+    CAST(NULL AS STRING) AS google_ads
+  FROM slo_src
+  WHERE
+    called_ts IS NOT NULL
+    AND LOWER(COALESCE(direction, '')) = 'inbound'
+    AND COALESCE(SAFE_CAST(duration AS INT64), 0) >= 4
+    AND source IS NOT NULL
+    AND REGEXP_REPLACE(CAST(source AS STRING), r'[\s\p{Zs}\p{Zl}\p{Zp}]+', '') <> ''
+    AND LOWER(TRIM(source)) NOT IN (
+      'pbn','agent','agent - css','dead nap','consult recordings',
+      'credit card authorization recordings'
+    )
+    AND NOT REGEXP_CONTAINS(LOWER(COALESCE(tag_list, '')), r'\bspam\b')
+    AND EXTRACT(DAYOFWEEK FROM called_ts AT TIME ZONE "America/Chicago") NOT IN (1, 7)
+    AND EXTRACT(HOUR FROM called_ts AT TIME ZONE "America/Chicago") BETWEEN 8 AND 17
+),
+ranked_slo AS (
+  SELECT *, ROW_NUMBER() OVER (PARTITION BY call_tracking_unique_id ORDER BY start_datetime DESC) AS row_num
+  FROM base_slo
+),
 
 -- 12) THE RAMAGE LAW GROUP
 base_ramage AS (
