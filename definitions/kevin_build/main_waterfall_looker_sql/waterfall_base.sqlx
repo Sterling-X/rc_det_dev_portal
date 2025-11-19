@@ -13,7 +13,6 @@ WITH firm_tz AS (
   SELECT 'auritmediation-am1007','America/Chicago' UNION ALL
   SELECT 'drakelaw-dl1008' , 'America/Chicago' UNION ALL
   SELECT 'haffner-haffner1009','America/Chicago' UNION ALL
-  SELECT 'SterlingLawOffice-1010','America/Chicago' UNION ALL
   SELECT 'theramagelawgroup-1011','America/Chicago' UNION ALL
   SELECT 'chisholmlawfirm-1012','America/Chicago'
 ),
@@ -27,7 +26,6 @@ firms AS (
   SELECT DISTINCT u.Firm_Unique_ID, u.Firm_Name, COALESCE(tz.tz, 'UTC') AS tz
   FROM `rc-datamart-report-082025.genesis_looker_crm_ctp_universal_table.genesis_crm_ctp_universal_table` u
   LEFT JOIN firm_tz tz USING (Firm_Unique_ID)
-WHERE u.Firm_Unique_ID <> 'SterlingLawOffice-1010' 
 ),
 
 -- 2) Daily aggregates

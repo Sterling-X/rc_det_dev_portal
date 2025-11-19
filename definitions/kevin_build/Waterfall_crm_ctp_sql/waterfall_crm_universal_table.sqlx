@@ -55,12 +55,10 @@ smb_dedup AS (
     contact__source,
     contact__tags,
     opp__attribution_medium,
-    -- materialize parsed date once
     to_date_safe(opp__createdat) AS opp__createdat_date
   FROM
     `focused-sentry-464713-u0.turbine_smb.smb_alldata_delta`
   WHERE
-    -- only consider rows on/after 2025-07-01
     to_date_safe(opp__createdat) >= DATE '2025-07-01'
 ),
 smb_dedup_ranked AS (
