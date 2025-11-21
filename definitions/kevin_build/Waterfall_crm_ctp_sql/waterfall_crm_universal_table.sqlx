@@ -1,486 +1,684 @@
 CREATE TEMP FUNCTION
-  to_date_safe(x ANY TYPE) AS ( COALESCE( SAFE.PARSE_DATE('%Y-%m-%d', TRIM(CAST(x AS STRING))), SAFE.PARSE_DATE('%B %e, %Y', TRIM(CAST(x AS STRING))),
-  -- September 30, 2024
-  SAFE.PARSE_DATE('%b %e, %Y', TRIM(CAST(x AS STRING))),
-  -- Sep 30, 2024
-  SAFE.DATE(SAFE.PARSE_TIMESTAMP('%Y-%m-%dT%H:%M:%E*S%Ez', TRIM(CAST(x AS STRING)))), SAFE.DATE(SAFE.PARSE_TIMESTAMP('%Y-%m-%d %H:%M:%E*S%Ez', TRIM(CAST(x AS STRING)))), SAFE.DATE(SAFE.PARSE_TIMESTAMP('%Y-%m-%d %H:%M:%S', TRIM(CAST(x AS STRING)))) ) );
-    CREATE TEMP FUNCTION
-      to_iso_date_string(x ANY TYPE) AS ( COALESCE( FORMAT_DATE('%Y-%m-%d', to_date_safe(x)), CAST(x AS STRING) ) );
-    CREATE TEMP FUNCTION
-      to_iso_date_keep_local(x ANY TYPE) AS (
-        CASE
-          WHEN x IS NULL THEN NULL
-          WHEN REGEXP_CONTAINS(CAST(x AS STRING), r'^\d{4}-\d{2}-\d{2}T') THEN SUBSTR(CAST(x AS STRING), 1, 10)
-          ELSE FORMAT_DATE('%Y-%m-%d', to_date_safe(x))
-      END
-        );
-    CREATE TEMP FUNCTION
-      is_truth (x ANY TYPE) AS ( REGEXP_CONTAINS( LOWER(TRIM(CAST(x AS STRING))), r'(^|\W)(true|t|yes|y|1)($|\W)' ) );
-    CREATE OR REPLACE TABLE
-      `focused-sentry-464713-u0.crm_universal_tables.genesis_crm_universal_table` AS
-    WITH
-      vdl_dedup AS (
-      SELECT
-        prospectid,
-        created_at,
-        cf_discovery_session_date,
-        cf_consult_completed_date,
-        cf_retainer_sent_date,
-        cf_date_hired,
-        cf_email_newsletter_opt_in,
-        cf_lead_type,
-        cf_marketing_source,
-        cf_utm_campaign,
-        cf_utm_content,
-        cf_utm_medium,
-        cf_utm_source,
-        cf_utm_term,
-        cf_case_eval_date,
-        updated_at,
-        ROW_NUMBER() OVER (PARTITION BY prospectid ORDER BY updated_at DESC) AS rn
-      FROM
-        `focused-sentry-464713-u0.lawmatics_vdl.vdl_alldata_delta` ),
-smb_dedup AS (
-  SELECT
-    opp__id,
-    opp__createdat,
-    opp__updatedat,
-    opp__cf_opportunity_consult_date,
-    opp__cf_opportunity_consult_completed,
-    opp__cf_opportunity_retainer_sent_date,
-    opp__cf_opportunity_date_new_lead_became_a_client,
-    opp__cf_opportunity_date_new_lead_became_a_qualified_lead,
-    opp__cf_opportunity_date_consult_is_recorded,
-    opp__source,
-    contact__source,
-    contact__tags,
-    opp__attribution_medium,
-    to_date_safe(opp__createdat) AS opp__createdat_date
-  FROM
-    `focused-sentry-464713-u0.turbine_smb.smb_alldata_delta`
-  WHERE
-    to_date_safe(opp__createdat) >= DATE '2025-07-01'
-),
-smb_dedup_ranked AS (
-  SELECT
-    *,
-    ROW_NUMBER() OVER (PARTITION BY opp__id ORDER BY opp__updatedat DESC, opp__createdat DESC) AS rn
-  FROM smb_dedup
-),
-      haffner_dedup AS (
-      SELECT
-        CAST(lead_id AS STRING) AS lead_id,
-        lead_lastupdatedate,
-        ROW_NUMBER() OVER (PARTITION BY CAST(lead_id AS STRING)
-        ORDER BY
-          lead_lastupdatedate DESC ) AS rn
-      FROM
-        `focused-sentry-464713-u0.leaddocket_haffner.initialdata_delta` ),
-      kalish_dedup AS (
-      SELECT
-        CAST(lead_id AS STRING) AS lead_id,
-        lead_lastupdatedate,
-        ROW_NUMBER() OVER (PARTITION BY CAST(lead_id AS STRING)
-        ORDER BY
-          lead_lastupdatedate DESC ) AS rn
-      FROM
-        `focused-sentry-464713-u0.leaddocket_kalishandjaggars.initialdata_delta` ),
-      summit_dedup AS (
-      SELECT
-        contact_record_id,
-        contact_create_date,
-        deal_date_entered_consultation_scheduled_sales_pipeline,
-        deal_date_exited_consultation_scheduled_sales_pipeline,
-        deal_date_entered_agreement_sent_sales_pipeline,
-        deal_date_exited_agreement_sent_sales_pipeline,
-        deal_date_entered_closed_won_sales_pipeline,
-        contact_latest_traffic_source,
-        contact_original_lead_source_drill_down_1,
-        contact_original_lead_source,
-        contact_last_referring_site,
-        contact_utm_campaign,
-        contact_utm_content,
-        contact_utm_medium,
-        contact_utm_source,
-        contact_utm_term,
-        contact_gclid,
-        contact_date_entered_sales_qualified_lead_lifecycle_stage_pipeline,
-        contact_latest_disqualified_lead_date,
-        contact_last_modified_date,
-        contact_lead_status,
-        ROW_NUMBER() OVER (PARTITION BY contact_record_id ORDER BY contact_last_modified_date DESC, contact_create_date DESC ) AS rn
-      FROM
-        `focused-sentry-464713-u0.hubspot_summit.summit_alldata_delta`
-  WHERE
-    to_date_safe(contact_create_date) >= DATE '2025-04-01'
-	),
-      rosenblum_dedup AS (
-      SELECT
-        prospectid,
-        created_at,
-        cf_lead_type,
-        utm_campaign,
-        utm_medium,
-        utm_source,
-        utm_term,
-        gclid,
-        updated_at,
-        ROW_NUMBER() OVER (PARTITION BY prospectid ORDER BY updated_at DESC) AS rn
-      FROM
-        `focused-sentry-464713-u0.lawmatics_rosenblum.rosenblum_alldata_delta` ),
-      meyerpink_dedup AS (
-      SELECT
-        prospectid,
-        created_at,
-        cf_fl_consult_scheduled_entry_date,
-        cf_discovery_consultation_complete,
-        cf_retainer_signed_date,
-        cf_hired_date,
-        cf_entity_website,
-        utm_campaign,
-        utm_medium,
-        utm_source,
-        utm_term,
-        gclid,
-        updated_at,
-        ROW_NUMBER() OVER (PARTITION BY prospectid ORDER BY updated_at DESC) AS rn
-      FROM
-        `focused-sentry-464713-u0.lawmatics_meyerpink.meyerpink_alldata_delta` ),
-      aurit_dedup AS (
-      SELECT
-        lead_Id,
-        lead_CreatedDate,
-        lead_Consult_Date_Time__c,
-        lead_Consult_Completed__c,
-        lead_Agreement_to_Mediate_Sent_Date__c,
-        lead_Mediation_Agreement_Signed_Date__c,
-        lead_LeadSource,
-        lead_pi__utm_campaign__c,
-        lead_pi__utm_content__c,
-        lead_pi__utm_medium__c,
-        lead_pi__utm_source__c,
-        lead_pi__utm_term__c,
-        ROW_NUMBER() OVER (PARTITION BY lead_Id ORDER BY lead_CreatedDate DESC) AS rn
-      FROM
-        `focused-sentry-464713-u0.salesforce_auritmediation.auritmediation_alldata_delta` ),
-      vdl AS (
-      SELECT
-        'VDL-vdl1001' AS Firm_Unique_ID,
-        'Vasquez de Lara' AS Firm_Name,
-        CAST(prospectid AS STRING) AS Lead_Unique_ID,
-        to_iso_date_keep_local(created_at) AS Lead_Create_Date,
-        to_iso_date_string(cf_discovery_session_date) AS Consultation_Date,
-        to_iso_date_string(cf_consult_completed_date) AS Consult_Completed_Date,
-        to_iso_date_string(cf_retainer_sent_date) AS Retainer_Sent_Date,
-        CAST(NULL AS STRING) AS Retainer_Signed_Date,
-        to_iso_date_string(cf_date_hired) AS Retainer_Funded_Date,
-        CAST(cf_email_newsletter_opt_in AS STRING) AS Web_Lead_Indicator,
-        CAST(cf_lead_type AS STRING) AS Lead_Source,
-        CAST(cf_marketing_source AS STRING) AS Marketing_Channel,
-        CAST(NULL AS STRING) AS Form_Submit_URL,
-        CAST(cf_utm_campaign AS STRING) AS UTM_Campaign,
-        CAST(cf_utm_content AS STRING) AS UTM_Content,
-        CAST(cf_utm_medium AS STRING) AS UTM_Medium,
-        CAST(NULL AS STRING) AS UTM_Pageview_Count,
-        CAST(NULL AS STRING) AS UTM_Session_Count,
-        CAST(cf_utm_source AS STRING) AS UTM_Source,
-        CAST(cf_utm_term AS STRING) AS UTM_Term,
-        CAST(NULL AS STRING) AS gclid,
-        CAST(NULL AS BOOL) AS _f1,
-        CAST(NULL AS BOOL) AS _f2,
-        to_iso_date_string(cf_case_eval_date) AS QPC,
-        CAST(NULL AS STRING) AS UTM_ICT_Reference_Number,
-        CAST(NULL AS STRING) AS ga_client_id,
-        CAST(NULL AS STRING) AS ga_user_id
-      FROM
-        vdl_dedup
-      WHERE
-        rn = 1 ),
- smb AS (
-  SELECT
-    'SMB-smb1002' AS Firm_Unique_ID,
-    'Scott M Brown' AS Firm_Name,
-    CAST(opp__id AS STRING) AS Lead_Unique_ID,
-    to_iso_date_string(opp__createdat) AS Lead_Create_Date,
-    to_iso_date_string(opp__cf_opportunity_date_consult_is_recorded) AS Consultation_Date,
-    CASE WHEN is_truth(opp__cf_opportunity_consult_completed) THEN to_iso_date_string(opp__cf_opportunity_consult_date) ELSE NULL END AS Consult_Completed_Date,
-    to_iso_date_string(opp__cf_opportunity_retainer_sent_date) AS Retainer_Sent_Date,
-    CAST(NULL AS STRING) AS Retainer_Signed_Date,
-    to_iso_date_string(opp__cf_opportunity_date_new_lead_became_a_client) AS Retainer_Funded_Date,
+  to_date_safe(x ANY TYPE) AS (
+    COALESCE(
+      SAFE.PARSE_DATE('%Y-%m-%d', TRIM(CAST(x AS STRING))),
+      SAFE.PARSE_DATE('%B %e, %Y', TRIM(CAST(x AS STRING))),
+      -- September 30, 2024
+      SAFE.PARSE_DATE('%b %e, %Y', TRIM(CAST(x AS STRING))),
+      -- Sep 30, 2024
+      SAFE.DATE(SAFE.PARSE_TIMESTAMP('%Y-%m-%dT%H:%M:%E*S%Ez', TRIM(CAST(x AS STRING)))),
+      SAFE.DATE(SAFE.PARSE_TIMESTAMP('%Y-%m-%d %H:%M:%E*S%Ez', TRIM(CAST(x AS STRING)))),
+      SAFE.DATE(SAFE.PARSE_TIMESTAMP('%Y-%m-%d %H:%M:%S', TRIM(CAST(x AS STRING))))
+    )
+  );
 
-    CASE
-      WHEN REGEXP_CONTAINS(LOWER(CAST(contact__source AS STRING)), r'website')
-           AND REGEXP_CONTAINS(LOWER(CAST(contact__tags   AS STRING)), r'website') THEN NULL
-      WHEN REGEXP_CONTAINS(LOWER(CAST(contact__tags   AS STRING)), r'website') THEN CAST(contact__tags AS STRING)
-      WHEN REGEXP_CONTAINS(LOWER(CAST(contact__source AS STRING)), r'website') THEN CAST(contact__source AS STRING)
-      ELSE NULL
-    END AS Web_Lead_Indicator,
+CREATE TEMP FUNCTION
+  to_iso_date_string(x ANY TYPE) AS (
+    COALESCE(
+      FORMAT_DATE('%Y-%m-%d', to_date_safe(x)),
+      CAST(x AS STRING)
+    )
+  );
 
-    CAST(opp__source AS STRING) AS Lead_Source,
-    CAST(NULL AS STRING) AS Marketing_Channel,
-    CAST(NULL AS STRING) AS Form_Submit_URL,
-    CAST(NULL AS STRING) AS UTM_Campaign,
-    CAST(NULL AS STRING) AS UTM_Content,
-    CAST(opp__attribution_medium AS STRING) AS UTM_Medium,
-    CAST(NULL AS STRING) AS UTM_Pageview_Count,
-    CAST(NULL AS STRING) AS UTM_Session_Count,
-    CAST(NULL AS STRING) AS UTM_Source,
-    CAST(NULL AS STRING) AS UTM_Term,
-    CAST(NULL AS STRING) AS gclid,
-    CAST(NULL AS BOOL) AS _f1,
-    CAST(NULL AS BOOL) AS _f2,
-    to_iso_date_string(opp__cf_opportunity_date_new_lead_became_a_qualified_lead) AS QPC,
-    CAST(NULL AS STRING) AS UTM_ICT_Reference_Number,
-    CAST(NULL AS STRING) AS ga_client_id,
-    CAST(NULL AS STRING) AS ga_user_id
-  FROM smb_dedup_ranked
-  WHERE rn = 1
-),
-summit AS (
-  SELECT
-    'sumitfamilylawinc-sfl1006' AS Firm_Unique_ID,
-    'Summit Family Law P.C.' AS Firm_Name,
-    CAST(contact_record_id AS STRING) AS Lead_Unique_ID,
-    to_iso_date_string(contact_create_date) AS Lead_Create_Date,
-    to_iso_date_string(deal_date_entered_consultation_scheduled_sales_pipeline) AS Consultation_Date,
-    to_iso_date_string(deal_date_exited_consultation_scheduled_sales_pipeline) AS Consult_Completed_Date,
-    to_iso_date_string(deal_date_entered_agreement_sent_sales_pipeline) AS Retainer_Sent_Date,
-    to_iso_date_string(deal_date_exited_agreement_sent_sales_pipeline) AS Retainer_Signed_Date,
-    to_iso_date_string(deal_date_entered_closed_won_sales_pipeline) AS Retainer_Funded_Date,
+CREATE TEMP FUNCTION
+  to_iso_date_keep_local(x ANY TYPE) AS (
     CASE
-      WHEN UPPER(contact_latest_traffic_source) = 'DIRECT_TRAFFIC' THEN CAST(contact_latest_traffic_source AS STRING)
-      ELSE NULL
-    END AS Web_Lead_Indicator,
-    CAST(contact_original_lead_source_drill_down_1 AS STRING) AS Lead_Source,
-    CAST(contact_original_lead_source AS STRING) AS Marketing_Channel,
-    CAST(contact_last_referring_site AS STRING) AS Form_Submit_URL,
-    CAST(contact_utm_campaign AS STRING) AS UTM_Campaign,
-    CAST(contact_utm_content AS STRING) AS UTM_Content,
-    CAST(contact_utm_medium AS STRING) AS UTM_Medium,
-    CAST(NULL AS STRING) AS UTM_Pageview_Count,
-    CAST(NULL AS STRING) AS UTM_Session_Count,
-    CAST(contact_utm_source AS STRING) AS UTM_Source,
-    CAST(contact_utm_term AS STRING) AS UTM_Term,
-    CAST(contact_gclid AS STRING) AS gclid,
-    CAST(NULL AS BOOL) AS _f1,
-    CAST(NULL AS BOOL) AS _f2,
-    CASE
-      WHEN LOWER(TRIM(CAST(contact_lead_status AS STRING))) = 'disqualified' THEN NULL
-      ELSE to_iso_date_string(contact_create_date)
-    END AS QPC,
-    CAST(NULL AS STRING) AS UTM_ICT_Reference_NUMBER,
-    CAST(NULL AS STRING) AS ga_client_id,
-    CAST(NULL AS STRING) AS ga_user_id
-  FROM
-    summit_dedup
-  WHERE
-    rn = 1
-),
-      rosenblum AS (
-      SELECT
-        'Rosenblum-ral1004' AS Firm_Unique_ID,
-        'Rosenblum Allen Law' AS Firm_Name,
-        CAST(prospectid AS STRING) AS Lead_Unique_ID,
-        to_iso_date_keep_local(created_at) AS Lead_Create_Date,
-        CAST(NULL AS STRING) AS Consultation_Date,
-        CAST(NULL AS STRING) AS Consult_Completed_Date,
-        CAST(NULL AS STRING) AS Retainer_Sent_Date,
-        CAST(NULL AS STRING) AS Retainer_Signed_Date,
-        CAST(NULL AS STRING) AS Retainer_Funded_Date,
-        CAST(NULL AS STRING) AS Web_Lead_Indicator,
-        CAST(cf_lead_type AS STRING) AS Lead_Source,
-        CAST(NULL AS STRING) AS Marketing_Channel,
-        CAST(NULL AS STRING) AS Form_Submit_URL,
-        CAST(utm_campaign AS STRING) AS UTM_Campaign,
-        CAST(NULL AS STRING) AS UTM_Content,
-        CAST(utm_medium AS STRING) AS UTM_Medium,
-        CAST(NULL AS STRING) AS UTM_Pageview_Count,
-        CAST(NULL AS STRING) AS UTM_Session_Count,
-        CAST(utm_source AS STRING) AS UTM_Source,
-        CAST(utm_term AS STRING) AS UTM_Term,
-        CAST(gclid AS STRING) AS gclid,
-        CAST(NULL AS BOOL) AS _f1,
-        CAST(NULL AS BOOL) AS _f2,
-        CAST(NULL AS STRING) AS QPC,
-        CAST(NULL AS STRING) AS UTM_ICT_Reference_Number,
-        CAST(NULL AS STRING) AS ga_client_id,
-        CAST(NULL AS STRING) AS ga_user_id
-      FROM
-        rosenblum_dedup
-      WHERE
-        rn = 1 ),
-      meyerpink AS (
-      SELECT
-        'meyerpinklaw-mpl1005' AS Firm_Unique_ID,
-        'Meyer Pink Law' AS Firm_Name,
-        CAST(prospectid AS STRING) AS Lead_Unique_ID,
-        to_iso_date_keep_local(created_at) AS Lead_Create_Date,
-        to_iso_date_string(cf_fl_consult_scheduled_entry_date) AS Consultation_Date,
-        to_iso_date_string(cf_discovery_consultation_complete) AS Consult_Completed_Date,
-        to_iso_date_string(cf_retainer_signed_date) AS Retainer_Sent_Date,
-        CAST(NULL AS STRING) AS Retainer_Signed_Date,
-        to_iso_date_string(cf_hired_date) AS Retainer_Funded_Date,
-        CAST(cf_entity_website AS STRING) AS Web_Lead_Indicator,
-        CAST(NULL AS STRING) AS Lead_Source,
-        CAST(NULL AS STRING) AS Marketing_Channel,
-        CAST(NULL AS STRING) AS Form_Submit_URL,
-        CAST(utm_campaign AS STRING) AS UTM_Campaign,
-        CAST(NULL AS STRING) AS UTM_Content,
-        CAST(utm_medium AS STRING) AS UTM_Medium,
-        CAST(NULL AS STRING) AS UTM_Pageview_Count,
-        CAST(NULL AS STRING) AS UTM_Session_Count,
-        CAST(utm_source AS STRING) AS UTM_Source,
-        CAST(utm_term AS STRING) AS UTM_Term,
-        CAST(gclid AS STRING) AS gclid,
-        CAST(NULL AS BOOL) AS _f1,
-        CAST(NULL AS BOOL) AS _f2,
-        CAST(NULL AS STRING) AS QPC,
-        CAST(NULL AS STRING) AS UTM_ICT_Reference_Number,
-        CAST(NULL AS STRING) AS ga_client_id,
-        CAST(NULL AS STRING) AS ga_user_id
-      FROM
-        meyerpink_dedup
-      WHERE
-        rn = 1 ),
-      aurit AS (
-      SELECT
-        'auritmediation-am1007' AS Firm_Unique_ID,
-        'Aurit Mediation' AS Firm_Name,
-        CAST(lead_Id AS STRING) AS Lead_Unique_ID,
-        to_iso_date_string(lead_CreatedDate) AS Lead_Create_Date,
-        to_iso_date_string(lead_Consult_Date_Time__c) AS Consultation_Date,
-        to_iso_date_string(lead_Consult_Completed__c) AS Consult_Completed_Date,
-        to_iso_date_string(lead_Agreement_to_Mediate_Sent_Date__c) AS Retainer_Sent_Date,
-        to_iso_date_string(lead_Mediation_Agreement_Signed_Date__c) AS Retainer_Signed_Date,
-        CAST(NULL AS STRING) AS Retainer_Funded_Date,
-        CASE
-          WHEN LOWER(CAST(lead_LeadSource AS STRING)) = 'website' THEN 'Website'
-          ELSE NULL
-      END
-        AS Web_Lead_Indicator,
-        CAST(lead_LeadSource AS STRING) AS Lead_Source,
-        CAST(NULL AS STRING) AS Marketing_Channel,
-        CAST(NULL AS STRING) AS Form_Submit_URL,
-        CAST(lead_pi__utm_campaign__c AS STRING) AS UTM_Campaign,
-        CAST(lead_pi__utm_content__c AS STRING) AS UTM_Content,
-        CAST(lead_pi__utm_medium__c AS STRING) AS UTM_Medium,
-        CAST(NULL AS STRING) AS UTM_Pageview_Count,
-        CAST(NULL AS STRING) AS UTM_Session_Count,
-        CAST(lead_pi__utm_source__c AS STRING) AS UTM_Source,
-        CAST(lead_pi__utm_term__c AS STRING) AS UTM_Term,
-        CAST(NULL AS STRING) AS gclid,
-        CAST(NULL AS BOOL) AS _f1,
-        CAST(NULL AS BOOL) AS _f2,
-        CAST(NULL AS STRING) AS QPC,
-        CAST(NULL AS STRING) AS UTM_ICT_Reference_Number,
-        CAST(NULL AS STRING) AS ga_client_id,
-        CAST(NULL AS STRING) AS ga_user_id
-      FROM
-        aurit_dedup
-      WHERE
-        rn = 1 ),
-      haffner AS (
-      SELECT
-        'haffner-haffner1009' AS Firm_Unique_ID,
-        'Haffner Law' AS Firm_Name,
-        lead_id AS Lead_Unique_ID,
-        to_iso_date_string(lead_lastupdatedate) AS Lead_Create_Date,
-        CAST(NULL AS STRING) AS Consultation_Date,
-        CAST(NULL AS STRING) AS Consult_Completed_Date,
-        CAST(NULL AS STRING) AS Retainer_Sent_Date,
-        CAST(NULL AS STRING) AS Retainer_Signed_Date,
-        CAST(NULL AS STRING) AS Retainer_Funded_Date,
-        CAST(NULL AS STRING) AS Web_Lead_Indicator,
-        CAST(NULL AS STRING) AS Lead_Source,
-        CAST(NULL AS STRING) AS Marketing_Channel,
-        CAST(NULL AS STRING) AS Form_Submit_URL,
-        CAST(NULL AS STRING) AS UTM_Campaign,
-        CAST(NULL AS STRING) AS UTM_Content,
-        CAST(NULL AS STRING) AS UTM_Medium,
-        CAST(NULL AS STRING) AS UTM_Pageview_Count,
-        CAST(NULL AS STRING) AS UTM_Session_Count,
-        CAST(NULL AS STRING) AS UTM_Source,
-        CAST(NULL AS STRING) AS UTM_Term,
-        CAST(NULL AS STRING) AS gclid,
-        CAST(NULL AS BOOL) AS _f1,
-        CAST(NULL AS BOOL) AS _f2,
-        CAST(NULL AS STRING) AS QPC,
-        CAST(NULL AS STRING) AS UTM_ICT_Reference_Number,
-        CAST(NULL AS STRING) AS ga_client_id,
-        CAST(NULL AS STRING) AS ga_user_id
-      FROM
-        haffner_dedup
-      WHERE
-        rn = 1 ),
-      kalish AS (
-      SELECT
-        'kalishandjaggars-1013' AS Firm_Unique_ID,
-        'Kalish And Jaggars' AS Firm_Name,
-        lead_id AS Lead_Unique_ID,
-        to_iso_date_string(lead_lastupdatedate) AS Lead_Create_Date,
-        CAST(NULL AS STRING) AS Consultation_Date,
-        CAST(NULL AS STRING) AS Consult_Completed_Date,
-        CAST(NULL AS STRING) AS Retainer_Sent_Date,
-        CAST(NULL AS STRING) AS Retainer_Signed_Date,
-        CAST(NULL AS STRING) AS Retainer_Funded_Date,
-        CAST(NULL AS STRING) AS Web_Lead_Indicator,
-        CAST(NULL AS STRING) AS Lead_Source,
-        CAST(NULL AS STRING) AS Marketing_Channel,
-        CAST(NULL AS STRING) AS Form_Submit_URL,
-        CAST(NULL AS STRING) AS UTM_Campaign,
-        CAST(NULL AS STRING) AS UTM_Content,
-        CAST(NULL AS STRING) AS UTM_Medium,
-        CAST(NULL AS STRING) AS UTM_Pageview_Count,
-        CAST(NULL AS STRING) AS UTM_Session_Count,
-        CAST(NULL AS STRING) AS UTM_Source,
-        CAST(NULL AS STRING) AS UTM_Term,
-        CAST(NULL AS STRING) AS gclid,
-        CAST(NULL AS BOOL) AS _f1,
-        CAST(NULL AS BOOL) AS _f2,
-        CAST(NULL AS STRING) AS QPC,
-        CAST(NULL AS STRING) AS UTM_ICT_Reference_Number,
-        CAST(NULL AS STRING) AS ga_client_id,
-        CAST(NULL AS STRING) AS ga_user_id
-      FROM
-        kalish_dedup
-      WHERE
-        rn = 1 )
+      WHEN x IS NULL THEN NULL
+      WHEN REGEXP_CONTAINS(CAST(x AS STRING), r'^\d{4}-\d{2}-\d{2}T') THEN SUBSTR(CAST(x AS STRING), 1, 10)
+      ELSE FORMAT_DATE('%Y-%m-%d', to_date_safe(x))
+    END
+  );
+
+CREATE TEMP FUNCTION
+  is_truth (x ANY TYPE) AS (
+    REGEXP_CONTAINS(
+      LOWER(TRIM(CAST(x AS STRING))),
+      r'(^|\W)(true|t|yes|y|1)($|\W)'
+    )
+  );
+
+-- Phoenix-safe version used ONLY for Aurit.
+-- It applies Phoenix TZ for timestamp-like values, and safely falls back for DATE/STRING/BOOL.
+CREATE TEMP FUNCTION
+  to_iso_date_phoenix(x ANY TYPE) AS (
+    COALESCE(
+      FORMAT_DATE(
+        '%Y-%m-%d',
+        DATE(
+          COALESCE(
+            SAFE.PARSE_TIMESTAMP('%Y-%m-%dT%H:%M:%E*S%Ez', TRIM(CAST(x AS STRING))),
+            SAFE.PARSE_TIMESTAMP('%Y-%m-%d %H:%M:%E*S%Ez', TRIM(CAST(x AS STRING))),
+            SAFE.PARSE_TIMESTAMP('%Y-%m-%d %H:%M:%S',      TRIM(CAST(x AS STRING))),
+            SAFE.PARSE_TIMESTAMP('%Y-%m-%dT%H:%M:%E*S',    TRIM(CAST(x AS STRING)))
+          ),
+          "America/Phoenix"
+        )
+      ),
+      FORMAT_DATE('%Y-%m-%d', SAFE.PARSE_DATE('%Y-%m-%d', TRIM(CAST(x AS STRING)))),
+      FORMAT_DATE('%Y-%m-%d', SAFE.PARSE_DATE('%B %e, %Y', TRIM(CAST(x AS STRING)))),
+      FORMAT_DATE('%Y-%m-%d', SAFE.PARSE_DATE('%b %e, %Y', TRIM(CAST(x AS STRING)))),
+      to_iso_date_string(x)
+    )
+  );
+
+CREATE OR REPLACE TABLE
+  `focused-sentry-464713-u0.crm_universal_tables.genesis_crm_universal_table` AS
+WITH
+  vdl_dedup AS (
     SELECT
-      *
+      prospectid,
+      created_at,
+      cf_discovery_session_date,
+      cf_consult_completed_date,
+      cf_retainer_sent_date,
+      cf_date_hired,
+      cf_email_newsletter_opt_in,
+      cf_lead_type,
+      cf_marketing_source,
+      cf_utm_campaign,
+      cf_utm_content,
+      cf_utm_medium,
+      cf_utm_source,
+      cf_utm_term,
+      cf_case_eval_date,
+      updated_at,
+      ROW_NUMBER() OVER (PARTITION BY prospectid ORDER BY updated_at DESC) AS rn
     FROM
-      vdl
-    UNION ALL
+      `focused-sentry-464713-u0.lawmatics_vdl.vdl_alldata_delta`
+  ),
+
+  smb_dedup AS (
     SELECT
-      *
+      opp__id,
+      opp__createdat,
+      opp__updatedat,
+      opp__cf_opportunity_consult_date,
+      opp__cf_opportunity_consult_completed,
+      opp__cf_opportunity_retainer_sent_date,
+      opp__cf_opportunity_date_new_lead_became_a_client,
+      opp__cf_opportunity_date_new_lead_became_a_qualified_lead,
+      opp__cf_opportunity_date_consult_is_recorded,
+      opp__source,
+      contact__source,
+      contact__tags,
+      opp__attribution_medium,
+      to_date_safe(opp__createdat) AS opp__createdat_date
     FROM
-      smb
-    UNION ALL
+      `focused-sentry-464713-u0.turbine_smb.smb_alldata_delta`
+    WHERE
+      to_date_safe(opp__createdat) >= DATE '2025-07-01'
+  ),
+
+  smb_dedup_ranked AS (
     SELECT
-      *
-    FROM
-      summit
-    UNION ALL
+      *,
+      ROW_NUMBER() OVER (
+        PARTITION BY opp__id
+        ORDER BY opp__updatedat DESC, opp__createdat DESC
+      ) AS rn
+    FROM smb_dedup
+  ),
+
+  haffner_dedup AS (
     SELECT
-      *
+      CAST(lead_id AS STRING) AS lead_id,
+      lead_lastupdatedate,
+      ROW_NUMBER() OVER (
+        PARTITION BY CAST(lead_id AS STRING)
+        ORDER BY lead_lastupdatedate DESC
+      ) AS rn
     FROM
-      rosenblum
-    UNION ALL
+      `focused-sentry-464713-u0.leaddocket_haffner.initialdata_delta`
+  ),
+
+  kalish_dedup AS (
     SELECT
-      *
+      CAST(lead_id AS STRING) AS lead_id,
+      lead_lastupdatedate,
+      ROW_NUMBER() OVER (
+        PARTITION BY CAST(lead_id AS STRING)
+        ORDER BY lead_lastupdatedate DESC
+      ) AS rn
     FROM
-      meyerpink
-    UNION ALL
+      `focused-sentry-464713-u0.leaddocket_kalishandjaggars.initialdata_delta`
+  ),
+
+  summit_dedup AS (
     SELECT
-      *
+      contact_record_id,
+      contact_create_date,
+      deal_date_entered_consultation_scheduled_sales_pipeline,
+      deal_date_exited_consultation_scheduled_sales_pipeline,
+      deal_date_entered_agreement_sent_sales_pipeline,
+      deal_date_exited_agreement_sent_sales_pipeline,
+      deal_date_entered_closed_won_sales_pipeline,
+      contact_latest_traffic_source,
+      contact_original_lead_source_drill_down_1,
+      contact_original_lead_source,
+      contact_last_referring_site,
+      contact_utm_campaign,
+      contact_utm_content,
+      contact_utm_medium,
+      contact_utm_source,
+      contact_utm_term,
+      contact_gclid,
+      contact_date_entered_sales_qualified_lead_lifecycle_stage_pipeline,
+      contact_latest_disqualified_lead_date,
+      contact_last_modified_date,
+      contact_lead_status,
+      ROW_NUMBER() OVER (
+        PARTITION BY contact_record_id
+        ORDER BY contact_last_modified_date DESC, contact_create_date DESC
+      ) AS rn
     FROM
-      aurit
-    UNION ALL
+      `focused-sentry-464713-u0.hubspot_summit.summit_alldata_delta`
+    WHERE
+      to_date_safe(contact_create_date) >= DATE '2025-04-01'
+  ),
+
+  rosenblum_dedup AS (
     SELECT
-      *
+      prospectid,
+      created_at,
+      cf_lead_type,
+      utm_campaign,
+      utm_medium,
+      utm_source,
+      utm_term,
+      gclid,
+      updated_at,
+      ROW_NUMBER() OVER (PARTITION BY prospectid ORDER BY updated_at DESC) AS rn
     FROM
-      haffner
-    UNION ALL
+      `focused-sentry-464713-u0.lawmatics_rosenblum.rosenblum_alldata_delta`
+  ),
+
+  meyerpink_dedup AS (
     SELECT
-      *
+      prospectid,
+      created_at,
+      cf_fl_consult_scheduled_entry_date,
+      cf_discovery_consultation_complete,
+      cf_retainer_signed_date,
+      cf_hired_date,
+      cf_entity_website,
+      utm_campaign,
+      utm_medium,
+      utm_source,
+      utm_term,
+      gclid,
+      updated_at,
+      ROW_NUMBER() OVER (PARTITION BY prospectid ORDER BY updated_at DESC) AS rn
     FROM
-      kalish;
+      `focused-sentry-464713-u0.lawmatics_meyerpink.meyerpink_alldata_delta`
+  ),
+
+  aurit_dedup AS (
+    SELECT
+      lead_Id,
+      lead_CreatedDate,
+      lead_Consult_Date_Time__c,
+      lead_Consult_Completed__c,
+      lead_Agreement_to_Mediate_Sent_Date__c,
+      lead_Mediation_Agreement_Signed_Date__c,
+      lead_LeadSource,
+      lead_pi__utm_campaign__c,
+      lead_pi__utm_content__c,
+      lead_pi__utm_medium__c,
+      lead_pi__utm_source__c,
+      lead_pi__utm_term__c,
+      ROW_NUMBER() OVER (PARTITION BY lead_Id ORDER BY lead_CreatedDate DESC) AS rn
+    FROM
+      `focused-sentry-464713-u0.salesforce_auritmediation.auritmediation_alldata_delta`
+  ),
+
+  vdl AS (
+    SELECT
+      'VDL-vdl1001' AS Firm_Unique_ID,
+      'Vasquez de Lara' AS Firm_Name,
+      CAST(prospectid AS STRING) AS Lead_Unique_ID,
+      to_iso_date_keep_local(created_at) AS Lead_Create_Date,
+      to_iso_date_string(cf_discovery_session_date) AS Consultation_Date,
+      to_iso_date_string(cf_consult_completed_date) AS Consult_Completed_Date,
+      to_iso_date_string(cf_retainer_sent_date) AS Retainer_Sent_Date,
+      CAST(NULL AS STRING) AS Retainer_Signed_Date,
+      to_iso_date_string(cf_date_hired) AS Retainer_Funded_Date,
+      CAST(cf_email_newsletter_opt_in AS STRING) AS Web_Lead_Indicator,
+      CAST(cf_lead_type AS STRING) AS Lead_Source,
+      CAST(cf_marketing_source AS STRING) AS Marketing_Channel,
+      CAST(NULL AS STRING) AS Form_Submit_URL,
+      CAST(cf_utm_campaign AS STRING) AS UTM_Campaign,
+      CAST(cf_utm_content AS STRING) AS UTM_Content,
+      CAST(cf_utm_medium AS STRING) AS UTM_Medium,
+      CAST(NULL AS STRING) AS UTM_Pageview_Count,
+      CAST(NULL AS STRING) AS UTM_Session_Count,
+      CAST(cf_utm_source AS STRING) AS UTM_Source,
+      CAST(cf_utm_term AS STRING) AS UTM_Term,
+      CAST(NULL AS STRING) AS gclid,
+      CAST(NULL AS BOOL) AS _f1,
+      CAST(NULL AS BOOL) AS _f2,
+      to_iso_date_string(cf_case_eval_date) AS QPC,
+      CAST(NULL AS STRING) AS UTM_ICT_Reference_Number,
+      CAST(NULL AS STRING) AS ga_client_id,
+      CAST(NULL AS STRING) AS ga_user_id
+    FROM vdl_dedup
+    WHERE rn = 1
+  ),
+
+  smb AS (
+    SELECT
+      'SMB-smb1002' AS Firm_Unique_ID,
+      'Scott M Brown' AS Firm_Name,
+      CAST(opp__id AS STRING) AS Lead_Unique_ID,
+      to_iso_date_string(opp__createdat) AS Lead_Create_Date,
+      to_iso_date_string(opp__cf_opportunity_date_consult_is_recorded) AS Consultation_Date,
+      CASE
+        WHEN is_truth(opp__cf_opportunity_consult_completed) THEN to_iso_date_string(opp__cf_opportunity_consult_date)
+        ELSE NULL
+      END AS Consult_Completed_Date,
+      to_iso_date_string(opp__cf_opportunity_retainer_sent_date) AS Retainer_Sent_Date,
+      CAST(NULL AS STRING) AS Retainer_Signed_Date,
+      to_iso_date_string(opp__cf_opportunity_date_new_lead_became_a_client) AS Retainer_Funded_Date,
+      CASE
+        WHEN REGEXP_CONTAINS(LOWER(CAST(contact__source AS STRING)), r'website')
+             AND REGEXP_CONTAINS(LOWER(CAST(contact__tags   AS STRING)), r'website') THEN NULL
+        WHEN REGEXP_CONTAINS(LOWER(CAST(contact__tags   AS STRING)), r'website') THEN CAST(contact__tags AS STRING)
+        WHEN REGEXP_CONTAINS(LOWER(CAST(contact__source AS STRING)), r'website') THEN CAST(contact__source AS STRING)
+        ELSE NULL
+      END AS Web_Lead_Indicator,
+      CAST(opp__source AS STRING) AS Lead_Source,
+      CAST(NULL AS STRING) AS Marketing_Channel,
+      CAST(NULL AS STRING) AS Form_Submit_URL,
+      CAST(NULL AS STRING) AS UTM_Campaign,
+      CAST(NULL AS STRING) AS UTM_Content,
+      CAST(opp__attribution_medium AS STRING) AS UTM_Medium,
+      CAST(NULL AS STRING) AS UTM_Pageview_Count,
+      CAST(NULL AS STRING) AS UTM_Session_Count,
+      CAST(NULL AS STRING) AS UTM_Source,
+      CAST(NULL AS STRING) AS UTM_Term,
+      CAST(NULL AS STRING) AS gclid,
+      CAST(NULL AS BOOL) AS _f1,
+      CAST(NULL AS BOOL) AS _f2,
+      to_iso_date_string(opp__cf_opportunity_date_new_lead_became_a_qualified_lead) AS QPC,
+      CAST(NULL AS STRING) AS UTM_ICT_Reference_Number,
+      CAST(NULL AS STRING) AS ga_client_id,
+      CAST(NULL AS STRING) AS ga_user_id
+    FROM smb_dedup_ranked
+    WHERE rn = 1
+  ),
+
+  summit AS (
+    SELECT
+      'sumitfamilylawinc-sfl1006' AS Firm_Unique_ID,
+      'Summit Family Law P.C.' AS Firm_Name,
+      CAST(contact_record_id AS STRING) AS Lead_Unique_ID,
+      to_iso_date_string(contact_create_date) AS Lead_Create_Date,
+      to_iso_date_string(deal_date_entered_consultation_scheduled_sales_pipeline) AS Consultation_Date,
+      to_iso_date_string(deal_date_exited_consultation_scheduled_sales_pipeline) AS Consult_Completed_Date,
+      to_iso_date_string(deal_date_entered_agreement_sent_sales_pipeline) AS Retainer_Sent_Date,
+      to_iso_date_string(deal_date_exited_agreement_sent_sales_pipeline) AS Retainer_Signed_Date,
+      to_iso_date_string(deal_date_entered_closed_won_sales_pipeline) AS Retainer_Funded_Date,
+      CASE
+        WHEN UPPER(contact_latest_traffic_source) = 'DIRECT_TRAFFIC' THEN CAST(contact_latest_traffic_source AS STRING)
+        ELSE NULL
+      END AS Web_Lead_Indicator,
+      CAST(contact_original_lead_source_drill_down_1 AS STRING) AS Lead_Source,
+      CAST(contact_original_lead_source AS STRING) AS Marketing_Channel,
+      CAST(contact_last_referring_site AS STRING) AS Form_Submit_URL,
+      CAST(contact_utm_campaign AS STRING) AS UTM_Campaign,
+      CAST(contact_utm_content AS STRING) AS UTM_Content,
+      CAST(contact_utm_medium AS STRING) AS UTM_Medium,
+      CAST(NULL AS STRING) AS UTM_Pageview_Count,
+      CAST(NULL AS STRING) AS UTM_Session_Count,
+      CAST(contact_utm_source AS STRING) AS UTM_Source,
+      CAST(contact_utm_term AS STRING) AS UTM_Term,
+      CAST(contact_gclid AS STRING) AS gclid,
+      CAST(NULL AS BOOL) AS _f1,
+      CAST(NULL AS BOOL) AS _f2,
+      CASE
+        WHEN LOWER(TRIM(CAST(contact_lead_status AS STRING))) = 'disqualified' THEN NULL
+        ELSE to_iso_date_string(contact_create_date)
+      END AS QPC,
+      CAST(NULL AS STRING) AS UTM_ICT_Reference_NUMBER,
+      CAST(NULL AS STRING) AS ga_client_id,
+      CAST(NULL AS STRING) AS ga_user_id
+    FROM summit_dedup
+    WHERE rn = 1
+  ),
+
+  rosenblum AS (
+    SELECT
+      'Rosenblum-ral1004' AS Firm_Unique_ID,
+      'Rosenblum Allen Law' AS Firm_Name,
+      CAST(prospectid AS STRING) AS Lead_Unique_ID,
+      to_iso_date_keep_local(created_at) AS Lead_Create_Date,
+      CAST(NULL AS STRING) AS Consultation_Date,
+      CAST(NULL AS STRING) AS Consult_Completed_Date,
+      CAST(NULL AS STRING) AS Retainer_Sent_Date,
+      CAST(NULL AS STRING) AS Retainer_Signed_Date,
+      CAST(NULL AS STRING) AS Retainer_Funded_Date,
+      CAST(NULL AS STRING) AS Web_Lead_Indicator,
+      CAST(cf_lead_type AS STRING) AS Lead_Source,
+      CAST(NULL AS STRING) AS Marketing_Channel,
+      CAST(NULL AS STRING) AS Form_Submit_URL,
+      CAST(utm_campaign AS STRING) AS UTM_Campaign,
+      CAST(NULL AS STRING) AS UTM_Content,
+      CAST(utm_medium AS STRING) AS UTM_Medium,
+      CAST(NULL AS STRING) AS UTM_Pageview_Count,
+      CAST(NULL AS STRING) AS UTM_Session_Count,
+      CAST(utm_source AS STRING) AS UTM_Source,
+      CAST(utm_term AS STRING) AS UTM_Term,
+      CAST(gclid AS STRING) AS gclid,
+      CAST(NULL AS BOOL) AS _f1,
+      CAST(NULL AS BOOL) AS _f2,
+      CAST(NULL AS STRING) AS QPC,
+      CAST(NULL AS STRING) AS UTM_ICT_Reference_Number,
+      CAST(NULL AS STRING) AS ga_client_id,
+      CAST(NULL AS STRING) AS ga_user_id
+    FROM rosenblum_dedup
+    WHERE rn = 1
+  ),
+
+  meyerpink AS (
+    SELECT
+      'meyerpinklaw-mpl1005' AS Firm_Unique_ID,
+      'Meyer Pink Law' AS Firm_Name,
+      CAST(prospectid AS STRING) AS Lead_Unique_ID,
+      to_iso_date_keep_local(created_at) AS Lead_Create_Date,
+      to_iso_date_string(cf_fl_consult_scheduled_entry_date) AS Consultation_Date,
+      to_iso_date_string(cf_discovery_consultation_complete) AS Consult_Completed_Date,
+      to_iso_date_string(cf_retainer_signed_date) AS Retainer_Sent_Date,
+      CAST(NULL AS STRING) AS Retainer_Signed_Date,
+      to_iso_date_string(cf_hired_date) AS Retainer_Funded_Date,
+      CAST(cf_entity_website AS STRING) AS Web_Lead_Indicator,
+      CAST(NULL AS STRING) AS Lead_Source,
+      CAST(NULL AS STRING) AS Marketing_Channel,
+      CAST(NULL AS STRING) AS Form_Submit_URL,
+      CAST(utm_campaign AS STRING) AS UTM_Campaign,
+      CAST(NULL AS STRING) AS UTM_Content,
+      CAST(utm_medium AS STRING) AS UTM_Medium,
+      CAST(NULL AS STRING) AS UTM_Pageview_Count,
+      CAST(NULL AS STRING) AS UTM_Session_Count,
+      CAST(utm_source AS STRING) AS UTM_Source,
+      CAST(utm_term AS STRING) AS UTM_Term,
+      CAST(gclid AS STRING) AS gclid,
+      CAST(NULL AS BOOL) AS _f1,
+      CAST(NULL AS BOOL) AS _f2,
+      CAST(NULL AS STRING) AS QPC,
+      CAST(NULL AS STRING) AS UTM_ICT_Reference_Number,
+      CAST(NULL AS STRING) AS ga_client_id,
+      CAST(NULL AS STRING) AS ga_user_id
+    FROM meyerpink_dedup
+    WHERE rn = 1
+  ),
+
+  -- ONLY Aurit changed: same fields, same mapping, but Phoenix-local where applicable.
+  aurit AS (
+    SELECT
+      'auritmediation-am1007' AS Firm_Unique_ID,
+      'Aurit Mediation' AS Firm_Name,
+      CAST(lead_Id AS STRING) AS Lead_Unique_ID,
+
+      to_iso_date_phoenix(lead_CreatedDate) AS Lead_Create_Date,
+      to_iso_date_phoenix(lead_Consult_Date_Time__c) AS Consultation_Date,
+      to_iso_date_phoenix(lead_Consult_Completed__c) AS Consult_Completed_Date,
+      to_iso_date_phoenix(lead_Agreement_to_Mediate_Sent_Date__c) AS Retainer_Sent_Date,
+      to_iso_date_phoenix(lead_Mediation_Agreement_Signed_Date__c) AS Retainer_Signed_Date,
+
+      CAST(NULL AS STRING) AS Retainer_Funded_Date,
+      CASE
+        WHEN LOWER(CAST(lead_LeadSource AS STRING)) = 'website' THEN 'Website'
+        ELSE NULL
+      END AS Web_Lead_Indicator,
+      CAST(lead_LeadSource AS STRING) AS Lead_Source,
+      CAST(NULL AS STRING) AS Marketing_Channel,
+      CAST(NULL AS STRING) AS Form_Submit_URL,
+      CAST(lead_pi__utm_campaign__c AS STRING) AS UTM_Campaign,
+      CAST(lead_pi__utm_content__c AS STRING) AS UTM_Content,
+      CAST(lead_pi__utm_medium__c AS STRING) AS UTM_Medium,
+      CAST(NULL AS STRING) AS UTM_Pageview_Count,
+      CAST(NULL AS STRING) AS UTM_Session_Count,
+      CAST(lead_pi__utm_source__c AS STRING) AS UTM_Source,
+      CAST(lead_pi__utm_term__c AS STRING) AS UTM_Term,
+      CAST(NULL AS STRING) AS gclid,
+      CAST(NULL AS BOOL) AS _f1,
+      CAST(NULL AS BOOL) AS _f2,
+      CAST(NULL AS STRING) AS QPC,
+      CAST(NULL AS STRING) AS UTM_ICT_Reference_Number,
+      CAST(NULL AS STRING) AS ga_client_id,
+      CAST(NULL AS STRING) AS ga_user_id
+    FROM aurit_dedup
+    WHERE rn = 1
+  ),
+
+  haffner AS (
+    SELECT
+      'haffner-haffner1009' AS Firm_Unique_ID,
+      'Haffner Law' AS Firm_Name,
+      lead_id AS Lead_Unique_ID,
+      to_iso_date_string(lead_lastupdatedate) AS Lead_Create_Date,
+      CAST(NULL AS STRING) AS Consultation_Date,
+      CAST(NULL AS STRING) AS Consult_Completed_Date,
+      CAST(NULL AS STRING) AS Retainer_Sent_Date,
+      CAST(NULL AS STRING) AS Retainer_Signed_Date,
+      CAST(NULL AS STRING) AS Retainer_Funded_Date,
+      CAST(NULL AS STRING) AS Web_Lead_Indicator,
+      CAST(NULL AS STRING) AS Lead_Source,
+      CAST(NULL AS STRING) AS Marketing_Channel,
+      CAST(NULL AS STRING) AS Form_Submit_URL,
+      CAST(NULL AS STRING) AS UTM_Campaign,
+      CAST(NULL AS STRING) AS UTM_Content,
+      CAST(NULL AS STRING) AS UTM_Medium,
+      CAST(NULL AS STRING) AS UTM_Pageview_Count,
+      CAST(NULL AS STRING) AS UTM_Session_Count,
+      CAST(NULL AS STRING) AS UTM_Source,
+      CAST(NULL AS STRING) AS UTM_Term,
+      CAST(NULL AS STRING) AS gclid,
+      CAST(NULL AS BOOL) AS _f1,
+      CAST(NULL AS BOOL) AS _f2,
+      CAST(NULL AS STRING) AS QPC,
+      CAST(NULL AS STRING) AS UTM_ICT_Reference_Number,
+      CAST(NULL AS STRING) AS ga_client_id,
+      CAST(NULL AS STRING) AS ga_user_id
+    FROM haffner_dedup
+    WHERE rn = 1
+  ),
+
+  kalish AS (
+    SELECT
+      'kalishandjaggars-1013' AS Firm_Unique_ID,
+      'Kalish And Jaggars' AS Firm_Name,
+      lead_id AS Lead_Unique_ID,
+      to_iso_date_string(lead_lastupdatedate) AS Lead_Create_Date,
+      CAST(NULL AS STRING) AS Consultation_Date,
+      CAST(NULL AS STRING) AS Consult_Completed_Date,
+      CAST(NULL AS STRING) AS Retainer_Sent_Date,
+      CAST(NULL AS STRING) AS Retainer_Signed_Date,
+      CAST(NULL AS STRING) AS Retainer_Funded_Date,
+      CAST(NULL AS STRING) AS Web_Lead_Indicator,
+      CAST(NULL AS STRING) AS Lead_Source,
+      CAST(NULL AS STRING) AS Marketing_Channel,
+      CAST(NULL AS STRING) AS Form_Submit_URL,
+      CAST(NULL AS STRING) AS UTM_Campaign,
+      CAST(NULL AS STRING) AS UTM_Content,
+      CAST(NULL AS STRING) AS UTM_Medium,
+      CAST(NULL AS STRING) AS UTM_Pageview_Count,
+      CAST(NULL AS STRING) AS UTM_Session_Count,
+      CAST(NULL AS STRING) AS UTM_Source,
+      CAST(NULL AS STRING) AS UTM_Term,
+      CAST(NULL AS STRING) AS gclid,
+      CAST(NULL AS BOOL) AS _f1,
+      CAST(NULL AS BOOL) AS _f2,
+      CAST(NULL AS STRING) AS QPC,
+      CAST(NULL AS STRING) AS UTM_ICT_Reference_Number,
+      CAST(NULL AS STRING) AS ga_client_id,
+      CAST(NULL AS STRING) AS ga_user_id
+    FROM kalish_dedup
+    WHERE rn = 1
+  ),
+
+  -- STERLING LAWYERS (SLO) – NEW BLOCK
+  slo_base AS (
+    SELECT
+      s.*,
+
+      -- Localized dates (America/New_York) – same logic as slo_tmp_historical_base
+      DATE(COALESCE(
+        SAFE_CAST(lead_CreatedDate AS TIMESTAMP),
+        SAFE.PARSE_TIMESTAMP('%Y-%m-%dT%H:%M:%E*S%Ez', SAFE_CAST(lead_CreatedDate AS STRING)),
+        SAFE.PARSE_TIMESTAMP('%Y-%m-%d %H:%M:%E*S%Ez', SAFE_CAST(lead_CreatedDate AS STRING)),
+        SAFE.PARSE_TIMESTAMP('%Y-%m-%d %H:%M:%S UTC',  SAFE_CAST(lead_CreatedDate AS STRING))
+      ), 'America/New_York') AS lead_created_central_d,
+
+      DATE(COALESCE(
+        SAFE_CAST(opportunity_CreatedDate AS TIMESTAMP),
+        SAFE.PARSE_TIMESTAMP('%Y-%m-%dT%H:%M:%E*S%Ez', SAFE_CAST(opportunity_CreatedDate AS STRING)),
+        SAFE.PARSE_TIMESTAMP('%Y-%m-%d %H:%M:%E*S%Ez', SAFE_CAST(opportunity_CreatedDate AS STRING)),
+        SAFE.PARSE_TIMESTAMP('%Y-%m-%d %H:%M:%S UTC',  SAFE_CAST(opportunity_CreatedDate AS STRING))
+      ), 'America/New_York') AS opportunity_created_central_d,
+
+      DATE(COALESCE(
+        SAFE_CAST(opportunity_Consult_Date_Time__c AS TIMESTAMP),
+        SAFE.PARSE_TIMESTAMP('%Y-%m-%dT%H:%M:%E*S%Ez', SAFE_CAST(opportunity_Consult_Date_Time__c AS STRING)),
+        SAFE.PARSE_TIMESTAMP('%Y-%m-%d %H:%M:%E*S%Ez', SAFE_CAST(opportunity_Consult_Date_Time__c AS STRING)),
+        SAFE.PARSE_TIMESTAMP('%Y-%m-%d %H:%M:%S UTC',  SAFE_CAST(opportunity_Consult_Date_Time__c AS STRING))
+      ), 'America/New_York') AS consult_start_central_d,
+
+      DATE(COALESCE(
+        SAFE_CAST(consult_CreatedDate AS TIMESTAMP),
+        SAFE.PARSE_TIMESTAMP('%Y-%m-%dT%H:%M:%E*S%Ez', SAFE_CAST(consult_CreatedDate AS STRING)),
+        SAFE.PARSE_TIMESTAMP('%Y-%m-%d %H:%M:%E*S%Ez', SAFE_CAST(consult_CreatedDate AS STRING)),
+        SAFE.PARSE_TIMESTAMP('%Y-%m-%d %H:%M:%S UTC',  SAFE_CAST(consult_CreatedDate AS STRING))
+      ), 'America/New_York') AS consult_created_central_d,
+
+      COALESCE(
+        SAFE_CAST(lead_Referred_Out_Date__c AS DATE),
+        SAFE.PARSE_DATE('%Y-%m-%d', SAFE_CAST(lead_Referred_Out_Date__c AS STRING)),
+        SAFE.PARSE_DATE('%m/%d/%Y', SAFE_CAST(lead_Referred_Out_Date__c AS STRING)),
+        SAFE.PARSE_DATE('%Y-%m-%d.', SAFE_CAST(lead_Referred_Out_Date__c AS STRING))
+      ) AS lead_referred_out_d,
+
+      COALESCE(
+        SAFE_CAST(opportunity_Reinstituted_Funded_Date__c AS DATE),
+        SAFE.PARSE_DATE('%Y-%m-%d', SAFE_CAST(opportunity_Reinstituted_Funded_Date__c AS STRING)),
+        SAFE.PARSE_DATE('%m/%d/%Y', SAFE_CAST(opportunity_Reinstituted_Funded_Date__c AS STRING)),
+        SAFE.PARSE_DATE('%Y-%m-%d.', SAFE_CAST(opportunity_Reinstituted_Funded_Date__c AS STRING))
+      ) AS funded_reinstituted_d,
+
+      -- Boolean-ish flags (same as slo_tmp_historical_base)
+      NOT REGEXP_CONTAINS(COALESCE(SAFE_CAST(lead_LeadSource AS STRING), ''), r'(?i)nps') AS leadsource_not_nps,
+      (SAFE_CAST(lead_IsConverted AS BOOL) IS FALSE OR LOWER(TRIM(SAFE_CAST(lead_IsConverted AS STRING))) IN ('false','f','0','no','n')) AS is_converted_falseish,
+      (SAFE_CAST(lead_Potential_Lead__c AS BOOL) IS FALSE OR LOWER(TRIM(SAFE_CAST(lead_Potential_Lead__c AS STRING))) IN ('false','f','0','no','n')) AS is_potential_falseish,
+      (SAFE_CAST(lead_Web_Lead__c AS BOOL) IS TRUE  OR LOWER(TRIM(SAFE_CAST(lead_Web_Lead__c AS STRING)))  IN ('true','t','1','yes','y')) AS is_web_trueish,
+
+      NOT REGEXP_CONTAINS(COALESCE(SAFE_CAST(quote_Opportunity_Account_Name__c AS STRING), ''), r'(?i)participant') AS oppacct_not_participant,
+      NOT REGEXP_CONTAINS(COALESCE(SAFE_CAST(opportunity_Name AS STRING), ''), r'(?i)test') AS oppname_not_test,
+      SAFE_CAST(quote_Opportunity__c AS STRING) = SAFE_CAST(opportunity_Id AS STRING) AS has_quote_link
+    FROM
+      `focused-sentry-464713-u0.salesforce_slo.slo_alldata_delta` s
+  ),
+
+  slo_dedup AS (
+    SELECT
+      *,
+      ROW_NUMBER() OVER (
+        PARTITION BY CAST(lead_Id AS STRING)
+        ORDER BY lead_created_central_d DESC, opportunity_created_central_d DESC
+      ) AS rn
+    FROM
+      slo_base
+    WHERE
+      -- leads_total_daily filter
+      lead_created_central_d IS NOT NULL
+      AND leadsource_not_nps
+      AND is_converted_falseish
+      AND is_potential_falseish
+      AND COALESCE(TRIM(CAST(lead_Id AS STRING)), '') <> ''
+  ),
+
+  slo AS (
+    SELECT
+      'SterlingLawOffice-1010'       AS Firm_Unique_ID,
+      'Sterling Lawyers'             AS Firm_Name,
+      CAST(lead_Id AS STRING)        AS Lead_Unique_ID,
+
+      -- Lead Create Date
+      to_iso_date_string(lead_created_central_d) AS Lead_Create_Date,
+
+      -- Consultation Date (consults_sched_daily filter)
+      CASE
+        WHEN consult_start_central_d IS NOT NULL
+             AND oppacct_not_participant
+        THEN to_iso_date_string(consult_start_central_d)
+        ELSE NULL
+      END AS Consultation_Date,
+
+      -- Consult Completed Date (consults_comp_daily filter)
+      CASE
+        WHEN consult_created_central_d IS NOT NULL
+             AND LOWER(TRIM(SAFE_CAST(consult_Consult_Status__c AS STRING))) IN (
+               'signed in person - paid',
+               'signed in person - unpaid',
+               'consult completed',
+               'complete'
+             )
+        THEN to_iso_date_string(consult_created_central_d)
+        ELSE NULL
+      END AS Consult_Completed_Date,
+
+      -- Retainer / Agreement Sent Date (no explicit field in slo_tmp – left NULL)
+      CAST(NULL AS STRING) AS Retainer_Sent_Date,
+
+      -- Retainer / Agreement Signed Date (no explicit field in slo_tmp – left NULL)
+      CAST(NULL AS STRING) AS Retainer_Signed_Date,
+
+      -- Retainer / Agreement Funded Date (funded_daily logic)
+      CASE
+        WHEN funded_reinstituted_d IS NOT NULL
+        THEN to_iso_date_string(funded_reinstituted_d)
+        ELSE NULL
+      END AS Retainer_Funded_Date,
+
+      -- Web Lead Indicator (web_leads_daily filter → per-lead boolean-ish)
+      CASE
+        WHEN is_web_trueish THEN 'Website'
+        ELSE NULL
+      END AS Web_Lead_Indicator,
+
+      -- Lead Source
+      CAST(lead_LeadSource AS STRING) AS Lead_Source,
+
+      -- Remaining universal fields – currently no specific SLO source fields mapped
+      CAST(NULL AS STRING) AS Marketing_Channel,
+      CAST(NULL AS STRING) AS Form_Submit_URL,
+      CAST(NULL AS STRING) AS UTM_Campaign,
+      CAST(NULL AS STRING) AS UTM_Content,
+      CAST(NULL AS STRING) AS UTM_Medium,
+      CAST(NULL AS STRING) AS UTM_Pageview_Count,
+      CAST(NULL AS STRING) AS UTM_Session_Count,
+      CAST(NULL AS STRING) AS UTM_Source,
+      CAST(NULL AS STRING) AS UTM_Term,
+      CAST(NULL AS STRING) AS gclid,
+      CAST(NULL AS BOOL)   AS _f1,
+      CAST(NULL AS BOOL)   AS _f2,
+
+      -- No per-lead QPC date defined in SLO metrics – leaving as NULL
+      CAST(NULL AS STRING) AS QPC,
+
+      CAST(NULL AS STRING) AS UTM_ICT_Reference_Number,
+      CAST(NULL AS STRING) AS ga_client_id,
+      CAST(NULL AS STRING) AS ga_user_id
+    FROM
+      slo_dedup
+    WHERE
+      rn = 1
+  )
+
+SELECT * FROM vdl
+UNION ALL SELECT * FROM smb
+UNION ALL SELECT * FROM summit
+UNION ALL SELECT * FROM rosenblum
+UNION ALL SELECT * FROM meyerpink
+UNION ALL SELECT * FROM aurit
+UNION ALL SELECT * FROM haffner
+UNION ALL SELECT * FROM kalish
+UNION ALL SELECT * FROM slo;

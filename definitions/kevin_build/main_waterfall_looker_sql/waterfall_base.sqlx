@@ -51,7 +51,7 @@ calls_daily AS (
 ),
 
 leads_daily AS (
-  SELECT
+  SELECT 
     u.Firm_Unique_ID,
     u.Firm_Name,
     SAFE_CAST(u.Lead_Create_Date AS DATE) AS metric_date,
