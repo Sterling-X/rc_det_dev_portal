@@ -1,0 +1,72 @@
+CREATE OR REPLACE TABLE
+  `rc-datamart-forms-webhook.callrail_fanashfamilylaw_webhook.callrail_fanashfamilylaw_pre_call_expanded` AS
+WITH src AS (
+  SELECT
+    call_id,
+    company_id,
+    event_type,
+    received_at,
+    payload_json,
+    SAFE.PARSE_JSON(payload_json) AS p
+  FROM `rc-datamart-forms-webhook.callrail_fanashfamilylaw_webhook.callrail_fanashfamilylaw_pre_call`
+)
+SELECT
+  -- original columns
+  call_id,
+  company_id,
+  event_type,
+  received_at,
+  payload_json,
+
+  -- expanded fields from payload_json
+  JSON_VALUE(p, '$.answered') AS answered_raw,
+  SAFE_CAST(JSON_VALUE(p, '$.answered') AS BOOL) AS answered,
+
+  JSON_VALUE(p, '$.callercity') AS caller_city,
+  JSON_VALUE(p, '$.callercountry') AS caller_country,
+  JSON_VALUE(p, '$.callername') AS caller_name,
+  JSON_VALUE(p, '$.callernum') AS caller_num,
+  JSON_VALUE(p, '$.callerstate') AS caller_state,
+  JSON_VALUE(p, '$.callsource') AS call_source,
+  JSON_VALUE(p, '$.campaign') AS campaign,
+  JSON_VALUE(p, '$.custom') AS custom,
+  JSON_VALUE(p, '$.customer_phone_number') AS customer_phone_number,
+
+  JSON_VALUE(p, '$.datetime') AS datetime_raw,
+  SAFE.PARSE_TIMESTAMP('%Y-%m-%d %H:%M:%S', JSON_VALUE(p, '$.datetime')) AS datetime_ts,
+
+  JSON_VALUE(p, '$.destinationnum') AS destination_num,
+  JSON_VALUE(p, '$.device_type') AS device_type,
+
+  JSON_VALUE(p, '$.duration') AS duration_raw,
+  SAFE_CAST(JSON_VALUE(p, '$.duration') AS INT64) AS duration_seconds,
+
+  JSON_VALUE(p, '$.first_call') AS first_call_raw,
+  SAFE_CAST(JSON_VALUE(p, '$.first_call') AS BOOL) AS first_call,
+
+  JSON_VALUE(p, '$.ga') AS ga,
+  JSON_VALUE(p, '$.gclid') AS gclid,
+  JSON_VALUE(p, '$.keywords') AS keywords,
+  JSON_VALUE(p, '$.kissmetrics_id') AS kissmetrics_id,
+  JSON_VALUE(p, '$.landingpage') AS landing_page,
+  JSON_VALUE(p, '$.recording') AS recording,
+  JSON_VALUE(p, '$.referrer') AS referrer,
+  JSON_VALUE(p, '$.referrermedium') AS referrer_medium,
+  JSON_VALUE(p, '$.resource_id') AS resource_id,
+  JSON_VALUE(p, '$.score') AS score,
+  JSON_VALUE(p, '$.timeline_url') AS timeline_url,
+  JSON_VALUE(p, '$.trackingnum') AS tracking_num,
+
+  JSON_VALUE(p, '$.utm_campaign') AS utm_campaign,
+  JSON_VALUE(p, '$.utm_content') AS utm_content,
+  JSON_VALUE(p, '$.utm_medium') AS utm_medium,
+  JSON_VALUE(p, '$.utm_source') AS utm_source,
+  JSON_VALUE(p, '$.utm_term') AS utm_term,
+
+  JSON_VALUE(p, '$.utma') AS utma,
+  JSON_VALUE(p, '$.utmb') AS utmb,
+  JSON_VALUE(p, '$.utmc') AS utmc,
+  JSON_VALUE(p, '$.utmv') AS utmv,
+  JSON_VALUE(p, '$.utmz') AS utmz
+
+FROM src;

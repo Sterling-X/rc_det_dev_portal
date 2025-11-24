@@ -577,6 +577,45 @@ ranked_fanash AS (
   SELECT *, ROW_NUMBER() OVER (PARTITION BY call_tracking_unique_id ORDER BY start_datetime DESC) AS row_num
   FROM base_fanash
 ),
+-- 16) ARIZONA FAMILY LAW (CallRail)
+base_arizonafamilylaw AS (
+  SELECT
+    'arizonafamilylaw-1015' AS firm_unique_id,
+    'Arizona Family Law'     AS firm_name,
+    CAST(answered AS BOOL) AS answered,
+    direction,
+    SAFE_CAST(duration AS INT64) AS recording_duration,
+    id AS call_tracking_unique_id,
+    SAFE_CAST(recording_duration AS INT64) AS call_recording_duration,
+    COALESCE(
+      SAFE.PARSE_TIMESTAMP('%Y-%m-%dT%H:%M:%E*S%Ez', TRIM(CAST(start_time AS STRING))),
+      SAFE.PARSE_TIMESTAMP('%Y-%m-%d %H:%M:%E*S%Ez', TRIM(CAST(start_time AS STRING))),
+      SAFE.PARSE_TIMESTAMP('%Y-%m-%d %H:%M:%S%Ez',  TRIM(CAST(start_time AS STRING))),
+      CAST(start_time AS TIMESTAMP)
+    ) AS start_datetime,
+    source,
+    CAST(NULL AS STRING) AS practice_area,
+    CAST(NULL AS STRING) AS marketing_channel,
+    utm_campaign,
+    utm_content,
+    CAST(NULL AS STRING) AS utm_ict_reference_number,
+    CAST(NULL AS STRING) AS utm_medium,
+    CAST(NULL AS INT64)  AS utm_pageview_count,
+    CAST(NULL AS INT64)  AS utm_session_count,
+    utm_source,
+    utm_term,
+    gclid,
+    CAST(NULL AS STRING) AS ga_client_id,
+    CAST(NULL AS STRING) AS ga_user_id,
+    CAST(NULL AS STRING) AS google_ads
+  FROM `focused-sentry-464713-u0.callrail_arizonafamilylaw.callrail_alldata_delta`
+  WHERE REGEXP_CONTAINS(COALESCE(direction, ''), r'(?i)^\s*inbound\s*$')
+),
+ranked_arizonafamilylaw AS (
+  SELECT *,
+         ROW_NUMBER() OVER (PARTITION BY call_tracking_unique_id ORDER BY start_datetime DESC) AS row_num
+  FROM base_arizonafamilylaw
+),
 
 -- unioned canonicalized rows (pick latest per call_tracking_unique_id per source CTE)
 unioned AS (
@@ -706,6 +745,16 @@ unioned AS (
     utm_ict_reference_number, utm_medium, utm_pageview_count, utm_session_count,
     utm_source, utm_term, ga_client_id, ga_user_id, gclid, google_ads
   FROM ranked_fanash WHERE row_num = 1
+
+    UNION ALL
+  -- ARIZONA FAMILY LAW
+  SELECT
+    firm_unique_id, firm_name, answered, direction, recording_duration,
+    call_tracking_unique_id, call_recording_duration, start_datetime,
+    source, practice_area, marketing_channel, utm_campaign, utm_content,
+    utm_ict_reference_number, utm_medium, utm_pageview_count, utm_session_count,
+    utm_source, utm_term, ga_client_id, ga_user_id, gclid, google_ads
+  FROM ranked_arizonafamilylaw WHERE row_num = 1
 )
 
 SELECT
