@@ -37,8 +37,6 @@ CREATE TEMP FUNCTION
     )
   );
 
--- Phoenix-safe version used ONLY for Aurit.
--- It applies Phoenix TZ for timestamp-like values, and safely falls back for DATE/STRING/BOOL.
 CREATE TEMP FUNCTION
   to_iso_date_phoenix(x ANY TYPE) AS (
     COALESCE(
@@ -64,28 +62,29 @@ CREATE TEMP FUNCTION
 CREATE OR REPLACE TABLE
   `focused-sentry-464713-u0.crm_universal_tables.genesis_crm_universal_table` AS
 WITH
-  vdl_dedup AS (
-    SELECT
-      prospectid,
-      created_at,
-      cf_discovery_session_date,
-      cf_consult_completed_date,
-      cf_retainer_sent_date,
-      cf_date_hired,
-      cf_email_newsletter_opt_in,
-      cf_lead_type,
-      cf_marketing_source,
-      cf_utm_campaign,
-      cf_utm_content,
-      cf_utm_medium,
-      cf_utm_source,
-      cf_utm_term,
-      cf_case_eval_date,
-      updated_at,
-      ROW_NUMBER() OVER (PARTITION BY prospectid ORDER BY updated_at DESC) AS rn
-    FROM
-      `focused-sentry-464713-u0.lawmatics_vdl.vdl_alldata_delta`
-  ),
+vdl_dedup AS (
+  SELECT
+    prospectid,
+    created_at,
+    cf_discovery_session_date,
+    cf_consult_completed_date,
+    cf_retainer_sent_date,
+    cf_date_hired,
+    cf_email_newsletter_opt_in,
+    cf_lead_type,
+    cf_marketing_source,
+    cf_utm_campaign,
+    cf_utm_content,
+    cf_utm_medium,
+    cf_utm_source,
+    cf_utm_term,
+    cf_case_eval_date,
+    lead_sync_status,             -- NEW: bring the field into the CTE
+    updated_at,
+    ROW_NUMBER() OVER (PARTITION BY prospectid ORDER BY updated_at DESC) AS rn
+  FROM
+    `focused-sentry-464713-u0.lawmatics_vdl.vdl_alldata_delta`
+),
 
   smb_dedup AS (
     SELECT
@@ -231,38 +230,39 @@ WITH
       `focused-sentry-464713-u0.salesforce_auritmediation.auritmediation_alldata_delta`
   ),
 
-  vdl AS (
-    SELECT
-      'VDL-vdl1001' AS Firm_Unique_ID,
-      'Vasquez de Lara' AS Firm_Name,
-      CAST(prospectid AS STRING) AS Lead_Unique_ID,
-      to_iso_date_keep_local(created_at) AS Lead_Create_Date,
-      to_iso_date_string(cf_discovery_session_date) AS Consultation_Date,
-      to_iso_date_string(cf_consult_completed_date) AS Consult_Completed_Date,
-      to_iso_date_string(cf_retainer_sent_date) AS Retainer_Sent_Date,
-      CAST(NULL AS STRING) AS Retainer_Signed_Date,
-      to_iso_date_string(cf_date_hired) AS Retainer_Funded_Date,
-      CAST(cf_email_newsletter_opt_in AS STRING) AS Web_Lead_Indicator,
-      CAST(cf_lead_type AS STRING) AS Lead_Source,
-      CAST(cf_marketing_source AS STRING) AS Marketing_Channel,
-      CAST(NULL AS STRING) AS Form_Submit_URL,
-      CAST(cf_utm_campaign AS STRING) AS UTM_Campaign,
-      CAST(cf_utm_content AS STRING) AS UTM_Content,
-      CAST(cf_utm_medium AS STRING) AS UTM_Medium,
-      CAST(NULL AS STRING) AS UTM_Pageview_Count,
-      CAST(NULL AS STRING) AS UTM_Session_Count,
-      CAST(cf_utm_source AS STRING) AS UTM_Source,
-      CAST(cf_utm_term AS STRING) AS UTM_Term,
-      CAST(NULL AS STRING) AS gclid,
-      CAST(NULL AS BOOL) AS _f1,
-      CAST(NULL AS BOOL) AS _f2,
-      to_iso_date_string(cf_case_eval_date) AS QPC,
-      CAST(NULL AS STRING) AS UTM_ICT_Reference_Number,
-      CAST(NULL AS STRING) AS ga_client_id,
-      CAST(NULL AS STRING) AS ga_user_id
-    FROM vdl_dedup
-    WHERE rn = 1
-  ),
+vdl AS (
+  SELECT
+    'VDL-vdl1001' AS Firm_Unique_ID,
+    'Vasquez de Lara' AS Firm_Name,
+    CAST(prospectid AS STRING) AS Lead_Unique_ID,
+    to_iso_date_keep_local(created_at) AS Lead_Create_Date,
+    to_iso_date_string(cf_discovery_session_date) AS Consultation_Date,
+    to_iso_date_string(cf_consult_completed_date) AS Consult_Completed_Date,
+    to_iso_date_string(cf_retainer_sent_date) AS Retainer_Sent_Date,
+    CAST(NULL AS STRING) AS Retainer_Signed_Date,
+    to_iso_date_string(cf_date_hired) AS Retainer_Funded_Date,
+    CAST(cf_email_newsletter_opt_in AS STRING) AS Web_Lead_Indicator,
+    CAST(cf_lead_type AS STRING) AS Lead_Source,
+    CAST(cf_marketing_source AS STRING) AS Marketing_CHANNEL,
+    CAST(NULL AS STRING) AS Form_Submit_URL,
+    CAST(cf_utm_campaign AS STRING) AS UTM_Campaign,
+    CAST(cf_utm_content AS STRING) AS UTM_Content,
+    CAST(cf_utm_medium AS STRING) AS UTM_Medium,
+    CAST(NULL AS STRING) AS UTM_Pageview_Count,
+    CAST(NULL AS STRING) AS UTM_Session_Count,
+    CAST(cf_utm_source AS STRING) AS UTM_Source,
+    CAST(cf_utm_term AS STRING) AS UTM_Term,
+    CAST(NULL AS STRING) AS gclid,
+    CAST(NULL AS BOOL) AS _f1,
+    CAST(NULL AS BOOL) AS _f2,
+    to_iso_date_string(cf_case_eval_date) AS QPC,
+    CAST(NULL AS STRING) AS UTM_ICT_Reference_NUMBER,
+    CAST(NULL AS STRING) AS ga_client_id,
+    CAST(NULL AS STRING) AS ga_user_id
+  FROM vdl_dedup
+  WHERE rn = 1
+    AND LOWER(COALESCE(lead_sync_status, '')) = 'active'   -- only include active VDL leads
+),
 
   smb AS (
     SELECT
