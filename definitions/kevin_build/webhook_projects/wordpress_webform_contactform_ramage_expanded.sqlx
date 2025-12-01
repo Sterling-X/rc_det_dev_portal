@@ -1,0 +1,71 @@
+CREATE OR REPLACE TABLE
+  `rc-datamart-forms-webhook.webhook_wordpress_ramagefamilylaw.wordpress_webform_ramagefamilylaw_contactform_expanded`
+AS
+SELECT
+  -- Original columns
+  received_at,
+  source_site,
+  form_id,
+  form_title,
+  remote_ip,
+  user_agent,
+
+  -- ========= PAYLOAD_JSON (convert JSON -> STRING, then extract) =========
+  -- First turn the JSON column into a JSON-formatted STRING
+  JSON_EXTRACT_SCALAR(TO_JSON_STRING(payload_json), "$['10']") AS payload_10,  -- name
+  JSON_EXTRACT_SCALAR(TO_JSON_STRING(payload_json), "$['11']") AS payload_11,  -- source (e.g. google)
+  JSON_EXTRACT_SCALAR(TO_JSON_STRING(payload_json), "$['12']") AS payload_12,
+  JSON_EXTRACT_SCALAR(TO_JSON_STRING(payload_json), "$['13']") AS payload_13,
+  JSON_EXTRACT_SCALAR(TO_JSON_STRING(payload_json), "$['14']") AS payload_14,
+  JSON_EXTRACT_SCALAR(TO_JSON_STRING(payload_json), "$['15']") AS payload_15,
+  JSON_EXTRACT_SCALAR(TO_JSON_STRING(payload_json), "$['16']") AS payload_16,
+  JSON_EXTRACT_SCALAR(TO_JSON_STRING(payload_json), "$['17']") AS payload_17,
+  JSON_EXTRACT_SCALAR(TO_JSON_STRING(payload_json), "$['18']") AS payload_18,
+  JSON_EXTRACT_SCALAR(TO_JSON_STRING(payload_json), "$['19']") AS payload_19,
+  JSON_EXTRACT_SCALAR(TO_JSON_STRING(payload_json), "$['2']")  AS payload_2,   -- email
+  JSON_EXTRACT_SCALAR(TO_JSON_STRING(payload_json), "$['20']") AS payload_20,  -- last name
+  JSON_EXTRACT_SCALAR(TO_JSON_STRING(payload_json), "$['21']") AS payload_21,
+  JSON_EXTRACT_SCALAR(TO_JSON_STRING(payload_json), "$['22']") AS payload_22,
+  JSON_EXTRACT_SCALAR(TO_JSON_STRING(payload_json), "$['3']")  AS payload_3,   -- message
+  JSON_EXTRACT_SCALAR(TO_JSON_STRING(payload_json), "$['7']")  AS payload_7,   -- ZIP
+  JSON_EXTRACT_SCALAR(TO_JSON_STRING(payload_json), "$['9']")  AS payload_9,   -- phone
+
+  -- Named keys in payload_json
+  JSON_EXTRACT_SCALAR(TO_JSON_STRING(payload_json), "$.created_by")        AS created_by,
+  JSON_EXTRACT_SCALAR(TO_JSON_STRING(payload_json), "$.currency")          AS currency,
+  JSON_EXTRACT_SCALAR(TO_JSON_STRING(payload_json), "$.date_created")      AS date_created,
+  JSON_EXTRACT_SCALAR(TO_JSON_STRING(payload_json), "$.date_updated")      AS date_updated,
+  JSON_EXTRACT_SCALAR(TO_JSON_STRING(payload_json), "$.form_id")           AS payload_form_id,
+  JSON_EXTRACT_SCALAR(TO_JSON_STRING(payload_json), "$.id")                AS submission_id,
+  JSON_EXTRACT_SCALAR(TO_JSON_STRING(payload_json), "$.ip")                AS payload_ip,
+  JSON_EXTRACT_SCALAR(TO_JSON_STRING(payload_json), "$.is_fulfilled")      AS is_fulfilled,
+  JSON_EXTRACT_SCALAR(TO_JSON_STRING(payload_json), "$.is_read")           AS is_read,
+  JSON_EXTRACT_SCALAR(TO_JSON_STRING(payload_json), "$.is_starred")        AS is_starred,
+  JSON_EXTRACT_SCALAR(TO_JSON_STRING(payload_json), "$.payment_amount")    AS payment_amount,
+  JSON_EXTRACT_SCALAR(TO_JSON_STRING(payload_json), "$.payment_date")      AS payment_date,
+  JSON_EXTRACT_SCALAR(TO_JSON_STRING(payload_json), "$.payment_method")    AS payment_method,
+  JSON_EXTRACT_SCALAR(TO_JSON_STRING(payload_json), "$.payment_status")    AS payment_status,
+  JSON_EXTRACT_SCALAR(TO_JSON_STRING(payload_json), "$.post_id")           AS post_id,
+  JSON_EXTRACT_SCALAR(TO_JSON_STRING(payload_json), "$.source_id")         AS source_id,
+  JSON_EXTRACT_SCALAR(TO_JSON_STRING(payload_json), "$.source_url")        AS source_url,
+  JSON_EXTRACT_SCALAR(TO_JSON_STRING(payload_json), "$.status")            AS status,
+  JSON_EXTRACT_SCALAR(TO_JSON_STRING(payload_json), "$.submission_speeds") AS submission_speeds,
+  JSON_EXTRACT_SCALAR(TO_JSON_STRING(payload_json), "$.transaction_id")    AS transaction_id,
+  JSON_EXTRACT_SCALAR(TO_JSON_STRING(payload_json), "$.transaction_type")  AS transaction_type,
+  JSON_EXTRACT_SCALAR(TO_JSON_STRING(payload_json), "$.user_agent")        AS payload_user_agent,
+
+  -- ========= REQUEST_HEADERS (also JSON -> STRING) =========
+  JSON_EXTRACT_SCALAR(TO_JSON_STRING(request_headers), "$.Accept")                    AS header_accept,
+  JSON_EXTRACT_SCALAR(TO_JSON_STRING(request_headers), "$['Accept-Encoding']")        AS header_accept_encoding,
+  JSON_EXTRACT_SCALAR(TO_JSON_STRING(request_headers), "$['Content-Length']")         AS header_content_length,
+  JSON_EXTRACT_SCALAR(TO_JSON_STRING(request_headers), "$['Content-Type']")           AS header_content_type,
+  JSON_EXTRACT_SCALAR(TO_JSON_STRING(request_headers), "$.Forwarded")                 AS header_forwarded,
+  JSON_EXTRACT_SCALAR(TO_JSON_STRING(request_headers), "$.Host")                      AS header_host,
+  JSON_EXTRACT_SCALAR(TO_JSON_STRING(request_headers), "$.Traceparent")               AS header_traceparent,
+  JSON_EXTRACT_SCALAR(TO_JSON_STRING(request_headers), "$['User-Agent']")             AS header_user_agent,
+  JSON_EXTRACT_SCALAR(TO_JSON_STRING(request_headers), "$['X-Cloud-Trace-Context']")  AS header_x_cloud_trace_context,
+  JSON_EXTRACT_SCALAR(TO_JSON_STRING(request_headers), "$['X-Forwarded-For']")        AS header_x_forwarded_for,
+  JSON_EXTRACT_SCALAR(TO_JSON_STRING(request_headers), "$['X-Forwarded-Proto']")      AS header_x_forwarded_proto
+
+FROM
+  `rc-datamart-forms-webhook.webhook_wordpress_ramagefamilylaw.wordpress_webform_contactform`;
