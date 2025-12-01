@@ -59,6 +59,29 @@ CREATE TEMP FUNCTION
     )
   );
 
+-- NEW: New York–localized date helper for VDL
+CREATE TEMP FUNCTION
+  to_iso_date_new_york(x ANY TYPE) AS (
+    COALESCE(
+      FORMAT_DATE(
+        '%Y-%m-%d',
+        DATE(
+          COALESCE(
+            SAFE.PARSE_TIMESTAMP('%Y-%m-%dT%H:%M:%E*S%Ez', TRIM(CAST(x AS STRING))),
+            SAFE.PARSE_TIMESTAMP('%Y-%m-%d %H:%M:%E*S%Ez', TRIM(CAST(x AS STRING))),
+            SAFE.PARSE_TIMESTAMP('%Y-%m-%d %H:%M:%S',      TRIM(CAST(x AS STRING))),
+            SAFE.PARSE_TIMESTAMP('%Y-%m-%dT%H:%M:%E*S',    TRIM(CAST(x AS STRING)))
+          ),
+          "America/New_York"
+        )
+      ),
+      FORMAT_DATE('%Y-%m-%d', SAFE.PARSE_DATE('%Y-%m-%d', TRIM(CAST(x AS STRING)))),
+      FORMAT_DATE('%Y-%m-%d', SAFE.PARSE_DATE('%B %e, %Y', TRIM(CAST(x AS STRING)))),
+      FORMAT_DATE('%Y-%m-%d', SAFE.PARSE_DATE('%b %e, %Y', TRIM(CAST(x AS STRING)))),
+      to_iso_date_string(x)
+    )
+  );
+
 CREATE OR REPLACE TABLE
   `focused-sentry-464713-u0.crm_universal_tables.genesis_crm_universal_table` AS
 WITH
@@ -79,7 +102,7 @@ vdl_dedup AS (
     cf_utm_source,
     cf_utm_term,
     cf_case_eval_date,
-    lead_sync_status,             -- NEW: bring the field into the CTE
+    lead_sync_status,             -- bring the field into the CTE
     updated_at,
     ROW_NUMBER() OVER (PARTITION BY prospectid ORDER BY updated_at DESC) AS rn
   FROM
@@ -230,17 +253,18 @@ vdl_dedup AS (
       `focused-sentry-464713-u0.salesforce_auritmediation.auritmediation_alldata_delta`
   ),
 
+-- VDL: now New York–localized dates + only active leads
 vdl AS (
   SELECT
     'VDL-vdl1001' AS Firm_Unique_ID,
     'Vasquez de Lara' AS Firm_Name,
     CAST(prospectid AS STRING) AS Lead_Unique_ID,
-    to_iso_date_keep_local(created_at) AS Lead_Create_Date,
-    to_iso_date_string(cf_discovery_session_date) AS Consultation_Date,
-    to_iso_date_string(cf_consult_completed_date) AS Consult_Completed_Date,
-    to_iso_date_string(cf_retainer_sent_date) AS Retainer_Sent_Date,
+    to_iso_date_new_york(created_at) AS Lead_Create_Date,
+    to_iso_date_new_york(cf_discovery_session_date) AS Consultation_Date,
+    to_iso_date_new_york(cf_consult_completed_date) AS Consult_Completed_Date,
+    to_iso_date_new_york(cf_retainer_sent_date) AS Retainer_Sent_Date,
     CAST(NULL AS STRING) AS Retainer_Signed_Date,
-    to_iso_date_string(cf_date_hired) AS Retainer_Funded_Date,
+    to_iso_date_new_york(cf_date_hired) AS Retainer_Funded_Date,
     CAST(cf_email_newsletter_opt_in AS STRING) AS Web_Lead_Indicator,
     CAST(cf_lead_type AS STRING) AS Lead_Source,
     CAST(cf_marketing_source AS STRING) AS Marketing_CHANNEL,
@@ -255,13 +279,13 @@ vdl AS (
     CAST(NULL AS STRING) AS gclid,
     CAST(NULL AS BOOL) AS _f1,
     CAST(NULL AS BOOL) AS _f2,
-    to_iso_date_string(cf_case_eval_date) AS QPC,
+    to_iso_date_new_york(cf_case_eval_date) AS QPC,
     CAST(NULL AS STRING) AS UTM_ICT_Reference_NUMBER,
     CAST(NULL AS STRING) AS ga_client_id,
     CAST(NULL AS STRING) AS ga_user_id
   FROM vdl_dedup
   WHERE rn = 1
-    AND LOWER(COALESCE(lead_sync_status, '')) = 'active'   -- only include active VDL leads
+    AND LOWER(COALESCE(lead_sync_status, '')) = 'active'
 ),
 
   smb AS (
@@ -411,7 +435,7 @@ vdl AS (
     WHERE rn = 1
   ),
 
-  -- ONLY Aurit changed: same fields, same mapping, but Phoenix-local where applicable.
+  -- Aurit (Phoenix-local dates)
   aurit AS (
     SELECT
       'auritmediation-am1007' AS Firm_Unique_ID,
@@ -443,7 +467,7 @@ vdl AS (
       CAST(NULL AS BOOL) AS _f1,
       CAST(NULL AS BOOL) AS _f2,
       CAST(NULL AS STRING) AS QPC,
-      CAST(NULL AS STRING) AS UTM_ICT_Reference_Number,
+      CAST(NULL AS STRING) AS UTM_ICT_Reference_NUMBER,
       CAST(NULL AS STRING) AS ga_client_id,
       CAST(NULL AS STRING) AS ga_user_id
     FROM aurit_dedup
@@ -476,7 +500,7 @@ vdl AS (
       CAST(NULL AS BOOL) AS _f1,
       CAST(NULL AS BOOL) AS _f2,
       CAST(NULL AS STRING) AS QPC,
-      CAST(NULL AS STRING) AS UTM_ICT_Reference_Number,
+      CAST(NULL AS STRING) AS UTM_ICT_Reference_NUMBER,
       CAST(NULL AS STRING) AS ga_client_id,
       CAST(NULL AS STRING) AS ga_user_id
     FROM haffner_dedup
@@ -509,7 +533,7 @@ vdl AS (
       CAST(NULL AS BOOL) AS _f1,
       CAST(NULL AS BOOL) AS _f2,
       CAST(NULL AS STRING) AS QPC,
-      CAST(NULL AS STRING) AS UTM_ICT_Reference_Number,
+      CAST(NULL AS STRING) AS UTM_ICT_Reference_NUMBER,
       CAST(NULL AS STRING) AS ga_client_id,
       CAST(NULL AS STRING) AS ga_user_id
     FROM kalish_dedup
@@ -521,7 +545,7 @@ vdl AS (
     SELECT
       s.*,
 
-      -- Localized dates (America/New_York) – same logic as slo_tmp_historical_base
+      -- Localized dates (America/New_York)
       DATE(COALESCE(
         SAFE_CAST(lead_CreatedDate AS TIMESTAMP),
         SAFE.PARSE_TIMESTAMP('%Y-%m-%dT%H:%M:%E*S%Ez', SAFE_CAST(lead_CreatedDate AS STRING)),
@@ -564,7 +588,7 @@ vdl AS (
         SAFE.PARSE_DATE('%Y-%m-%d.', SAFE_CAST(opportunity_Reinstituted_Funded_Date__c AS STRING))
       ) AS funded_reinstituted_d,
 
-      -- Boolean-ish flags (same as slo_tmp_historical_base)
+      -- Boolean-ish flags
       NOT REGEXP_CONTAINS(COALESCE(SAFE_CAST(lead_LeadSource AS STRING), ''), r'(?i)nps') AS leadsource_not_nps,
       (SAFE_CAST(lead_IsConverted AS BOOL) IS FALSE OR LOWER(TRIM(SAFE_CAST(lead_IsConverted AS STRING))) IN ('false','f','0','no','n')) AS is_converted_falseish,
       (SAFE_CAST(lead_Potential_Lead__c AS BOOL) IS FALSE OR LOWER(TRIM(SAFE_CAST(lead_Potential_Lead__c AS STRING))) IN ('false','f','0','no','n')) AS is_potential_falseish,
@@ -587,7 +611,6 @@ vdl AS (
     FROM
       slo_base
     WHERE
-      -- leads_total_daily filter
       lead_created_central_d IS NOT NULL
       AND leadsource_not_nps
       AND is_converted_falseish
@@ -601,10 +624,8 @@ vdl AS (
       'Sterling Lawyers'             AS Firm_Name,
       CAST(lead_Id AS STRING)        AS Lead_Unique_ID,
 
-      -- Lead Create Date
       to_iso_date_string(lead_created_central_d) AS Lead_Create_Date,
 
-      -- Consultation Date (consults_sched_daily filter)
       CASE
         WHEN consult_start_central_d IS NOT NULL
              AND oppacct_not_participant
@@ -612,7 +633,6 @@ vdl AS (
         ELSE NULL
       END AS Consultation_Date,
 
-      -- Consult Completed Date (consults_comp_daily filter)
       CASE
         WHEN consult_created_central_d IS NOT NULL
              AND LOWER(TRIM(SAFE_CAST(consult_Consult_Status__c AS STRING))) IN (
@@ -625,29 +645,22 @@ vdl AS (
         ELSE NULL
       END AS Consult_Completed_Date,
 
-      -- Retainer / Agreement Sent Date (no explicit field in slo_tmp – left NULL)
       CAST(NULL AS STRING) AS Retainer_Sent_Date,
-
-      -- Retainer / Agreement Signed Date (no explicit field in slo_tmp – left NULL)
       CAST(NULL AS STRING) AS Retainer_Signed_Date,
 
-      -- Retainer / Agreement Funded Date (funded_daily logic)
       CASE
         WHEN funded_reinstituted_d IS NOT NULL
         THEN to_iso_date_string(funded_reinstituted_d)
         ELSE NULL
       END AS Retainer_Funded_Date,
 
-      -- Web Lead Indicator (web_leads_daily filter → per-lead boolean-ish)
       CASE
         WHEN is_web_trueish THEN 'Website'
         ELSE NULL
       END AS Web_Lead_Indicator,
 
-      -- Lead Source
       CAST(lead_LeadSource AS STRING) AS Lead_Source,
 
-      -- Remaining universal fields – currently no specific SLO source fields mapped
       CAST(NULL AS STRING) AS Marketing_Channel,
       CAST(NULL AS STRING) AS Form_Submit_URL,
       CAST(NULL AS STRING) AS UTM_Campaign,
@@ -661,7 +674,6 @@ vdl AS (
       CAST(NULL AS BOOL)   AS _f1,
       CAST(NULL AS BOOL)   AS _f2,
 
-      -- No per-lead QPC date defined in SLO metrics – leaving as NULL
       CAST(NULL AS STRING) AS QPC,
 
       CAST(NULL AS STRING) AS UTM_ICT_Reference_Number,
