@@ -577,6 +577,7 @@ ranked_fanash AS (
   SELECT *, ROW_NUMBER() OVER (PARTITION BY call_tracking_unique_id ORDER BY start_datetime DESC) AS row_num
   FROM base_fanash
 ),
+
 -- 16) ARIZONA FAMILY LAW (CallRail)
 base_arizonafamilylaw AS (
   SELECT
@@ -612,9 +613,49 @@ base_arizonafamilylaw AS (
   WHERE REGEXP_CONTAINS(COALESCE(direction, ''), r'(?i)^\s*inbound\s*$')
 ),
 ranked_arizonafamilylaw AS (
-  SELECT *,
+  SELECT * ,
          ROW_NUMBER() OVER (PARTITION BY call_tracking_unique_id ORDER BY start_datetime DESC) AS row_num
   FROM base_arizonafamilylaw
+),
+
+-- 17) JOHNSON LAW GROUP (CallRail)
+base_johnsonlawgroup AS (
+  SELECT
+    'johnsonlawgroup-1016' AS firm_unique_id,
+    'Johnson Law group'    AS firm_name,
+    CAST(answered AS BOOL) AS answered,
+    direction,
+    SAFE_CAST(duration AS INT64) AS recording_duration,
+    id AS call_tracking_unique_id,
+    SAFE_CAST(recording_duration AS INT64) AS call_recording_duration,
+    COALESCE(
+      SAFE.PARSE_TIMESTAMP('%Y-%m-%dT%H:%M:%E*S%Ez', TRIM(CAST(start_time AS STRING))),
+      SAFE.PARSE_TIMESTAMP('%Y-%m-%d %H:%M:%E*S%Ez', TRIM(CAST(start_time AS STRING))),
+      SAFE.PARSE_TIMESTAMP('%Y-%m-%d %H:%M:%S%Ez',  TRIM(CAST(start_time AS STRING))),
+      CAST(start_time AS TIMESTAMP)
+    ) AS start_datetime,
+    source                              AS source,
+    CAST(NULL AS STRING)                AS practice_area,
+    CAST(NULL AS STRING)                AS marketing_channel,
+    utm_campaign                        AS utm_campaign,
+    utm_content                         AS utm_content,
+    CAST(NULL AS STRING)                AS utm_ict_reference_number,
+    utm_medium                          AS utm_medium,
+    CAST(NULL AS INT64)                 AS utm_pageview_count,
+    CAST(NULL AS INT64)                 AS utm_session_count,
+    utm_source                          AS utm_source,
+    utm_term                            AS utm_term,
+    CAST(NULL AS STRING)                AS ga_client_id,
+    CAST(NULL AS STRING)                AS ga_user_id,
+    gclid                               AS gclid,
+    CAST(NULL AS STRING)                AS google_ads
+  FROM `focused-sentry-464713-u0.callrail_johnsonlawgroup.callrail_initialdata_delta`
+  WHERE REGEXP_CONTAINS(COALESCE(direction, ''), r'(?i)^\s*inbound\s*$')
+),
+ranked_johnsonlawgroup AS (
+  SELECT *,
+         ROW_NUMBER() OVER (PARTITION BY call_tracking_unique_id ORDER BY start_datetime DESC) AS row_num
+  FROM base_johnsonlawgroup
 ),
 
 -- unioned canonicalized rows (pick latest per call_tracking_unique_id per source CTE)
@@ -746,7 +787,7 @@ unioned AS (
     utm_source, utm_term, ga_client_id, ga_user_id, gclid, google_ads
   FROM ranked_fanash WHERE row_num = 1
 
-    UNION ALL
+  UNION ALL
   -- ARIZONA FAMILY LAW
   SELECT
     firm_unique_id, firm_name, answered, direction, recording_duration,
@@ -755,6 +796,16 @@ unioned AS (
     utm_ict_reference_number, utm_medium, utm_pageview_count, utm_session_count,
     utm_source, utm_term, ga_client_id, ga_user_id, gclid, google_ads
   FROM ranked_arizonafamilylaw WHERE row_num = 1
+
+  UNION ALL
+  -- JOHNSON LAW GROUP
+  SELECT
+    firm_unique_id, firm_name, answered, direction, recording_duration,
+    call_tracking_unique_id, call_recording_duration, start_datetime,
+    source, practice_area, marketing_channel, utm_campaign, utm_content,
+    utm_ict_reference_number, utm_medium, utm_pageview_count, utm_session_count,
+    utm_source, utm_term, ga_client_id, ga_user_id, gclid, google_ads
+  FROM ranked_johnsonlawgroup WHERE row_num = 1
 )
 
 SELECT

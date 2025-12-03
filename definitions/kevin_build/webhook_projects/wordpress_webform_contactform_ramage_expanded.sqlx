@@ -12,23 +12,23 @@ SELECT
 
   -- ========= PAYLOAD_JSON (convert JSON -> STRING, then extract) =========
   -- First turn the JSON column into a JSON-formatted STRING
-  JSON_EXTRACT_SCALAR(TO_JSON_STRING(payload_json), "$['10']") AS payload_10,  -- name
-  JSON_EXTRACT_SCALAR(TO_JSON_STRING(payload_json), "$['11']") AS payload_11,  -- source (e.g. google)
+  JSON_EXTRACT_SCALAR(TO_JSON_STRING(payload_json), "$['10']") AS first_name,  -- name
+  JSON_EXTRACT_SCALAR(TO_JSON_STRING(payload_json), "$['11']") AS source,  -- source 
   JSON_EXTRACT_SCALAR(TO_JSON_STRING(payload_json), "$['12']") AS payload_12,
-  JSON_EXTRACT_SCALAR(TO_JSON_STRING(payload_json), "$['13']") AS payload_13,
+  JSON_EXTRACT_SCALAR(TO_JSON_STRING(payload_json), "$['13']") AS webform_lead,
   JSON_EXTRACT_SCALAR(TO_JSON_STRING(payload_json), "$['14']") AS payload_14,
   JSON_EXTRACT_SCALAR(TO_JSON_STRING(payload_json), "$['15']") AS payload_15,
   JSON_EXTRACT_SCALAR(TO_JSON_STRING(payload_json), "$['16']") AS payload_16,
   JSON_EXTRACT_SCALAR(TO_JSON_STRING(payload_json), "$['17']") AS payload_17,
   JSON_EXTRACT_SCALAR(TO_JSON_STRING(payload_json), "$['18']") AS payload_18,
-  JSON_EXTRACT_SCALAR(TO_JSON_STRING(payload_json), "$['19']") AS payload_19,
-  JSON_EXTRACT_SCALAR(TO_JSON_STRING(payload_json), "$['2']")  AS payload_2,   -- email
-  JSON_EXTRACT_SCALAR(TO_JSON_STRING(payload_json), "$['20']") AS payload_20,  -- last name
-  JSON_EXTRACT_SCALAR(TO_JSON_STRING(payload_json), "$['21']") AS payload_21,
-  JSON_EXTRACT_SCALAR(TO_JSON_STRING(payload_json), "$['22']") AS payload_22,
-  JSON_EXTRACT_SCALAR(TO_JSON_STRING(payload_json), "$['3']")  AS payload_3,   -- message
-  JSON_EXTRACT_SCALAR(TO_JSON_STRING(payload_json), "$['7']")  AS payload_7,   -- ZIP
-  JSON_EXTRACT_SCALAR(TO_JSON_STRING(payload_json), "$['9']")  AS payload_9,   -- phone
+  JSON_EXTRACT_SCALAR(TO_JSON_STRING(payload_json), "$['19']") AS type_of_matter,
+  JSON_EXTRACT_SCALAR(TO_JSON_STRING(payload_json), "$['2']")  AS email,   -- email
+  JSON_EXTRACT_SCALAR(TO_JSON_STRING(payload_json), "$['20']") AS last_name,  -- last name
+  JSON_EXTRACT_SCALAR(TO_JSON_STRING(payload_json), "$['21']") AS lead_source,
+  JSON_EXTRACT_SCALAR(TO_JSON_STRING(payload_json), "$['22']") AS time_of_day_period,
+  JSON_EXTRACT_SCALAR(TO_JSON_STRING(payload_json), "$['3']")  AS message,   -- message
+  JSON_EXTRACT_SCALAR(TO_JSON_STRING(payload_json), "$['7']")  AS zip,   -- ZIP
+  JSON_EXTRACT_SCALAR(TO_JSON_STRING(payload_json), "$['9']")  AS phone,   -- phone
 
   -- Named keys in payload_json
   JSON_EXTRACT_SCALAR(TO_JSON_STRING(payload_json), "$.created_by")        AS created_by,
