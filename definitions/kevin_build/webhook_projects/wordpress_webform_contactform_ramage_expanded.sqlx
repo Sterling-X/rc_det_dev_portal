@@ -1,6 +1,42 @@
-CREATE OR REPLACE TABLE
+DECLARE param_cols STRING;
+DECLARE sql STRING;
+
+-- 1) Build dynamic URL param columns (one column per distinct param)
+SET param_cols = (
+  SELECT IFNULL(
+    STRING_AGG(
+      FORMAT(
+        "REGEXP_EXTRACT(JSON_VALUE(payload_json, '$.source_url'), r'[?&]%s=([^&#]*)') AS url_%s",
+        key,
+        normalized_name
+      ),
+      ',\n  '
+    ),
+    ''
+  )
+  FROM (
+    SELECT DISTINCT
+      key,
+      LOWER(REGEXP_REPLACE(key, r'[^A-Za-z0-9]+', '_')) AS normalized_name
+    FROM `rc-datamart-forms-webhook.webhook_wordpress_ramagefamilylaw.wordpress_webform_contactform`,
+    UNNEST(
+      REGEXP_EXTRACT_ALL(
+        JSON_VALUE(payload_json, '$.source_url'),
+        r'[?&]([^=&#]+)='
+      )
+    ) AS key
+    WHERE JSON_VALUE(payload_json, '$.source_url') IS NOT NULL
+  )
+);
+
+-- Add a leading comma if we actually have any params
+SET param_cols = IF(param_cols = '', '', ',\n  ' || param_cols);
+
+-- 2) Build the full CREATE OR REPLACE TABLE statement
+SET sql = FORMAT(R"""CREATE OR REPLACE TABLE
   `rc-datamart-forms-webhook.webhook_wordpress_ramagefamilylaw.wordpress_webform_ramagefamilylaw_contactform_expanded`
 AS
+
 SELECT
   -- Original columns
   received_at,
@@ -10,62 +46,66 @@ SELECT
   remote_ip,
   user_agent,
 
-  -- ========= PAYLOAD_JSON (convert JSON -> STRING, then extract) =========
-  -- First turn the JSON column into a JSON-formatted STRING
-  JSON_EXTRACT_SCALAR(TO_JSON_STRING(payload_json), "$['10']") AS first_name,  -- name
-  JSON_EXTRACT_SCALAR(TO_JSON_STRING(payload_json), "$['11']") AS source,  -- source 
-  JSON_EXTRACT_SCALAR(TO_JSON_STRING(payload_json), "$['12']") AS payload_12,
-  JSON_EXTRACT_SCALAR(TO_JSON_STRING(payload_json), "$['13']") AS webform_lead,
-  JSON_EXTRACT_SCALAR(TO_JSON_STRING(payload_json), "$['14']") AS payload_14,
-  JSON_EXTRACT_SCALAR(TO_JSON_STRING(payload_json), "$['15']") AS payload_15,
-  JSON_EXTRACT_SCALAR(TO_JSON_STRING(payload_json), "$['16']") AS payload_16,
-  JSON_EXTRACT_SCALAR(TO_JSON_STRING(payload_json), "$['17']") AS payload_17,
-  JSON_EXTRACT_SCALAR(TO_JSON_STRING(payload_json), "$['18']") AS payload_18,
-  JSON_EXTRACT_SCALAR(TO_JSON_STRING(payload_json), "$['19']") AS type_of_matter,
-  JSON_EXTRACT_SCALAR(TO_JSON_STRING(payload_json), "$['2']")  AS email,   -- email
-  JSON_EXTRACT_SCALAR(TO_JSON_STRING(payload_json), "$['20']") AS last_name,  -- last name
-  JSON_EXTRACT_SCALAR(TO_JSON_STRING(payload_json), "$['21']") AS lead_source,
-  JSON_EXTRACT_SCALAR(TO_JSON_STRING(payload_json), "$['22']") AS time_of_day_period,
-  JSON_EXTRACT_SCALAR(TO_JSON_STRING(payload_json), "$['3']")  AS message,   -- message
-  JSON_EXTRACT_SCALAR(TO_JSON_STRING(payload_json), "$['7']")  AS zip,   -- ZIP
-  JSON_EXTRACT_SCALAR(TO_JSON_STRING(payload_json), "$['9']")  AS phone,   -- phone
+  -- ========= PAYLOAD_JSON (friendly names) =========
+  JSON_VALUE(payload_json, '$."10"') AS first_name,
+  JSON_VALUE(payload_json, '$."11"') AS utm_source,
+  JSON_VALUE(payload_json, '$."12"') AS payload_12,
+  JSON_VALUE(payload_json, '$."13"') AS webform_lead,
+  JSON_VALUE(payload_json, '$."14"') AS payload_14,
+  JSON_VALUE(payload_json, '$."15"') AS payload_15,
+  JSON_VALUE(payload_json, '$."16"') AS payload_16,
+  JSON_VALUE(payload_json, '$."17"') AS payload_17,
+  JSON_VALUE(payload_json, '$."18"') AS payload_18,
+  JSON_VALUE(payload_json, '$."19"') AS type_of_matter,
+  JSON_VALUE(payload_json, '$."2"' ) AS email,
+  JSON_VALUE(payload_json, '$."20"') AS last_name,
+  JSON_VALUE(payload_json, '$."21"') AS lead_source,
+  JSON_VALUE(payload_json, '$."22"') AS time_of_day_period,
+  JSON_VALUE(payload_json, '$."3"' ) AS message,
+  JSON_VALUE(payload_json, '$."7"' ) AS zip,
+  JSON_VALUE(payload_json, '$."9"' ) AS phone,
 
-  -- Named keys in payload_json
-  JSON_EXTRACT_SCALAR(TO_JSON_STRING(payload_json), "$.created_by")        AS created_by,
-  JSON_EXTRACT_SCALAR(TO_JSON_STRING(payload_json), "$.currency")          AS currency,
-  JSON_EXTRACT_SCALAR(TO_JSON_STRING(payload_json), "$.date_created")      AS date_created,
-  JSON_EXTRACT_SCALAR(TO_JSON_STRING(payload_json), "$.date_updated")      AS date_updated,
-  JSON_EXTRACT_SCALAR(TO_JSON_STRING(payload_json), "$.form_id")           AS payload_form_id,
-  JSON_EXTRACT_SCALAR(TO_JSON_STRING(payload_json), "$.id")                AS submission_id,
-  JSON_EXTRACT_SCALAR(TO_JSON_STRING(payload_json), "$.ip")                AS payload_ip,
-  JSON_EXTRACT_SCALAR(TO_JSON_STRING(payload_json), "$.is_fulfilled")      AS is_fulfilled,
-  JSON_EXTRACT_SCALAR(TO_JSON_STRING(payload_json), "$.is_read")           AS is_read,
-  JSON_EXTRACT_SCALAR(TO_JSON_STRING(payload_json), "$.is_starred")        AS is_starred,
-  JSON_EXTRACT_SCALAR(TO_JSON_STRING(payload_json), "$.payment_amount")    AS payment_amount,
-  JSON_EXTRACT_SCALAR(TO_JSON_STRING(payload_json), "$.payment_date")      AS payment_date,
-  JSON_EXTRACT_SCALAR(TO_JSON_STRING(payload_json), "$.payment_method")    AS payment_method,
-  JSON_EXTRACT_SCALAR(TO_JSON_STRING(payload_json), "$.payment_status")    AS payment_status,
-  JSON_EXTRACT_SCALAR(TO_JSON_STRING(payload_json), "$.post_id")           AS post_id,
-  JSON_EXTRACT_SCALAR(TO_JSON_STRING(payload_json), "$.source_id")         AS source_id,
-  JSON_EXTRACT_SCALAR(TO_JSON_STRING(payload_json), "$.source_url")        AS source_url,
-  JSON_EXTRACT_SCALAR(TO_JSON_STRING(payload_json), "$.status")            AS status,
-  JSON_EXTRACT_SCALAR(TO_JSON_STRING(payload_json), "$.submission_speeds") AS submission_speeds,
-  JSON_EXTRACT_SCALAR(TO_JSON_STRING(payload_json), "$.transaction_id")    AS transaction_id,
-  JSON_EXTRACT_SCALAR(TO_JSON_STRING(payload_json), "$.transaction_type")  AS transaction_type,
-  JSON_EXTRACT_SCALAR(TO_JSON_STRING(payload_json), "$.user_agent")        AS payload_user_agent,
+  -- ========= Named keys in payload_json =========
+  JSON_VALUE(payload_json, '$.created_by')        AS created_by,
+  JSON_VALUE(payload_json, '$.currency')          AS currency,
+  JSON_VALUE(payload_json, '$.date_created')      AS date_created,
+  JSON_VALUE(payload_json, '$.date_updated')      AS date_updated,
+  JSON_VALUE(payload_json, '$.form_id')           AS payload_form_id,
+  JSON_VALUE(payload_json, '$.id')                AS submission_id,
+  JSON_VALUE(payload_json, '$.ip')                AS payload_ip,
+  JSON_VALUE(payload_json, '$.is_fulfilled')      AS is_fulfilled,
+  JSON_VALUE(payload_json, '$.is_read')           AS is_read,
+  JSON_VALUE(payload_json, '$.is_starred')        AS is_starred,
+  JSON_VALUE(payload_json, '$.payment_amount')    AS payment_amount,
+  JSON_VALUE(payload_json, '$.payment_date')      AS payment_date,
+  JSON_VALUE(payload_json, '$.payment_method')    AS payment_method,
+  JSON_VALUE(payload_json, '$.payment_status')    AS payment_status,
+  JSON_VALUE(payload_json, '$.post_id')           AS post_id,
+  JSON_VALUE(payload_json, '$.source_id')         AS source_id,
+  JSON_VALUE(payload_json, '$.source_url')        AS source_url,
+  JSON_VALUE(payload_json, '$.status')            AS status,
+  JSON_VALUE(payload_json, '$.submission_speeds') AS submission_speeds,
+  JSON_VALUE(payload_json, '$.transaction_id')    AS transaction_id,
+  JSON_VALUE(payload_json, '$.transaction_type')  AS transaction_type,
+  JSON_VALUE(payload_json, '$.user_agent')        AS payload_user_agent,
 
-  -- ========= REQUEST_HEADERS (also JSON -> STRING) =========
-  JSON_EXTRACT_SCALAR(TO_JSON_STRING(request_headers), "$.Accept")                    AS header_accept,
-  JSON_EXTRACT_SCALAR(TO_JSON_STRING(request_headers), "$['Accept-Encoding']")        AS header_accept_encoding,
-  JSON_EXTRACT_SCALAR(TO_JSON_STRING(request_headers), "$['Content-Length']")         AS header_content_length,
-  JSON_EXTRACT_SCALAR(TO_JSON_STRING(request_headers), "$['Content-Type']")           AS header_content_type,
-  JSON_EXTRACT_SCALAR(TO_JSON_STRING(request_headers), "$.Forwarded")                 AS header_forwarded,
-  JSON_EXTRACT_SCALAR(TO_JSON_STRING(request_headers), "$.Host")                      AS header_host,
-  JSON_EXTRACT_SCALAR(TO_JSON_STRING(request_headers), "$.Traceparent")               AS header_traceparent,
-  JSON_EXTRACT_SCALAR(TO_JSON_STRING(request_headers), "$['User-Agent']")             AS header_user_agent,
-  JSON_EXTRACT_SCALAR(TO_JSON_STRING(request_headers), "$['X-Cloud-Trace-Context']")  AS header_x_cloud_trace_context,
-  JSON_EXTRACT_SCALAR(TO_JSON_STRING(request_headers), "$['X-Forwarded-For']")        AS header_x_forwarded_for,
-  JSON_EXTRACT_SCALAR(TO_JSON_STRING(request_headers), "$['X-Forwarded-Proto']")      AS header_x_forwarded_proto
-
+  -- ========= REQUEST_HEADERS =========
+  JSON_VALUE(request_headers, '$.Accept')                  AS header_accept,
+  JSON_VALUE(request_headers, '$."Accept-Encoding"')       AS header_accept_encoding,
+  JSON_VALUE(request_headers, '$."Content-Length"')        AS header_content_length,
+  JSON_VALUE(request_headers, '$."Content-Type"')          AS header_content_type,
+  JSON_VALUE(request_headers, '$.Forwarded')               AS header_forwarded,
+  JSON_VALUE(request_headers, '$.Host')                    AS header_host,
+  JSON_VALUE(request_headers, '$.Traceparent')             AS header_traceparent,
+  JSON_VALUE(request_headers, '$."User-Agent"')            AS header_user_agent,
+  JSON_VALUE(request_headers, '$."X-Cloud-Trace-Context"') AS header_x_cloud_trace_context,
+  JSON_VALUE(request_headers, '$."X-Forwarded-For"')       AS header_x_forwarded_for,
+  JSON_VALUE(request_headers, '$."X-Forwarded-Proto"')     AS header_x_forwarded_proto
+  %s
 FROM
-  `rc-datamart-forms-webhook.webhook_wordpress_ramagefamilylaw.wordpress_webform_contactform`;
+  `rc-datamart-forms-webhook.webhook_wordpress_ramagefamilylaw.wordpress_webform_contactform`""",
+  param_cols
+);
+
+-- 3) Execute the dynamically built SQL
+EXECUTE IMMEDIATE sql;
