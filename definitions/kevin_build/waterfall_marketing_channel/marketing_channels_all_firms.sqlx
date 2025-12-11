@@ -1,0 +1,226 @@
+CREATE OR REPLACE TABLE
+  `rc-datamart-report-082025.waterfall_marketing_channel.universal_firm_marketing_channel` AS
+
+-- ============================================================
+-- 1) CTP-based sources (Hartin, Rosenblum, SLO)
+--    Uses ctp_number / ctp_label / ctp_source as-is
+-- ============================================================
+SELECT
+  CAST(ctp_number AS STRING)       AS ctp_number,        -- "CTP Number"
+  CAST(ctp_label AS STRING)        AS ctp_label,         -- "CTP Label"
+  CAST(ctp_source AS STRING)       AS ctp_source,        -- "CTP Source"
+  NULL                             AS forward_calls_to,  -- no column in CTP tables
+  CAST(channel AS STRING)          AS channel,           -- "Channel"
+  CAST(Firm_Unique_ID AS STRING)   AS Firm_Unique_ID,
+  CAST(Firm_Name AS STRING)        AS Firm_Name,
+  CAST(source_status AS STRING)    AS source_status,
+  CAST(bq_source_status AS STRING) AS bq_source_status
+FROM `rc-datamart-report-082025.waterfall_marketing_channel_tables.Hartin_marketing_table`
+
+UNION ALL
+
+SELECT
+  CAST(ctp_number AS STRING)       AS ctp_number,
+  CAST(ctp_label AS STRING)        AS ctp_label,
+  CAST(ctp_source AS STRING)       AS ctp_source,
+  NULL                             AS forward_calls_to,
+  CAST(channel AS STRING)          AS channel,
+  CAST(Firm_Unique_ID AS STRING)   AS Firm_Unique_ID,
+  CAST(Firm_Name AS STRING)        AS Firm_Name,
+  CAST(source_status AS STRING)    AS source_status,
+  CAST(bq_source_status AS STRING) AS bq_source_status
+FROM `rc-datamart-report-082025.waterfall_marketing_channel_tables.Rosenblum_marketing_table`
+
+UNION ALL
+
+SELECT
+  CAST(ctp_number AS STRING)       AS ctp_number,
+  CAST(ctp_label AS STRING)        AS ctp_label,
+  CAST(ctp_source AS STRING)       AS ctp_source,
+  NULL                             AS forward_calls_to,
+  CAST(channel AS STRING)          AS channel,
+  CAST(Firm_Unique_ID AS STRING)   AS Firm_Unique_ID,
+  CAST(Firm_Name AS STRING)        AS Firm_Name,
+  CAST(source_status AS STRING)    AS source_status,
+  CAST(bq_source_status AS STRING) AS bq_source_status
+FROM `rc-datamart-report-082025.waterfall_marketing_channel_tables.SLO_marketing_table`
+
+UNION ALL
+
+-- ============================================================
+-- 2) CallRail-based sources WITH source_status column
+--    Mapping:
+--      "CTP Number"  <- tracking_number
+--      "CTP Label"   <- number_name
+--      "CTP Source"  <- NULL
+--      "Forward..."  <- forward_calls_to
+-- ============================================================
+SELECT
+  CAST(tracking_number AS STRING)  AS ctp_number,
+  CAST(number_name AS STRING)      AS ctp_label,
+  NULL                             AS ctp_source,
+  CAST(forward_calls_to AS STRING) AS forward_calls_to,
+  CAST(channel AS STRING)          AS channel,
+  CAST(Firm_Unique_ID AS STRING)   AS Firm_Unique_ID,
+  CAST(Firm_Name AS STRING)        AS Firm_Name,
+  CAST(source_status AS STRING)    AS source_status,
+  CAST(bq_source_status AS STRING) AS bq_source_status
+FROM `rc-datamart-report-082025.waterfall_marketing_channel_tables.Bruce_marketing_table`
+
+UNION ALL
+
+SELECT
+  CAST(tracking_number AS STRING)  AS ctp_number,
+  CAST(number_name AS STRING)      AS ctp_label,
+  NULL                             AS ctp_source,
+  CAST(forward_calls_to AS STRING) AS forward_calls_to,
+  CAST(channel AS STRING)          AS channel,
+  CAST(Firm_Unique_ID AS STRING)   AS Firm_Unique_ID,
+  CAST(Firm_Name AS STRING)        AS Firm_Name,
+  CAST(source_status AS STRING)    AS source_status,
+  CAST(bq_source_status AS STRING) AS bq_source_status
+FROM `rc-datamart-report-082025.waterfall_marketing_channel_tables.Drake_marketing_table`
+
+UNION ALL
+
+SELECT
+  CAST(tracking_number AS STRING)  AS ctp_number,
+  CAST(number_name AS STRING)      AS ctp_label,
+  NULL                             AS ctp_source,
+  CAST(forward_calls_to AS STRING) AS forward_calls_to,
+  CAST(channel AS STRING)          AS channel,
+  CAST(Firm_Unique_ID AS STRING)   AS Firm_Unique_ID,
+  CAST(Firm_Name AS STRING)        AS Firm_Name,
+  CAST(source_status AS STRING)    AS source_status,
+  CAST(bq_source_status AS STRING) AS bq_source_status
+FROM `rc-datamart-report-082025.waterfall_marketing_channel_tables.Haffner_marketing_table`
+
+UNION ALL
+
+SELECT
+  CAST(tracking_number AS STRING)  AS ctp_number,
+  CAST(number_name AS STRING)      AS ctp_label,
+  NULL                             AS ctp_source,
+  CAST(forward_calls_to AS STRING) AS forward_calls_to,
+  CAST(channel AS STRING)          AS channel,
+  CAST(Firm_Unique_ID AS STRING)   AS Firm_Unique_ID,
+  CAST(Firm_Name AS STRING)        AS Firm_Name,
+  CAST(source_status AS STRING)    AS source_status,
+  CAST(bq_source_status AS STRING) AS bq_source_status
+FROM `rc-datamart-report-082025.waterfall_marketing_channel_tables.MeyerPink_marketing_table`
+
+UNION ALL
+
+SELECT
+  CAST(tracking_number AS STRING)  AS ctp_number,
+  CAST(number_name AS STRING)      AS ctp_label,
+  NULL                             AS ctp_source,
+  CAST(forward_calls_to AS STRING) AS forward_calls_to,
+  CAST(channel AS STRING)          AS channel,
+  CAST(Firm_Unique_ID AS STRING)   AS Firm_Unique_ID,
+  CAST(Firm_Name AS STRING)        AS Firm_Name,
+  CAST(source_status AS STRING)    AS source_status,
+  CAST(bq_source_status AS STRING) AS bq_source_status
+FROM `rc-datamart-report-082025.waterfall_marketing_channel_tables.Ramage_marketing_table`
+
+UNION ALL
+
+SELECT
+  CAST(tracking_number AS STRING)  AS ctp_number,
+  CAST(number_name AS STRING)      AS ctp_label,
+  NULL                             AS ctp_source,
+  CAST(forward_calls_to AS STRING) AS forward_calls_to,
+  CAST(channel AS STRING)          AS channel,
+  CAST(Firm_Unique_ID AS STRING)   AS Firm_Unique_ID,
+  CAST(Firm_Name AS STRING)        AS Firm_Name,
+  CAST(source_status AS STRING)    AS source_status,
+  CAST(bq_source_status AS STRING) AS bq_source_status
+FROM `rc-datamart-report-082025.waterfall_marketing_channel_tables.SMB_marketing_table`
+
+UNION ALL
+
+SELECT
+  CAST(tracking_number AS STRING)  AS ctp_number,
+  CAST(number_name AS STRING)      AS ctp_label,
+  NULL                             AS ctp_source,
+  CAST(forward_calls_to AS STRING) AS forward_calls_to,
+  CAST(channel AS STRING)          AS channel,
+  CAST(Firm_Unique_ID AS STRING)   AS Firm_Unique_ID,
+  CAST(Firm_Name AS STRING)        AS Firm_Name,
+  CAST(source_status AS STRING)    AS source_status,
+  CAST(bq_source_status AS STRING) AS bq_source_status
+FROM `rc-datamart-report-082025.waterfall_marketing_channel_tables.Summit_marketing_table`
+
+UNION ALL
+
+SELECT
+  CAST(tracking_number AS STRING)  AS ctp_number,
+  CAST(number_name AS STRING)      AS ctp_label,
+  NULL                             AS ctp_source,
+  CAST(forward_calls_to AS STRING) AS forward_calls_to,
+  CAST(channel AS STRING)          AS channel,
+  CAST(Firm_Unique_ID AS STRING)   AS Firm_Unique_ID,
+  CAST(Firm_Name AS STRING)        AS Firm_Name,
+  CAST(source_status AS STRING)    AS source_status,
+  CAST(bq_source_status AS STRING) AS bq_source_status
+FROM `rc-datamart-report-082025.waterfall_marketing_channel_tables.VDL_marketing_table`
+
+UNION ALL
+
+-- ============================================================
+-- 3) CallRail-based sources WITHOUT source_status column
+--    source_status is set to NULL for these tables
+-- ============================================================
+SELECT
+  CAST(tracking_number AS STRING)  AS ctp_number,
+  CAST(number_name AS STRING)      AS ctp_label,
+  NULL                             AS ctp_source,
+  CAST(forward_calls_to AS STRING) AS forward_calls_to,
+  CAST(channel AS STRING)          AS channel,
+  CAST(Firm_Unique_ID AS STRING)   AS Firm_Unique_ID,
+  CAST(Firm_Name AS STRING)        AS Firm_Name,
+  NULL                             AS source_status,
+  CAST(bq_source_status AS STRING) AS bq_source_status
+FROM `rc-datamart-report-082025.waterfall_marketing_channel_tables.Aurit_marketing_table`
+
+UNION ALL
+
+SELECT
+  CAST(tracking_number AS STRING)  AS ctp_number,
+  CAST(number_name AS STRING)      AS ctp_label,
+  NULL                             AS ctp_source,
+  CAST(forward_calls_to AS STRING) AS forward_calls_to,
+  CAST(channel AS STRING)          AS channel,
+  CAST(Firm_Unique_ID AS STRING)   AS Firm_Unique_ID,
+  CAST(Firm_Name AS STRING)        AS Firm_Name,
+  NULL                             AS source_status,
+  CAST(bq_source_status AS STRING) AS bq_source_status
+FROM `rc-datamart-report-082025.waterfall_marketing_channel_tables.Bright_marketing_table`
+
+UNION ALL
+
+SELECT
+  CAST(tracking_number AS STRING)  AS ctp_number,
+  CAST(number_name AS STRING)      AS ctp_label,
+  NULL                             AS ctp_source,
+  CAST(forward_calls_to AS STRING) AS forward_calls_to,
+  CAST(channel AS STRING)          AS channel,
+  CAST(Firm_Unique_ID AS STRING)   AS Firm_Unique_ID,
+  CAST(Firm_Name AS STRING)        AS Firm_Name,
+  NULL                             AS source_status,
+  CAST(bq_source_status AS STRING) AS bq_source_status
+FROM `rc-datamart-report-082025.waterfall_marketing_channel_tables.Chisholm_marketing_table`
+
+UNION ALL
+
+SELECT
+  CAST(tracking_number AS STRING)  AS ctp_number,
+  CAST(number_name AS STRING)      AS ctp_label,
+  NULL                             AS ctp_source,
+  CAST(forward_calls_to AS STRING) AS forward_calls_to,
+  CAST(channel AS STRING)          AS channel,
+  CAST(Firm_Unique_ID AS STRING)   AS Firm_Unique_ID,
+  CAST(Firm_Name AS STRING)        AS Firm_Name,
+  NULL                             AS source_status,
+  CAST(bq_source_status AS STRING) AS bq_source_status
+FROM `rc-datamart-report-082025.waterfall_marketing_channel_tables.Kalish_marketing_table`;

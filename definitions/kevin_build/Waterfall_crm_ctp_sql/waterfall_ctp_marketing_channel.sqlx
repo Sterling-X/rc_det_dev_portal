@@ -1,7 +1,7 @@
 config {
   type: "table",
   schema: "ctp_universal_tables",
-  name: "genesis_ctp_universal_table"
+  name: "genesis_ctp_universal_table2"
 }
 
 /*
