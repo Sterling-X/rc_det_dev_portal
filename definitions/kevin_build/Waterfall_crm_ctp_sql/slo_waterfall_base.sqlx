@@ -10,7 +10,7 @@ date_spine AS (
   FROM UNNEST(GENERATE_DATE_ARRAY(DATE '2017-01-01', CURRENT_DATE())) d
 ),
 
--- Static marketing channel spine (always present)
+-- Static marketing channel spine 
 channel_spine AS (
   SELECT 'Agent'          AS Marketing_Channel UNION ALL
   SELECT 'Other'                               UNION ALL

@@ -70,7 +70,7 @@ firm_channel_tz AS (
    AND f.Firm_Name      = fc.Firm_Name
 ),
 
--- Helper CASE mapping for channel (copy-pasted in each CTE):
+-- Helper CASE mapping for channel 
 -- CASE
 --   WHEN u.Marketing_Channel_Universal IS NULL
 --        OR TRIM(CAST(u.Marketing_Channel_Universal AS STRING)) = '' THEN 'Null'
