@@ -3,12 +3,25 @@ CREATE OR REPLACE TABLE
 
 WITH firm AS (
   SELECT 'SterlingLawOffice-1010' AS Firm_Unique_ID,
-         'Sterling Lawyers'     AS Firm_Name
+         'Sterling Lawyers'       AS Firm_Name
 ),
 date_spine AS (
   SELECT d AS metric_date
   FROM UNNEST(GENERATE_DATE_ARRAY(DATE '2017-01-01', CURRENT_DATE())) d
 ),
+
+-- Static marketing channel spine (always present)
+channel_spine AS (
+  SELECT 'Agent'          AS Marketing_Channel UNION ALL
+  SELECT 'Other'                               UNION ALL
+  SELECT 'Paid Search'                         UNION ALL
+  SELECT 'Local SEO'                           UNION ALL
+  SELECT 'Direct'                              UNION ALL
+  SELECT 'Prospecting'                         UNION ALL
+  SELECT 'Traditional SEO'                     UNION ALL
+  SELECT 'Null'
+),
+
 src AS (
   SELECT * FROM `focused-sentry-464713-u0.salesforce_slo.slo_alldata_delta`
 ),
@@ -72,12 +85,40 @@ s AS (
   FROM src s
 ),
 
--- Calls from the CRM+CTP universal layer
+-- Calls from the CRM+CTP universal layer (with normalized Marketing_Channel)
 calls_daily AS (
   SELECT
     f.Firm_Unique_ID,
     f.Firm_Name,
     DATE(SAFE_CAST(u.start_datetime AS TIMESTAMP), 'America/New_York') AS metric_date,
+
+    CASE
+      WHEN u.Marketing_Channel_CTP IS NULL
+           OR TRIM(COALESCE(u.Marketing_Channel_CTP, '')) = '' THEN 'Null'
+
+      WHEN LOWER(COALESCE(u.Marketing_Channel_CTP, '')) = 'agent'
+        THEN 'Agent'
+      WHEN LOWER(COALESCE(u.Marketing_Channel_CTP, '')) = 'other'
+        THEN 'Other'
+
+      WHEN LOWER(COALESCE(u.Marketing_Channel_CTP, '')) IN ('paid search','paid_search','ppc')
+        THEN 'Paid Search'
+
+      WHEN LOWER(COALESCE(u.Marketing_Channel_CTP, '')) IN ('local seo','local_seo','gmb')
+        THEN 'Local SEO'
+
+      WHEN LOWER(COALESCE(u.Marketing_Channel_CTP, '')) = 'direct'
+        THEN 'Direct'
+
+      WHEN LOWER(COALESCE(u.Marketing_Channel_CTP, '')) = 'prospecting'
+        THEN 'Prospecting'
+
+      WHEN LOWER(COALESCE(u.Marketing_Channel_CTP, '')) IN ('traditional seo','seo','organic')
+        THEN 'Traditional SEO'
+
+      ELSE 'Other'
+    END AS Marketing_Channel,
+
     COUNT(u.Call_Tracking_Unique_ID) AS calls_total_day,
     SUM(CASE WHEN SAFE_CAST(u.Answered AS BOOL) THEN 1 ELSE 0 END) AS calls_answered_day
   FROM `rc-datamart-report-082025.genesis_looker_crm_ctp_universal_table.genesis_crm_ctp_universal_table` u
@@ -85,10 +126,14 @@ calls_daily AS (
     ON u.Firm_Unique_ID = f.Firm_Unique_ID
    AND u.Firm_Name      = f.Firm_Name
   WHERE u.start_datetime IS NOT NULL
-  GROUP BY f.Firm_Unique_ID, f.Firm_Name, metric_date
+  GROUP BY
+    f.Firm_Unique_ID,
+    f.Firm_Name,
+    metric_date,
+    Marketing_Channel
 ),
 
--- Daily facts
+-- Daily facts (CRM – not by channel)
 leads_total_daily AS (
   SELECT
     lead_created_central_d AS metric_date,
@@ -238,23 +283,72 @@ quotes_daily AS (
   GROUP BY metric_date
 ),
 
+-- Densify by Firm × Date × Marketing_Channel
 dense AS (
   SELECT
     f.Firm_Unique_ID,
     f.Firm_Name,
+    ch.Marketing_Channel,
     d.metric_date,
-    COALESCE(c.calls_total_day, 0)         AS calls_total_day,
-    COALESCE(c.calls_answered_day, 0)      AS calls_answered_day,
-    COALESCE(t.total_leads_day, 0)         AS total_leads_day,
-    COALESCE(w.web_leads_day, 0)           AS web_leads_day,
-    COALESCE(q.qpc_day, 0)                 AS qpc_day,
-    COALESCE(cs.consults_scheduled_day, 0) AS consults_scheduled_day,
-    COALESCE(cc.consults_completed_day, 0) AS consults_completed_day,
-    COALESCE(qu.quotes_day, 0)             AS quotes_day,
-    COALESCE(fu.funded_agreements_day, 0)  AS funded_agreements_day
+
+    -- Calls: real channel-level
+    COALESCE(c.calls_total_day, 0)    AS calls_total_day,
+    COALESCE(c.calls_answered_day, 0) AS calls_answered_day,
+
+    -- CRM metrics only live in "Other" bucket
+    CASE
+      WHEN ch.Marketing_Channel = 'Other'
+      THEN COALESCE(t.total_leads_day, 0)
+      ELSE 0
+    END AS total_leads_day,
+
+    CASE
+      WHEN ch.Marketing_Channel = 'Other'
+      THEN COALESCE(w.web_leads_day, 0)
+      ELSE 0
+    END AS web_leads_day,
+
+    CASE
+      WHEN ch.Marketing_Channel = 'Other'
+      THEN COALESCE(q.qpc_day, 0)
+      ELSE 0
+    END AS qpc_day,
+
+    CASE
+      WHEN ch.Marketing_Channel = 'Other'
+      THEN COALESCE(cs.consults_scheduled_day, 0)
+      ELSE 0
+    END AS consults_scheduled_day,
+
+    CASE
+      WHEN ch.Marketing_Channel = 'Other'
+      THEN COALESCE(cc.consults_completed_day, 0)
+      ELSE 0
+    END AS consults_completed_day,
+
+    CASE
+      WHEN ch.Marketing_Channel = 'Other'
+      THEN COALESCE(qu.quotes_day, 0)
+      ELSE 0
+    END AS quotes_day,
+
+    CASE
+      WHEN ch.Marketing_Channel = 'Other'
+      THEN COALESCE(fu.funded_agreements_day, 0)
+      ELSE 0
+    END AS funded_agreements_day
+
   FROM firm f
-  CROSS JOIN date_spine d
-  LEFT JOIN calls_daily          c  ON c.metric_date = d.metric_date AND c.Firm_Unique_ID = f.Firm_Unique_ID AND c.Firm_Name = f.Firm_Name
+  CROSS JOIN date_spine    d
+  CROSS JOIN channel_spine ch
+
+  LEFT JOIN calls_daily          c
+    ON c.Firm_Unique_ID    = f.Firm_Unique_ID
+   AND c.Firm_Name         = f.Firm_Name
+   AND c.metric_date       = d.metric_date
+   AND c.Marketing_Channel = ch.Marketing_Channel
+
+  -- CRM metrics (no channel) – attached only once on "Other"
   LEFT JOIN total_leads_daily    t  ON t.metric_date = d.metric_date
   LEFT JOIN web_total_daily      w  ON w.metric_date = d.metric_date
   LEFT JOIN qpc_daily            q  ON q.metric_date = d.metric_date
@@ -268,61 +362,61 @@ roll AS (
   SELECT
     *,
     -- Calls windows
-    SUM(calls_total_day)    OVER (PARTITION BY Firm_Unique_ID, Firm_Name ORDER BY metric_date ROWS BETWEEN 7   PRECEDING AND 1 PRECEDING) AS calls_w7,
-    SUM(calls_total_day)    OVER (PARTITION BY Firm_Unique_ID, Firm_Name ORDER BY metric_date ROWS BETWEEN 28  PRECEDING AND 1 PRECEDING) AS calls_w28,
-    SUM(calls_total_day)    OVER (PARTITION BY Firm_Unique_ID, Firm_Name ORDER BY metric_date ROWS BETWEEN 90  PRECEDING AND 1 PRECEDING) AS calls_w90,
-    SUM(calls_total_day)    OVER (PARTITION BY Firm_Unique_ID, Firm_Name ORDER BY metric_date ROWS BETWEEN 180 PRECEDING AND 1 PRECEDING) AS calls_w180,
-    SUM(calls_total_day)    OVER (PARTITION BY Firm_Unique_ID, Firm_Name ORDER BY metric_date ROWS BETWEEN 365 PRECEDING AND 1 PRECEDING) AS calls_w365,
+    SUM(calls_total_day)    OVER (PARTITION BY Firm_Unique_ID, Firm_Name, Marketing_Channel ORDER BY metric_date ROWS BETWEEN 7   PRECEDING AND 1 PRECEDING) AS calls_w7,
+    SUM(calls_total_day)    OVER (PARTITION BY Firm_Unique_ID, Firm_Name, Marketing_Channel ORDER BY metric_date ROWS BETWEEN 28  PRECEDING AND 1 PRECEDING) AS calls_w28,
+    SUM(calls_total_day)    OVER (PARTITION BY Firm_Unique_ID, Firm_Name, Marketing_Channel ORDER BY metric_date ROWS BETWEEN 90  PRECEDING AND 1 PRECEDING) AS calls_w90,
+    SUM(calls_total_day)    OVER (PARTITION BY Firm_Unique_ID, Firm_Name, Marketing_Channel ORDER BY metric_date ROWS BETWEEN 180 PRECEDING AND 1 PRECEDING) AS calls_w180,
+    SUM(calls_total_day)    OVER (PARTITION BY Firm_Unique_ID, Firm_Name, Marketing_Channel ORDER BY metric_date ROWS BETWEEN 365 PRECEDING AND 1 PRECEDING) AS calls_w365,
 
     -- Answered windows
-    SUM(calls_answered_day) OVER (PARTITION BY Firm_Unique_ID, Firm_Name ORDER BY metric_date ROWS BETWEEN 7   PRECEDING AND 1 PRECEDING) AS ans_w7,
-    SUM(calls_answered_day) OVER (PARTITION BY Firm_Unique_ID, Firm_Name ORDER BY metric_date ROWS BETWEEN 28  PRECEDING AND 1 PRECEDING) AS ans_w28,
-    SUM(calls_answered_day) OVER (PARTITION BY Firm_Unique_ID, Firm_Name ORDER BY metric_date ROWS BETWEEN 90  PRECEDING AND 1 PRECEDING) AS ans_w90,
-    SUM(calls_answered_day) OVER (PARTITION BY Firm_Unique_ID, Firm_Name ORDER BY metric_date ROWS BETWEEN 180 PRECEDING AND 1 PRECEDING) AS ans_w180,
-    SUM(calls_answered_day) OVER (PARTITION BY Firm_Unique_ID, Firm_Name ORDER BY metric_date ROWS BETWEEN 365 PRECEDING AND 1 PRECEDING) AS ans_w365,
+    SUM(calls_answered_day) OVER (PARTITION BY Firm_Unique_ID, Firm_Name, Marketing_Channel ORDER BY metric_date ROWS BETWEEN 7   PRECEDING AND 1 PRECEDING) AS ans_w7,
+    SUM(calls_answered_day) OVER (PARTITION BY Firm_Unique_ID, Firm_Name, Marketing_Channel ORDER BY metric_date ROWS BETWEEN 28  PRECEDING AND 1 PRECEDING) AS ans_w28,
+    SUM(calls_answered_day) OVER (PARTITION BY Firm_Unique_ID, Firm_Name, Marketing_Channel ORDER BY metric_date ROWS BETWEEN 90  PRECEDING AND 1 PRECEDING) AS ans_w90,
+    SUM(calls_answered_day) OVER (PARTITION BY Firm_Unique_ID, Firm_Name, Marketing_Channel ORDER BY metric_date ROWS BETWEEN 180 PRECEDING AND 1 PRECEDING) AS ans_w180,
+    SUM(calls_answered_day) OVER (PARTITION BY Firm_Unique_ID, Firm_Name, Marketing_Channel ORDER BY metric_date ROWS BETWEEN 365 PRECEDING AND 1 PRECEDING) AS ans_w365,
 
     -- Existing windows
-    SUM(total_leads_day)        OVER (PARTITION BY Firm_Unique_ID, Firm_Name ORDER BY metric_date ROWS BETWEEN 7   PRECEDING AND 1 PRECEDING) AS leads_w7,
-    SUM(total_leads_day)        OVER (PARTITION BY Firm_Unique_ID, Firm_Name ORDER BY metric_date ROWS BETWEEN 28  PRECEDING AND 1 PRECEDING) AS leads_w28,
-    SUM(total_leads_day)        OVER (PARTITION BY Firm_Unique_ID, Firm_Name ORDER BY metric_date ROWS BETWEEN 90  PRECEDING AND 1 PRECEDING) AS leads_w90,
-    SUM(total_leads_day)        OVER (PARTITION BY Firm_Unique_ID, Firm_Name ORDER BY metric_date ROWS BETWEEN 180 PRECEDING AND 1 PRECEDING) AS leads_w180,
-    SUM(total_leads_day)        OVER (PARTITION BY Firm_Unique_ID, Firm_Name ORDER BY metric_date ROWS BETWEEN 365 PRECEDING AND 1 PRECEDING) AS leads_w365,
+    SUM(total_leads_day)        OVER (PARTITION BY Firm_Unique_ID, Firm_Name, Marketing_Channel ORDER BY metric_date ROWS BETWEEN 7   PRECEDING AND 1 PRECEDING) AS leads_w7,
+    SUM(total_leads_day)        OVER (PARTITION BY Firm_Unique_ID, Firm_Name, Marketing_Channel ORDER BY metric_date ROWS BETWEEN 28  PRECEDING AND 1 PRECEDING) AS leads_w28,
+    SUM(total_leads_day)        OVER (PARTITION BY Firm_Unique_ID, Firm_Name, Marketing_Channel ORDER BY metric_date ROWS BETWEEN 90  PRECEDING AND 1 PRECEDING) AS leads_w90,
+    SUM(total_leads_day)        OVER (PARTITION BY Firm_Unique_ID, Firm_Name, Marketing_Channel ORDER BY metric_date ROWS BETWEEN 180 PRECEDING AND 1 PRECEDING) AS leads_w180,
+    SUM(total_leads_day)        OVER (PARTITION BY Firm_Unique_ID, Firm_Name, Marketing_Channel ORDER BY metric_date ROWS BETWEEN 365 PRECEDING AND 1 PRECEDING) AS leads_w365,
 
-    SUM(web_leads_day)          OVER (PARTITION BY Firm_Unique_ID, Firm_Name ORDER BY metric_date ROWS BETWEEN 7   PRECEDING AND 1 PRECEDING) AS web_w7,
-    SUM(web_leads_day)          OVER (PARTITION BY Firm_Unique_ID, Firm_Name ORDER BY metric_date ROWS BETWEEN 28  PRECEDING AND 1 PRECEDING) AS web_w28,
-    SUM(web_leads_day)          OVER (PARTITION BY Firm_Unique_ID, Firm_Name ORDER BY metric_date ROWS BETWEEN 90  PRECEDING AND 1 PRECEDING) AS web_w90,
-    SUM(web_leads_day)          OVER (PARTITION BY Firm_Unique_ID, Firm_Name ORDER BY metric_date ROWS BETWEEN 180 PRECEDING AND 1 PRECEDING) AS web_w180,
-    SUM(web_leads_day)          OVER (PARTITION BY Firm_Unique_ID, Firm_Name ORDER BY metric_date ROWS BETWEEN 365 PRECEDING AND 1 PRECEDING) AS web_w365,
+    SUM(web_leads_day)          OVER (PARTITION BY Firm_Unique_ID, Firm_Name, Marketing_Channel ORDER BY metric_date ROWS BETWEEN 7   PRECEDING AND 1 PRECEDING) AS web_w7,
+    SUM(web_leads_day)          OVER (PARTITION BY Firm_Unique_ID, Firm_Name, Marketing_Channel ORDER BY metric_date ROWS BETWEEN 28  PRECEDING AND 1 PRECEDING) AS web_w28,
+    SUM(web_leads_day)          OVER (PARTITION BY Firm_Unique_ID, Firm_Name, Marketing_Channel ORDER BY metric_date ROWS BETWEEN 90  PRECEDING AND 1 PRECEDING) AS web_w90,
+    SUM(web_leads_day)          OVER (PARTITION BY Firm_Unique_ID, Firm_Name, Marketing_Channel ORDER BY metric_date ROWS BETWEEN 180 PRECEDING AND 1 PRECEDING) AS web_w180,
+    SUM(web_leads_day)          OVER (PARTITION BY Firm_Unique_ID, Firm_Name, Marketing_Channel ORDER BY metric_date ROWS BETWEEN 365 PRECEDING AND 1 PRECEDING) AS web_w365,
 
-    SUM(qpc_day)                OVER (PARTITION BY Firm_Unique_ID, Firm_Name ORDER BY metric_date ROWS BETWEEN 7   PRECEDING AND 1 PRECEDING) AS qpc_w7,
-    SUM(qpc_day)                OVER (PARTITION BY Firm_Unique_ID, Firm_Name ORDER BY metric_date ROWS BETWEEN 28  PRECEDING AND 1 PRECEDING) AS qpc_w28,
-    SUM(qpc_day)                OVER (PARTITION BY Firm_Unique_ID, Firm_Name ORDER BY metric_date ROWS BETWEEN 90  PRECEDING AND 1 PRECEDING) AS qpc_w90,
-    SUM(qpc_day)                OVER (PARTITION BY Firm_Unique_ID, Firm_Name ORDER BY metric_date ROWS BETWEEN 180 PRECEDING AND 1 PRECEDING) AS qpc_w180,
-    SUM(qpc_day)                OVER (PARTITION BY Firm_Unique_ID, Firm_Name ORDER BY metric_date ROWS BETWEEN 365 PRECEDING AND 1 PRECEDING) AS qpc_w365,
+    SUM(qpc_day)                OVER (PARTITION BY Firm_Unique_ID, Firm_Name, Marketing_Channel ORDER BY metric_date ROWS BETWEEN 7   PRECEDING AND 1 PRECEDING) AS qpc_w7,
+    SUM(qpc_day)                OVER (PARTITION BY Firm_Unique_ID, Firm_Name, Marketing_Channel ORDER BY metric_date ROWS BETWEEN 28  PRECEDING AND 1 PRECEDING) AS qpc_w28,
+    SUM(qpc_day)                OVER (PARTITION BY Firm_Unique_ID, Firm_Name, Marketing_Channel ORDER BY metric_date ROWS BETWEEN 90  PRECEDING AND 1 PRECEDING) AS qpc_w90,
+    SUM(qpc_day)                OVER (PARTITION BY Firm_Unique_ID, Firm_Name, Marketing_Channel ORDER BY metric_date ROWS BETWEEN 180 PRECEDING AND 1 PRECEDING) AS qpc_w180,
+    SUM(qpc_day)                OVER (PARTITION BY Firm_Unique_ID, Firm_Name, Marketing_Channel ORDER BY metric_date ROWS BETWEEN 365 PRECEDING AND 1 PRECEDING) AS qpc_w365,
 
-    SUM(consults_scheduled_day) OVER (PARTITION BY Firm_Unique_ID, Firm_Name ORDER BY metric_date ROWS BETWEEN 7   PRECEDING AND 1 PRECEDING) AS cs_w7,
-    SUM(consults_scheduled_day) OVER (PARTITION BY Firm_Unique_ID, Firm_Name ORDER BY metric_date ROWS BETWEEN 28  PRECEDING AND 1 PRECEDING) AS cs_w28,
-    SUM(consults_scheduled_day) OVER (PARTITION BY Firm_Unique_ID, Firm_Name ORDER BY metric_date ROWS BETWEEN 90  PRECEDING AND 1 PRECEDING) AS cs_w90,
-    SUM(consults_scheduled_day) OVER (PARTITION BY Firm_Unique_ID, Firm_Name ORDER BY metric_date ROWS BETWEEN 180 PRECEDING AND 1 PRECEDING) AS cs_w180,
-    SUM(consults_scheduled_day) OVER (PARTITION BY Firm_Unique_ID, Firm_Name ORDER BY metric_date ROWS BETWEEN 365 PRECEDING AND 1 PRECEDING) AS cs_w365,
+    SUM(consults_scheduled_day) OVER (PARTITION BY Firm_Unique_ID, Firm_Name, Marketing_Channel ORDER BY metric_date ROWS BETWEEN 7   PRECEDING AND 1 PRECEDING) AS cs_w7,
+    SUM(consults_scheduled_day) OVER (PARTITION BY Firm_Unique_ID, Firm_Name, Marketing_Channel ORDER BY metric_date ROWS BETWEEN 28  PRECEDING AND 1 PRECEDING) AS cs_w28,
+    SUM(consults_scheduled_day) OVER (PARTITION BY Firm_Unique_ID, Firm_Name, Marketing_Channel ORDER BY metric_date ROWS BETWEEN 90  PRECEDING AND 1 PRECEDING) AS cs_w90,
+    SUM(consults_scheduled_day) OVER (PARTITION BY Firm_Unique_ID, Firm_Name, Marketing_Channel ORDER BY metric_date ROWS BETWEEN 180 PRECEDING AND 1 PRECEDING) AS cs_w180,
+    SUM(consults_scheduled_day) OVER (PARTITION BY Firm_Unique_ID, Firm_Name, Marketing_Channel ORDER BY metric_date ROWS BETWEEN 365 PRECEDING AND 1 PRECEDING) AS cs_w365,
 
-    SUM(consults_completed_day) OVER (PARTITION BY Firm_Unique_ID, Firm_Name ORDER BY metric_date ROWS BETWEEN 7   PRECEDING AND 1 PRECEDING) AS cc_w7,
-    SUM(consults_completed_day) OVER (PARTITION BY Firm_Unique_ID, Firm_Name ORDER BY metric_date ROWS BETWEEN 28  PRECEDING AND 1 PRECEDING) AS cc_w28,
-    SUM(consults_completed_day) OVER (PARTITION BY Firm_Unique_ID, Firm_Name ORDER BY metric_date ROWS BETWEEN 90  PRECEDING AND 1 PRECEDING) AS cc_w90,
-    SUM(consults_completed_day) OVER (PARTITION BY Firm_Unique_ID, Firm_Name ORDER BY metric_date ROWS BETWEEN 180 PRECEDING AND 1 PRECEDING) AS cc_w180,
-    SUM(consults_completed_day) OVER (PARTITION BY Firm_Unique_ID, Firm_Name ORDER BY metric_date ROWS BETWEEN 365 PRECEDING AND 1 PRECEDING) AS cc_w365,
+    SUM(consults_completed_day) OVER (PARTITION BY Firm_Unique_ID, Firm_Name, Marketing_Channel ORDER BY metric_date ROWS BETWEEN 7   PRECEDING AND 1 PRECEDING) AS cc_w7,
+    SUM(consults_completed_day) OVER (PARTITION BY Firm_Unique_ID, Firm_Name, Marketing_Channel ORDER BY metric_date ROWS BETWEEN 28  PRECEDING AND 1 PRECEDING) AS cc_w28,
+    SUM(consults_completed_day) OVER (PARTITION BY Firm_Unique_ID, Firm_Name, Marketing_Channel ORDER BY metric_date ROWS BETWEEN 90  PRECEDING AND 1 PRECEDING) AS cc_w90,
+    SUM(consults_completed_day) OVER (PARTITION BY Firm_Unique_ID, Firm_Name, Marketing_Channel ORDER BY metric_date ROWS BETWEEN 180 PRECEDING AND 1 PRECEDING) AS cc_w180,
+    SUM(consults_completed_day) OVER (PARTITION BY Firm_Unique_ID, Firm_Name, Marketing_Channel ORDER BY metric_date ROWS BETWEEN 365 PRECEDING AND 1 PRECEDING) AS cc_w365,
 
-    SUM(quotes_day)             OVER (PARTITION BY Firm_Unique_ID, Firm_Name ORDER BY metric_date ROWS BETWEEN 7   PRECEDING AND 1 PRECEDING) AS qts_w7,
-    SUM(quotes_day)             OVER (PARTITION BY Firm_Unique_ID, Firm_Name ORDER BY metric_date ROWS BETWEEN 28  PRECEDING AND 1 PRECEDING) AS qts_w28,
-    SUM(quotes_day)             OVER (PARTITION BY Firm_Unique_ID, Firm_Name ORDER BY metric_date ROWS BETWEEN 90  PRECEDING AND 1 PRECEDING) AS qts_w90,
-    SUM(quotes_day)             OVER (PARTITION BY Firm_Unique_ID, Firm_Name ORDER BY metric_date ROWS BETWEEN 180 PRECEDING AND 1 PRECEDING) AS qts_w180,
-    SUM(quotes_day)             OVER (PARTITION BY Firm_Unique_ID, Firm_Name ORDER BY metric_date ROWS BETWEEN 365 PRECEDING AND 1 PRECEDING) AS qts_w365,
+    SUM(quotes_day)             OVER (PARTITION BY Firm_Unique_ID, Firm_Name, Marketing_Channel ORDER BY metric_date ROWS BETWEEN 7   PRECEDING AND 1 PRECEDING) AS qts_w7,
+    SUM(quotes_day)             OVER (PARTITION BY Firm_Unique_ID, Firm_Name, Marketing_Channel ORDER BY metric_date ROWS BETWEEN 28  PRECEDING AND 1 PRECEDING) AS qts_w28,
+    SUM(quotes_day)             OVER (PARTITION BY Firm_Unique_ID, Firm_Name, Marketing_Channel ORDER BY metric_date ROWS BETWEEN 90  PRECEDING AND 1 PRECEDING) AS qts_w90,
+    SUM(quotes_day)             OVER (PARTITION BY Firm_Unique_ID, Firm_Name, Marketing_Channel ORDER BY metric_date ROWS BETWEEN 180 PRECEDING AND 1 PRECEDING) AS qts_w180,
+    SUM(quotes_day)             OVER (PARTITION BY Firm_Unique_ID, Firm_Name, Marketing_Channel ORDER BY metric_date ROWS BETWEEN 365 PRECEDING AND 1 PRECEDING) AS qts_w365,
 
-    SUM(funded_agreements_day)  OVER (PARTITION BY Firm_Unique_ID, Firm_Name ORDER BY metric_date ROWS BETWEEN 7   PRECEDING AND 1 PRECEDING) AS fa_w7,
-    SUM(funded_agreements_day)  OVER (PARTITION BY Firm_Unique_ID, Firm_Name ORDER BY metric_date ROWS BETWEEN 28  PRECEDING AND 1 PRECEDING) AS fa_w28,
-    SUM(funded_agreements_day)  OVER (PARTITION BY Firm_Unique_ID, Firm_Name ORDER BY metric_date ROWS BETWEEN 90  PRECEDING AND 1 PRECEDING) AS fa_w90,
-    SUM(funded_agreements_day)  OVER (PARTITION BY Firm_Unique_ID, Firm_Name ORDER BY metric_date ROWS BETWEEN 180 PRECEDING AND 1 PRECEDING) AS fa_w180,
-    SUM(funded_agreements_day)  OVER (PARTITION BY Firm_Unique_ID, Firm_Name ORDER BY metric_date ROWS BETWEEN 365 PRECEDING AND 1 PRECEDING) AS fa_w365
+    SUM(funded_agreements_day)  OVER (PARTITION BY Firm_Unique_ID, Firm_Name, Marketing_Channel ORDER BY metric_date ROWS BETWEEN 7   PRECEDING AND 1 PRECEDING) AS fa_w7,
+    SUM(funded_agreements_day)  OVER (PARTITION BY Firm_Unique_ID, Firm_Name, Marketing_Channel ORDER BY metric_date ROWS BETWEEN 28  PRECEDING AND 1 PRECEDING) AS fa_w28,
+    SUM(funded_agreements_day)  OVER (PARTITION BY Firm_Unique_ID, Firm_Name, Marketing_Channel ORDER BY metric_date ROWS BETWEEN 90  PRECEDING AND 1 PRECEDING) AS fa_w90,
+    SUM(funded_agreements_day)  OVER (PARTITION BY Firm_Unique_ID, Firm_Name, Marketing_Channel ORDER BY metric_date ROWS BETWEEN 180 PRECEDING AND 1 PRECEDING) AS fa_w180,
+    SUM(funded_agreements_day)  OVER (PARTITION BY Firm_Unique_ID, Firm_Name, Marketing_Channel ORDER BY metric_date ROWS BETWEEN 365 PRECEDING AND 1 PRECEDING) AS fa_w365
   FROM dense
 )
 
@@ -331,9 +425,9 @@ SELECT
   m.date_window,
   r.Firm_Unique_ID,
   r.Firm_Name,
-  SAFE_CAST(NULL AS STRING) AS Marketing_Channel,
+  r.Marketing_Channel,
   m.metric_name,
-  ROUND(m.metric_value, 1) AS metric_value         -- 🔹 rounded to 1 decimal place
+  ROUND(m.metric_value, 1) AS metric_value
 FROM roll r
 CROSS JOIN UNNEST([
   STRUCT<metric_name STRING, date_window STRING, metric_value FLOAT64>('Total Calls','last_7_days'   , SAFE_DIVIDE(calls_w7,    5)),

@@ -2,7 +2,7 @@ CREATE OR REPLACE TABLE
   `rc-datamart-report-082025.genesis_looker_crm_ctp_universal_table.genesis_historical_waterfallreport` AS
 
 WITH all_metrics AS (
-  -- Base
+  -- Base (non-SLO)
   SELECT
     metric_date,
     date_window,
@@ -14,7 +14,8 @@ WITH all_metrics AS (
   FROM `rc-datamart-report-082025.genesis_looker_crm_ctp_universal_table.tmp_historical_base`
 
   UNION ALL
-  -- Combined
+
+  -- Combined ratios (non-SLO)
   SELECT
     metric_date,
     date_window,
@@ -26,7 +27,8 @@ WITH all_metrics AS (
   FROM `rc-datamart-report-082025.genesis_looker_crm_ctp_universal_table.tmp_historical_combined`
 
   UNION ALL
-  -- SLO base (same schema)
+
+  -- SLO base
   SELECT
     metric_date,
     date_window,
@@ -38,7 +40,8 @@ WITH all_metrics AS (
   FROM `rc-datamart-report-082025.genesis_looker_crm_ctp_universal_table.slo_tmp_historical_base`
 
   UNION ALL
-  -- SLO combined (new)
+
+  -- SLO combined ratios
   SELECT
     metric_date,
     date_window,
@@ -56,7 +59,8 @@ wide_metrics AS (
     date_window,
     Firm_Unique_ID,
     Firm_Name,
-    ANY_VALUE(Marketing_Channel) AS Marketing_Channel,
+    Marketing_Channel,
+
     MAX(IF(metric_name = 'Total Calls',            metric_value, NULL)) AS `Calls`,
     MAX(IF(metric_name = 'Answered Calls',         metric_value, NULL)) AS `Answered Calls`,
     MAX(IF(metric_name = 'Total Leads',            metric_value, NULL)) AS `Total Leads`,
@@ -79,20 +83,22 @@ wide_metrics AS (
     metric_date,
     date_window,
     Firm_Unique_ID,
-    Firm_Name
+    Firm_Name,
+    Marketing_Channel
 )
 
--- Output long+wide for flexible Looker usage
+-- Output: wide + tall side-by-side
 SELECT
   w.*,
   m.metric_name,
   m.metric_value
 FROM wide_metrics AS w
 LEFT JOIN all_metrics AS m
-  ON  w.metric_date     = m.metric_date
-  AND w.date_window     = m.date_window
-  AND w.Firm_Unique_ID  = m.Firm_Unique_ID
-  AND w.Firm_Name       = m.Firm_Name
+  ON  w.metric_date       = m.metric_date
+  AND w.date_window       = m.date_window
+  AND w.Firm_Unique_ID    = m.Firm_Unique_ID
+  AND w.Firm_Name         = m.Firm_Name
+  AND w.Marketing_Channel IS NOT DISTINCT FROM m.Marketing_Channel
 ORDER BY
   w.metric_date,
   w.Firm_Unique_ID,

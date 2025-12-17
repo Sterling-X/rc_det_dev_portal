@@ -560,9 +560,8 @@ kalish AS (
   WHERE rn = 1
 ),
 
-/* -----------------------------
-   Ireland and Associates SELECT
---------------------------------*/
+ --  Ireland and Associates SELECT
+
 ireland AS (
   SELECT
     'irelandandassociates-1021' AS Firm_Unique_ID,
