@@ -208,7 +208,7 @@ ranked_auritmediation AS (
   FROM base_auritmediation
 ),
 
--- 7) SUMMIT LAW GROUP 
+-- 7) SUMMIT LAW GROUP
 base_summit AS (
   SELECT
     'sumitfamilylawinc-sfl1006' AS firm_unique_id,
@@ -665,6 +665,49 @@ ranked_johnsonlawgroup AS (
   FROM base_johnsonlawgroup
 ),
 
+-- 18) IRELAND AND ASSOCIATES (Wave)
+base_ireland AS (
+  SELECT
+    'irelandandassociates-1021' AS firm_unique_id,
+    'Ireland and Associates'    AS firm_name,
+
+    -- answered: Release Cause contains "bye" (inbound calls only due to WHERE)
+    REGEXP_CONTAINS(LOWER(COALESCE(release_cause, '')), r'bye') AS answered,
+
+    call_type AS direction,
+
+    SAFE_CAST(duration AS INT64) AS recording_duration,
+
+    call_id AS call_tracking_unique_id,
+
+    SAFE_CAST(duration AS INT64) AS call_recording_duration,
+
+    CAST(call_begin AS TIMESTAMP) AS start_datetime,
+
+    CAST(NULL AS STRING) AS source,
+    CAST(NULL AS STRING) AS practice_area,
+    CAST(NULL AS STRING) AS marketing_channel,
+    CAST(NULL AS STRING) AS utm_campaign,
+    CAST(NULL AS STRING) AS utm_content,
+    CAST(NULL AS STRING) AS utm_ict_reference_number,
+    CAST(NULL AS STRING) AS utm_medium,
+    CAST(NULL AS INT64)  AS utm_pageview_count,
+    CAST(NULL AS INT64)  AS utm_session_count,
+    CAST(NULL AS STRING) AS utm_source,
+    CAST(NULL AS STRING) AS utm_term,
+    CAST(NULL AS STRING) AS ga_client_id,
+    CAST(NULL AS STRING) AS ga_user_id,
+    CAST(NULL AS STRING) AS gclid,
+    CAST(NULL AS STRING) AS google_ads
+  FROM `focused-sentry-464713-u0.wave_ireland.wave_alldata_delta`
+  WHERE REGEXP_CONTAINS(COALESCE(call_type, ''), r'(?i)^\s*inbound\s*$')
+),
+ranked_ireland AS (
+  SELECT *,
+         ROW_NUMBER() OVER (PARTITION BY call_tracking_unique_id ORDER BY start_datetime DESC) AS row_num
+  FROM base_ireland
+),
+
 -- unioned canonicalized rows
 unioned AS (
   SELECT
@@ -794,6 +837,14 @@ unioned AS (
     utm_ict_reference_number, utm_medium, utm_pageview_count, utm_session_count,
     utm_source, utm_term, ga_client_id, ga_user_id, gclid, google_ads
   FROM ranked_johnsonlawgroup WHERE row_num = 1
+
+  UNION ALL SELECT
+    firm_unique_id, firm_name, answered, direction, recording_duration,
+    call_tracking_unique_id, call_recording_duration, start_datetime,
+    source, practice_area, marketing_channel, utm_campaign, utm_content,
+    utm_ict_reference_number, utm_medium, utm_pageview_count, utm_session_count,
+    utm_source, utm_term, ga_client_id, ga_user_id, gclid, google_ads
+  FROM ranked_ireland WHERE row_num = 1
 ),
 
 -- Marketing directory with normalized CTP
@@ -836,6 +887,7 @@ unioned_with_numbers AS (
       cr_fanash.formatted_tracking_phone_number,
       cr_arizona.formatted_tracking_phone_number,
       cr_johnson.formatted_tracking_phone_number,
+      wv_ireland.dialed_number,
       ct_rosenblum.tracking_number_bare,
       ct_haffner.tracking_number_bare,
       ct_slo.tracking_number_bare,
@@ -923,6 +975,11 @@ unioned_with_numbers AS (
   LEFT JOIN `focused-sentry-464713-u0.callrail_johnsonlawgroup.callrail_initialdata_delta` AS cr_johnson
     ON u.firm_unique_id = 'johnsonlawgroup-1016'
    AND cr_johnson.id    = u.call_tracking_unique_id
+
+  -- Ireland and Associates (Wave)
+  LEFT JOIN `focused-sentry-464713-u0.wave_ireland.wave_alldata_delta` AS wv_ireland
+    ON u.firm_unique_id         = 'irelandandassociates-1021'
+   AND wv_ireland.call_id       = u.call_tracking_unique_id
 ),
 
 -- Normalize tracking_number_source to 10-digit numeric for matching
