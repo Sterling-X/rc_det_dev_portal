@@ -1,0 +1,145 @@
+CREATE OR REPLACE TABLE
+  `rc-datamart-forms-webhook.callrail_chisholm_webhook.callrail_chisholm_pre_call_expanded` AS
+WITH src AS (
+  SELECT
+    call_id,
+    company_id,
+    event_type,
+    received_at,
+    payload_json,
+    SAFE.PARSE_JSON(payload_json) AS p
+  FROM `rc-datamart-forms-webhook.callrail_chisholm_webhook.callrail_chisholm_pre_call`
+)
+SELECT
+  -- original columns
+  call_id,
+  company_id,
+  event_type,
+  received_at,
+  payload_json,
+
+  -- =========================
+  -- Existing working fields
+  -- =========================
+  JSON_VALUE(p, '$.answered') AS answered_raw,
+  SAFE_CAST(JSON_VALUE(p, '$.answered') AS BOOL) AS answered,
+
+  JSON_VALUE(p, '$.callercity') AS caller_city,
+  JSON_VALUE(p, '$.callercountry') AS caller_country,
+  JSON_VALUE(p, '$.callername') AS caller_name,
+  JSON_VALUE(p, '$.callernum') AS caller_num,
+  JSON_VALUE(p, '$.callerstate') AS caller_state,
+  JSON_VALUE(p, '$.callsource') AS call_source,
+  JSON_VALUE(p, '$.campaign') AS campaign,
+  JSON_VALUE(p, '$.custom') AS custom,
+  JSON_VALUE(p, '$.customer_phone_number') AS customer_phone_number,
+
+  JSON_VALUE(p, '$.datetime') AS datetime_raw,
+  -- Explicit UTC assumption for "YYYY-MM-DD HH:MM:SS"
+  SAFE.PARSE_TIMESTAMP('%Y-%m-%d %H:%M:%S', JSON_VALUE(p, '$.datetime'), 'UTC') AS datetime_ts,
+
+  JSON_VALUE(p, '$.destinationnum') AS destination_num,
+  JSON_VALUE(p, '$.device_type') AS device_type,
+
+  JSON_VALUE(p, '$.duration') AS duration_raw,
+  SAFE_CAST(NULLIF(JSON_VALUE(p, '$.duration'), '') AS INT64) AS duration_seconds,
+
+  JSON_VALUE(p, '$.first_call') AS first_call_raw,
+  SAFE_CAST(JSON_VALUE(p, '$.first_call') AS BOOL) AS first_call,
+
+  JSON_VALUE(p, '$.ga') AS ga,
+  JSON_VALUE(p, '$.gclid') AS gclid,
+  JSON_VALUE(p, '$.keywords') AS keywords,
+  JSON_VALUE(p, '$.kissmetrics_id') AS kissmetrics_id,
+  JSON_VALUE(p, '$.landingpage') AS landing_page,
+  JSON_VALUE(p, '$.recording') AS recording,
+  JSON_VALUE(p, '$.referrer') AS referrer,
+  JSON_VALUE(p, '$.referrermedium') AS referrer_medium,
+  JSON_VALUE(p, '$.resource_id') AS resource_id,
+  JSON_VALUE(p, '$.score') AS score,
+  JSON_VALUE(p, '$.timeline_url') AS timeline_url,
+  JSON_VALUE(p, '$.trackingnum') AS tracking_num,
+
+  JSON_VALUE(p, '$.utm_campaign') AS utm_campaign,
+  JSON_VALUE(p, '$.utm_content') AS utm_content,
+  JSON_VALUE(p, '$.utm_medium') AS utm_medium,
+  JSON_VALUE(p, '$.utm_source') AS utm_source,
+  JSON_VALUE(p, '$.utm_term') AS utm_term,
+
+  JSON_VALUE(p, '$.utma') AS utma,
+  JSON_VALUE(p, '$.utmb') AS utmb,
+  JSON_VALUE(p, '$.utmc') AS utmc,
+  JSON_VALUE(p, '$.utmv') AS utmv,
+  JSON_VALUE(p, '$.utmz') AS utmz,
+
+  -- =========================
+  -- Added fields seen in sample payload (scalar)
+  -- =========================
+  JSON_VALUE(p, '$.business_phone_number') AS business_phone_number,
+  JSON_VALUE(p, '$.call_type') AS call_type,
+  JSON_VALUE(p, '$.call_disposition') AS call_disposition,
+  JSON_VALUE(p, '$.direction') AS direction,
+
+  JSON_VALUE(p, '$.company_name') AS company_name,
+  JSON_VALUE(p, '$.company_time_zone') AS company_time_zone,
+
+  JSON_VALUE(p, '$.created_at') AS created_at_raw,
+  SAFE.PARSE_TIMESTAMP('%Y-%m-%dT%H:%M:%E*S%Ez', JSON_VALUE(p, '$.created_at')) AS created_at_ts,
+
+  JSON_VALUE(p, '$.start_time') AS start_time_raw,
+  SAFE.PARSE_TIMESTAMP('%Y-%m-%dT%H:%M:%E*S%Ez', JSON_VALUE(p, '$.start_time')) AS start_time_ts,
+
+  JSON_VALUE(p, '$.timestamp') AS timestamp_raw,
+  SAFE.PARSE_TIMESTAMP('%Y-%m-%dT%H:%M:%E*S%Ez', JSON_VALUE(p, '$.timestamp')) AS timestamp_ts,
+
+  JSON_VALUE(p, '$.customer_city') AS customer_city,
+  JSON_VALUE(p, '$.customer_country') AS customer_country,
+  JSON_VALUE(p, '$.customer_name') AS customer_name,
+  JSON_VALUE(p, '$.customer_state') AS customer_state,
+
+  JSON_VALUE(p, '$.source') AS source,
+  JSON_VALUE(p, '$.source_name') AS source_name,
+  JSON_VALUE(p, '$.medium') AS medium,
+
+  SAFE_CAST(NULLIF(JSON_VALUE(p, '$.recording_duration'), '') AS INT64) AS recording_duration_seconds,
+  SAFE_CAST(NULLIF(JSON_VALUE(p, '$.prior_calls'), '') AS INT64) AS prior_calls,
+  SAFE_CAST(NULLIF(JSON_VALUE(p, '$.total_calls'), '') AS INT64) AS total_calls,
+
+  JSON_VALUE(p, '$.tracking_phone_number') AS tracking_phone_number,
+  SAFE_CAST(JSON_VALUE(p, '$.voicemail') AS BOOL) AS voicemail,
+  SAFE_CAST(JSON_VALUE(p, '$.spam') AS BOOL) AS spam,
+
+  JSON_VALUE(p, '$.referring_url') AS referring_url,
+  JSON_VALUE(p, '$.landing_page_url') AS landing_page_url,
+  JSON_VALUE(p, '$.last_requested_url') AS last_requested_url,
+
+  JSON_VALUE(p, '$.recording_player') AS recording_player,
+  JSON_VALUE(p, '$.recording_redirect') AS recording_redirect,
+
+  JSON_VALUE(p, '$.call_summary') AS call_summary,
+  JSON_VALUE(p, '$.conversational_transcript') AS conversational_transcript,
+  JSON_VALUE(p, '$.referrer_domain') AS referrer_domain,
+  JSON_VALUE(p, '$.sentiment') AS sentiment,
+
+  JSON_VALUE(p, '$.fbclid') AS fbclid,
+  JSON_VALUE(p, '$.msclkid') AS msclkid,
+
+  JSON_VALUE(p, '$.person_id') AS person_id,
+  JSON_VALUE(p, '$.person_resource_id') AS person_resource_id,
+  JSON_VALUE(p, '$.company_resource_id') AS company_resource_id,
+  JSON_VALUE(p, '$.tracker_resource_id') AS tracker_resource_id,
+  JSON_VALUE(p, '$.session_uuid') AS session_uuid,
+
+  -- =========================
+  -- Added fields (arrays/objects) stored as JSON text
+  -- =========================
+  TO_JSON_STRING(JSON_QUERY(p, '$.tags')) AS tags_json,
+  TO_JSON_STRING(JSON_QUERY(p, '$.detail_tags')) AS detail_tags_json,
+  TO_JSON_STRING(JSON_QUERY(p, '$.waveforms')) AS waveforms_json,
+  TO_JSON_STRING(JSON_QUERY(p, '$.milestones')) AS milestones_json,
+  TO_JSON_STRING(JSON_QUERY(p, '$.integration_data')) AS integration_data_json,
+  TO_JSON_STRING(JSON_QUERY(p, '$.speaker_percent')) AS speaker_percent_json,
+  TO_JSON_STRING(JSON_QUERY(p, '$.keywords_spotted')) AS keywords_spotted_json,
+  TO_JSON_STRING(JSON_QUERY(p, '$.call_highlights')) AS call_highlights_json
+
+FROM src;
