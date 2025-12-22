@@ -1,0 +1,134 @@
+config {
+  type: "view",
+  database: "focused-sentry-464713-u0",
+  schema: "clio_brucelaw", 
+  name: "stg_bruce_law_clio", 
+  tags: ["clio", "matters", "contacts", "bruce law"]
+}
+
+/*
+  Changelog: yyyy-mm-dd jbatoy: 
+*/
+
+WITH cte_contacts AS (
+  SELECT
+    CASE
+      WHEN Primary_Email = 'nan' AND Primary_Phone = 'nan' THEN CONCAT(PARSE_DATE('%m/%d/%Y', Created), LOWER(First), LOWER(Last))
+      WHEN Primary_Email = 'nan' THEN CONCAT(PARSE_DATE('%m/%d/%Y', Created), REGEXP_REPLACE(Primary_Phone, r"^'", ""))
+      WHEN Primary_Phone = 'nan' THEN CONCAT(PARSE_DATE('%m/%d/%Y', Created), REGEXP_REPLACE(Primary_Email, r"^'", ""))
+    ELSE CONCAT(PARSE_DATE('%m/%d/%Y', Created), REGEXP_REPLACE(Primary_Email, r"^'", "")) END AS c_custom_id
+    , PARSE_DATE('%m/%d/%Y', Created) AS created
+    , IF(Contact_Global_ID = 'nan', NULL, Contact_Global_ID) AS c_contact_global_id
+    , IF(First = 'nan', NULL, First) AS c_first
+    , IF(Middle = 'nan', NULL, Middle) AS c_middle
+    , IF(Last = 'nan', NULL, Last) AS c_last
+    , IF(Date_of_Birth = 'nan', NULL, Date_of_Birth) AS c_date_of_birth
+    , IF(Company_Name = 'nan', NULL, Company_Name) AS c_company_name
+    , IF(Primary_Email = 'nan', NULL, Primary_Email) AS c_primary_email
+    , IF(Home_Email = 'nan', NULL, Home_Email) AS c_home_email
+    , IF(Work_Email = 'nan', NULL, Work_Email) AS c_work_email
+    , IF(Other_Email = 'nan', NULL, Other_Email) AS c_other_email
+    , IF(Primary_Phone = 'nan', NULL, Primary_Phone) AS c_primary_phone
+    , IF(Home_Phone = 'nan', NULL, Home_Phone) AS c_home_phone 
+    , IF(Mobile_Phone = 'nan', NULL, Mobile_Phone) AS c_mobile_phone
+    , IF(Work_Phone = 'nan', NULL, Work_Phone) AS c_work_phone
+    , IF(Street = 'nan', NULL, Street) AS c_street
+    , IF(City = 'nan', NULL, City) AS c_city
+    , IF(State = 'nan', NULL, State) AS c_state
+    , IF(Country = 'nan', NULL, Country) AS c_country
+    , IF(Zipcode = 'nan', NULL, Zipcode) AS c_zipcode
+    , IF(Source = 'nan', NULL, Source) AS c_source
+    , IF(Status = 'nan', NULL, Status) AS c_status
+    , IF(URL = 'nan', NULL, URL) AS c_url
+    , IF(Tags = 'nan', NULL, Tags) AS c_tags
+    , IF(Referred_By = 'nan', NULL, Referred_By) AS c_referred_by
+    , IF(Communication_Preference = 'nan', NULL, Communication_Preference) AS c_communication_preference
+    , IF(DOB = 'nan', NULL, DOB) AS c_dob
+    , IF(Date_of_Birth1 = 'nan', NULL, Date_of_Birth1) AS c_date_of_birth1
+    , IF(Date_of_Intake_Call = 'nan', NULL, Date_of_Intake_Call) AS c_date_of_intake_call
+    , IF(Driver_s_License_Number = 'nan', NULL, Driver_s_License_Number) AS c_driver_s_license_number
+    , IF(Employed_ = 'nan', NULL, Employed_) AS c_employed
+    , IF(Gender = 'nan', NULL, Gender) AS c_gender
+    , IF(Intake__Approximate_Length_of_Intake_Call__minutes_ = 'nan', NULL, Intake__Approximate_Length_of_Intake_Call__minutes_) AS c_intake_approximate_length_of_intake_call_minutes
+    , IF(Intake__Date_of_Consultation = 'nan', NULL, Intake__Date_of_Consultation) AS c_intake_date_of_consultation
+    , IF(Intake__Description_of_Call_Notes = 'nan', NULL, Intake__Description_of_Call_Notes) AS c_intake_description_of_call_notes
+    , IF(Intake__Name_of_Lawyer_the_PNC_Requested_to_Meet = 'nan', NULL, Intake__Name_of_Lawyer_the_PNC_Requested_to_Meet) AS c_intake_name_of_lawyer_the_pnc_requested_to_meet
+    , IF(Intake__Name_of_Person_Calling_the_Firm = 'nan', NULL, Intake__Name_of_Person_Calling_the_Firm) AS c_intake_name_of_person_calling_the_firm
+    , IF(Intake__Time_of_Day_of_Consultation__if_scheduled_ = 'nan', NULL, Intake__Time_of_Day_of_Consultation__if_scheduled_) AS c_intake_time_of_day_of_consultation_if_scheduled
+    , IF(Intake__Was_A_Follow_Up_Message_Sent = 'nan', NULL, Intake__Was_A_Follow_Up_Message_Sent) AS c_intake_was_a_follow_up_message_sent
+    , IF(Intake__name_of_referral_source = 'nan', NULL, Intake__name_of_referral_source) AS c_intake_name_of_referral_source
+    , IF(Intake__notes_from_intake_call = 'nan', NULL, Intake__notes_from_intake_call) AS c_intake_notes_from_intake_call
+    , IF(Intake__was_a_Consultation_scheduled_ = 'nan', NULL, Intake__was_a_Consultation_scheduled_) AS c_intake_was_a_consultation_scheduled
+    , IF(Intake__Did_PNC_Set_Consultation = 'nan', NULL, Intake__Did_PNC_Set_Consultation) AS c_intake_did_pnc_set_consultation
+    , IF(LEAD_TYPE = 'nan', NULL, LEAD_TYPE) AS c_lead_type
+    , IF(Location_of_Consultation__If_Consultation_Was_Scheduled_Only_ = 'nan', NULL, Location_of_Consultation__If_Consultation_Was_Scheduled_Only_) AS c_location_of_consultation_if_consultation_as_scheduled_only
+    , IF(Marital_Status = 'nan', NULL, Marital_Status) AS c_marital_status
+    , IF(Means_to_Pay_ = 'nan', NULL, Means_to_Pay_) AS c_means_to_pay
+    , IF(Name_of_Person_Calling_the_Firm = 'nan', NULL, Name_of_Person_Calling_the_Firm) AS c_name_of_person_calling_the_firm
+    , IF(Name_of_Team_Member_Handling_Intake_Call = 'nan', NULL, Name_of_Team_Member_Handling_Intake_Call) AS c_name_of_team_member_handling_intake_call
+    , IF(Opposing_Party_First_and_Last_Name = 'nan', NULL, Opposing_Party_First_and_Last_Name) AS c_opposing_party_first_and_last_Name
+    , IF(Please_provide_the_first_and_last_name_of_any_parties_involved_with_this_matter___Opposing_Party__ = 'nan', NULL, Please_provide_the_first_and_last_name_of_any_parties_involved_with_this_matter___Opposing_Party__) AS c_please_provide_the_first_and_last_name_of_any_parties_involved_with_this_matter_opposing_party
+    , IF(Preferred_Contact_Method = 'nan', NULL, Preferred_Contact_Method) AS c_preferred_contact_method
+    , IF(Pronoun__his_her_their_ = 'nan', NULL, Pronoun__his_her_their_) AS c_pronoun_his_her_their
+    , IF(Referral_Source = 'nan', NULL, Referral_Source) AS c_referral_source
+    , IF(SSN___Last_Four = 'nan', NULL, SSN___Last_Four) AS c_sn_last_four
+    , IF(Social_Security_Number = 'nan', NULL, Social_Security_Number) AS c_social_security_number
+    , IF(WebLead = 'nan', NULL, WebLead) AS c_weblead
+    , IF(What_county_does_this_matter_reside_in_ = 'nan', NULL, What_county_does_this_matter_reside_in_) AS c_what_county_does_this_matter_reside_in
+    , IF(gclid = 'nan', NULL, gclid) AS c_gclid
+    , IF(utm_campaign = 'nan', NULL, utm_campaign) AS c_utm_campaign
+    , IF(utm_content = 'nan', NULL, utm_content) AS c_utm_content
+    , IF(utm_medium = 'nan', NULL, utm_medium) AS c_utm_medium
+    , IF(utm_source = 'nan', NULL, utm_source) AS c_utm_source
+    , IF(utm_term = 'nan', NULL, utm_term) AS c_utm_term
+  FROM `focused-sentry-464713-u0.clio_brucelaw.manual_contacts`
+)
+
+, cte_matters AS (
+  SELECT
+    CASE
+      WHEN Client_Email = 'nan' AND Client_Phone_Number = 'nan' THEN CONCAT(PARSE_DATE('%m/%d/%Y', Created), LOWER(First_Name), LOWER(Last_Name))
+      WHEN Client_Email = 'nan' THEN CONCAT(PARSE_DATE('%m/%d/%Y', Created), Client_Phone_Number)
+      WHEN Client_Phone_Number = 'nan' THEN CONCAT(PARSE_DATE('%m/%d/%Y', Created), Client_Email)
+    ELSE CONCAT(PARSE_DATE('%m/%d/%Y', Created), Client_Email) END AS m_custom_id
+    , PARSE_DATE('%m/%d/%Y', Created) AS m_created
+    , IF(Matter_Type = 'nan', NULL, Matter_Type) AS m_matter_type
+    , IF(Status = 'nan', NULL, Status) AS m_status
+    , IF(Location = 'nan', NULL, Location) AS m_location
+    , IF(Assigned_To = 'nan', NULL, Assigned_To) AS m_assigned_to
+    , IF(Created_By = 'nan', NULL, Created_By) AS m_created_by
+    , IF(Description = 'nan', NULL, Description) AS m_description
+    , IF(Value = 'nan', NULL, Value) AS m_value
+    , IF(Client = 'nan', NULL, Client) AS m_client
+    , IF(Client_Contact_Type = 'nan', NULL, Client_Contact_Type) AS m_client_contact_type
+    , IF(Client_Status = 'nan', NULL, Client_Status) AS m_client_status
+    , IF(Client_Source = 'nan', NULL, Client_Source) AS m_client_source
+    , IF(First_Name = 'nan', NULL, First_Name) AS m_first_name
+    , IF(Last_Name = 'nan', NULL, Last_Name) AS m_last_name
+    , IF(Client_Email = 'nan', NULL, Client_Email) AS m_client_email
+    , IF(Client_Phone_Number = 'nan', NULL, Client_Phone_Number) AS m_client_phone_number
+    , IF(Client_Street = 'nan', NULL, Client_Street) AS m_client_street
+    , IF(Client_City = 'nan', NULL, Client_City) AS m_client_city
+    , IF(Client_State = 'nan', NULL, Client_State) AS m_client_state
+    , IF(Client_Zip = 'nan', NULL, Client_Zip) AS m_client_zip
+    , IF(Other_Contacts = 'nan', NULL, Other_Contacts) AS m_other_contacts
+    , IF(Referred_By = 'nan', NULL, Referred_By) AS m_referred_by
+    , IF(Consult_Completed_Date = 'nan', NULL, Consult_Completed_Date) AS m_consult_completed_date
+    , IF(Consult_Scheduled_Date = 'nan', NULL, Consult_Scheduled_Date) AS m_consult_scheduled_date
+    , IF(Fixed_Price_Amount__Expanded_ = 'nan', NULL, Fixed_Price_Amount__Expanded_) AS m_fixed_price_amount_expanded
+    , IF(Fixed_Price_Cost_Deposit = 'nan', NULL, Fixed_Price_Cost_Deposit) AS m_fixed_price_cost_deposit
+    , IF(Fixed_price_amount__Base_ = 'nan', NULL, Fixed_price_amount__Base_) AS m_fixed_price_amount_base
+    , IF(Funded_Date = 'nan', NULL, Funded_Date) AS m_funded_date
+    , IF(Referred_Out_Date = 'nan', NULL, Referred_Out_Date) AS m_referred_out_date
+    , IF(Retainer_Sent_Date = 'nan', NULL, Retainer_Sent_Date) AS m_retainer_sent_date
+    , IF(Retainer_Signed_Date = 'nan', NULL, Retainer_Signed_Date) AS m_retainer_signed_date
+    , IF(Retainer_Tracking_Status = 'nan', NULL, Retainer_Tracking_Status) AS m_retainer_tracking_status
+    , IF(Trust_Deposit_Amount = 'nan', NULL, Trust_Deposit_Amount) AS m_trust_deposit_amount
+  FROM `focused-sentry-464713-u0.clio_brucelaw.manual_matters`
+)
+
+SELECT DISTINCT
+    c.*
+    , m.*
+FROM cte_contacts c
+LEFT JOIN cte_matters m ON c.c_custom_id = m.m_custom_id
