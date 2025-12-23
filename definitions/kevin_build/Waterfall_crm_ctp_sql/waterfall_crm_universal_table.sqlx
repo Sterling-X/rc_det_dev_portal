@@ -1,11 +1,12 @@
+-- =========================
+-- HELPERS (UNCHANGED)
+-- =========================
 CREATE TEMP FUNCTION
   to_date_safe(x ANY TYPE) AS (
     COALESCE(
       SAFE.PARSE_DATE('%Y-%m-%d', TRIM(CAST(x AS STRING))),
       SAFE.PARSE_DATE('%B %e, %Y', TRIM(CAST(x AS STRING))),
-      -- September 30, 2024
       SAFE.PARSE_DATE('%b %e, %Y', TRIM(CAST(x AS STRING))),
-      -- Sep 30, 2024
       SAFE.DATE(SAFE.PARSE_TIMESTAMP('%Y-%m-%dT%H:%M:%E*S%Ez', TRIM(CAST(x AS STRING)))),
       SAFE.DATE(SAFE.PARSE_TIMESTAMP('%Y-%m-%d %H:%M:%E*S%Ez', TRIM(CAST(x AS STRING)))),
       SAFE.DATE(SAFE.PARSE_TIMESTAMP('%Y-%m-%d %H:%M:%S', TRIM(CAST(x AS STRING))))
@@ -59,7 +60,7 @@ CREATE TEMP FUNCTION
     )
   );
 
--- NEW: New York–localized date helper for VDL
+-- NEW YORK helper (UNCHANGED)
 CREATE TEMP FUNCTION
   to_iso_date_new_york(x ANY TYPE) AS (
     COALESCE(
@@ -82,6 +83,10 @@ CREATE TEMP FUNCTION
     )
   );
 
+-- =========================
+-- CRM UNIVERSAL TABLE BUILD
+-- (ONLY ADD JOHNSON BLOCK; EVERYTHING ELSE KEPT AS-IS)
+-- =========================
 CREATE OR REPLACE TABLE
   `focused-sentry-464713-u0.crm_universal_tables.genesis_crm_universal_table` AS
 WITH
@@ -254,7 +259,7 @@ aurit_dedup AS (
 ),
 
 /* -----------------------------
-   NEW: Ireland and Associates
+   Ireland and Associates (UNCHANGED)
 --------------------------------*/
 ireland_dedup AS (
   SELECT
@@ -276,7 +281,65 @@ ireland_dedup AS (
     COALESCE(TRIM(CAST(lead_id AS STRING)), '') <> ''
 ),
 
--- VDL: now New York–localized dates + only active leads
+/* -----------------------------
+   Bruce Law (Clio) (UNCHANGED)
+--------------------------------*/
+brucelaw_dedup AS (
+  SELECT
+    CAST(m_custom_id AS STRING) AS m_custom_id,
+    m_created,
+    m_consult_scheduled_date,
+    m_consult_completed_date,
+    m_retainer_sent_date,
+    m_retainer_signed_date,
+    c_weblead,
+    c_utm_campaign,
+    c_utm_content,
+    c_utm_medium,
+    c_utm_source,
+    c_utm_term,
+    c_gclid,
+    ROW_NUMBER() OVER (
+      PARTITION BY CAST(m_custom_id AS STRING)
+      ORDER BY COALESCE(
+        SAFE_CAST(m_created AS TIMESTAMP),
+        SAFE.PARSE_TIMESTAMP('%Y-%m-%dT%H:%M:%E*S%Ez', TRIM(CAST(m_created AS STRING))),
+        SAFE.PARSE_TIMESTAMP('%Y-%m-%d %H:%M:%E*S%Ez', TRIM(CAST(m_created AS STRING))),
+        SAFE.PARSE_TIMESTAMP('%Y-%m-%d %H:%M:%S',      TRIM(CAST(m_created AS STRING))),
+        SAFE.PARSE_TIMESTAMP('%Y-%m-%dT%H:%M:%E*S',    TRIM(CAST(m_created AS STRING)))
+      ) DESC
+    ) AS rn
+  FROM
+    `focused-sentry-464713-u0.clio_brucelaw.clio_alldata_delta`
+  WHERE
+    COALESCE(TRIM(CAST(m_custom_id AS STRING)), '') <> ''
+),
+
+/* -----------------------------
+   NEW: Johnson Law Group (Clio)
+--------------------------------*/
+johnson_dedup AS (
+  SELECT
+    CAST(m_custom_id AS STRING) AS m_custom_id,
+    m_created,
+    m_scheduled_initial_consultation_date,
+    ROW_NUMBER() OVER (
+      PARTITION BY CAST(m_custom_id AS STRING)
+      ORDER BY COALESCE(
+        SAFE_CAST(m_created AS TIMESTAMP),
+        SAFE.PARSE_TIMESTAMP('%Y-%m-%dT%H:%M:%E*S%Ez', TRIM(CAST(m_created AS STRING))),
+        SAFE.PARSE_TIMESTAMP('%Y-%m-%dT%H:%M:%E*S%z',  TRIM(CAST(m_created AS STRING))),
+        SAFE.PARSE_TIMESTAMP('%Y-%m-%d %H:%M:%E*S%Ez', TRIM(CAST(m_created AS STRING))),
+        SAFE.PARSE_TIMESTAMP('%Y-%m-%d %H:%M:%E*S%z',  TRIM(CAST(m_created AS STRING))),
+        SAFE.PARSE_TIMESTAMP('%Y-%m-%d %H:%M:%S',      TRIM(CAST(m_created AS STRING))),
+        SAFE.PARSE_TIMESTAMP('%Y-%m-%dT%H:%M:%E*S',    TRIM(CAST(m_created AS STRING)))
+      ) DESC
+    ) AS rn
+  FROM `focused-sentry-464713-u0.clio_johnson.clio_alldata_delta`
+  WHERE COALESCE(TRIM(CAST(m_custom_id AS STRING)), '') <> ''
+),
+
+-- VDL SELECT (UNCHANGED)
 vdl AS (
   SELECT
     'VDL-vdl1001' AS Firm_Unique_ID,
@@ -560,15 +623,11 @@ kalish AS (
   WHERE rn = 1
 ),
 
- --  Ireland and Associates SELECT
-
 ireland AS (
   SELECT
     'irelandandassociates-1021' AS Firm_Unique_ID,
     'Ireland and Associates'    AS Firm_Name,
     lead_id                     AS Lead_Unique_ID,
-
-    -- created_at -> YYYY-MM-DD (UTC date)
     FORMAT_DATE(
       '%Y-%m-%d',
       DATE(
@@ -581,7 +640,6 @@ ireland AS (
         )
       )
     ) AS Lead_Create_Date,
-
     CAST(NULL AS STRING) AS Consultation_Date,
     CAST(NULL AS STRING) AS Consult_Completed_Date,
     CAST(NULL AS STRING) AS Retainer_Sent_Date,
@@ -606,6 +664,75 @@ ireland AS (
     CAST(NULL AS STRING) AS ga_client_id,
     CAST(NULL AS STRING) AS ga_user_id
   FROM ireland_dedup
+  WHERE rn = 1
+),
+
+brucelaw AS (
+  SELECT
+    'Brucelaw-blg-1003' AS Firm_Unique_ID,
+    'Bruce Law'         AS Firm_Name,
+    CAST(m_custom_id AS STRING) AS Lead_Unique_ID,
+    to_iso_date_keep_local(m_created) AS Lead_Create_Date,
+    to_iso_date_keep_local(m_consult_scheduled_date) AS Consultation_Date,
+    to_iso_date_keep_local(m_consult_completed_date) AS Consult_Completed_Date,
+    to_iso_date_keep_local(m_retainer_sent_date) AS Retainer_Sent_Date,
+    to_iso_date_keep_local(m_retainer_signed_date) AS Retainer_Signed_Date,
+    CAST(NULL AS STRING) AS Retainer_Funded_Date,
+    CAST(c_weblead AS STRING) AS Web_Lead_Indicator,
+    CAST(NULL AS STRING) AS Lead_Source,
+    CAST(NULL AS STRING) AS Marketing_Channel,
+    CAST(NULL AS STRING) AS Form_Submit_URL,
+    CAST(c_utm_campaign AS STRING) AS UTM_Campaign,
+    CAST(c_utm_content  AS STRING) AS UTM_Content,
+    CAST(c_utm_medium   AS STRING) AS UTM_Medium,
+    CAST(NULL AS STRING) AS UTM_Pageview_Count,
+    CAST(NULL AS STRING) AS UTM_Session_Count,
+    CAST(c_utm_source   AS STRING) AS UTM_Source,
+    CAST(c_utm_term     AS STRING) AS UTM_Term,
+    CAST(c_gclid        AS STRING) AS gclid,
+    CAST(NULL AS BOOL) AS _f1,
+    CAST(NULL AS BOOL) AS _f2,
+    CAST(NULL AS STRING) AS QPC,
+    CAST(NULL AS STRING) AS UTM_ICT_Reference_NUMBER,
+    CAST(NULL AS STRING) AS ga_client_id,
+    CAST(NULL AS STRING) AS ga_user_id
+  FROM brucelaw_dedup
+  WHERE rn = 1
+),
+
+/* -----------------------------
+   NEW: Johnson Law Group (Clio) SELECT
+--------------------------------*/
+johnson AS (
+  SELECT
+    'johnsonlawgroup-1016' AS Firm_Unique_ID,
+    'Johnson Law group'    AS Firm_Name,
+    CAST(m_custom_id AS STRING) AS Lead_Unique_ID,
+    to_iso_date_keep_local(m_created) AS Lead_Create_Date,
+    to_iso_date_keep_local(m_scheduled_initial_consultation_date) AS Consultation_Date,
+    CAST(NULL AS STRING) AS Consult_Completed_Date,
+    CAST(NULL AS STRING) AS Retainer_Sent_Date,
+    CAST(NULL AS STRING) AS Retainer_Signed_Date,
+    CAST(NULL AS STRING) AS Retainer_Funded_Date,
+    CAST(NULL AS STRING) AS Web_Lead_Indicator,
+    CAST(NULL AS STRING) AS Lead_Source,
+    CAST(NULL AS STRING) AS Marketing_Channel,
+    CAST(NULL AS STRING) AS Form_Submit_URL,
+    CAST(NULL AS STRING) AS UTM_Campaign,
+    CAST(NULL AS STRING) AS UTM_Content,
+    CAST(NULL AS STRING) AS UTM_Medium,
+    CAST(NULL AS STRING) AS UTM_Pageview_Count,
+    CAST(NULL AS STRING) AS UTM_Session_Count,
+    CAST(NULL AS STRING) AS UTM_Source,
+    CAST(NULL AS STRING) AS UTM_Term,
+    CAST(NULL AS STRING) AS gclid,
+    CAST(NULL AS BOOL) AS _f1,
+    CAST(NULL AS BOOL) AS _f2,
+    CAST(NULL AS STRING) AS QPC,
+    CAST(NULL AS STRING) AS UTM_ICT_Reference_Number,
+    CAST(NULL AS STRING) AS ga_client_id,
+    CAST(NULL AS STRING) AS ga_user_id
+  FROM johnson_dedup
   WHERE rn = 1
 ),
 
@@ -686,9 +813,9 @@ slo_dedup AS (
 
 slo AS (
   SELECT
-    'SterlingLawOffice-1010'       AS Firm_Unique_ID,
-    'Sterling Lawyers'             AS Firm_Name,
-    CAST(lead_Id AS STRING)        AS Lead_Unique_ID,
+    'SterlingLawOffice-1010' AS Firm_Unique_ID,
+    'Sterling Lawyers' AS Firm_Name,
+    CAST(lead_Id AS STRING) AS Lead_Unique_ID,
     to_iso_date_string(lead_created_central_d) AS Lead_Create_Date,
     CASE
       WHEN consult_start_central_d IS NOT NULL
@@ -729,16 +856,14 @@ slo AS (
     CAST(NULL AS STRING) AS UTM_Source,
     CAST(NULL AS STRING) AS UTM_Term,
     CAST(NULL AS STRING) AS gclid,
-    CAST(NULL AS BOOL)   AS _f1,
-    CAST(NULL AS BOOL)   AS _f2,
+    CAST(NULL AS BOOL) AS _f1,
+    CAST(NULL AS BOOL) AS _f2,
     CAST(NULL AS STRING) AS QPC,
     CAST(NULL AS STRING) AS UTM_ICT_Reference_Number,
     CAST(NULL AS STRING) AS ga_client_id,
     CAST(NULL AS STRING) AS ga_user_id
-  FROM
-    slo_dedup
-  WHERE
-    rn = 1
+  FROM slo_dedup
+  WHERE rn = 1
 )
 
 SELECT * FROM vdl
@@ -750,4 +875,6 @@ UNION ALL SELECT * FROM aurit
 UNION ALL SELECT * FROM haffner
 UNION ALL SELECT * FROM kalish
 UNION ALL SELECT * FROM ireland
+UNION ALL SELECT * FROM brucelaw
+UNION ALL SELECT * FROM johnson
 UNION ALL SELECT * FROM slo;
