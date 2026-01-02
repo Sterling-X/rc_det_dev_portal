@@ -1,7 +1,15 @@
-CREATE OR REPLACE TABLE
-  `rc-datamart-forms-webhook.callrail_chisholm_webhook.callrail_chisholm_post_call_expanded` AS
-WITH
-  src AS (
+config {
+  type: "view",
+  schema: "callrail_chisholm_webhook",
+  name: "callrail_chisholm_post_call_expanded"
+}
+
+pre_operations {
+  -- If this object currently exists as a TABLE, drop it once so the VIEW can be created.
+  DROP TABLE IF EXISTS `rc-datamart-forms-webhook.callrail_chisholm_webhook.callrail_chisholm_post_call_expanded`;
+}
+
+WITH src AS (
   SELECT
     call_id,
     company_id,
@@ -10,7 +18,8 @@ WITH
     payload_json,
     SAFE.PARSE_JSON(payload_json) AS p
   FROM
-    `rc-datamart-forms-webhook.callrail_chisholm_webhook.callrail_chisholm_post_call` )
+    `rc-datamart-forms-webhook.callrail_chisholm_webhook.callrail_chisholm_post_call`
+)
 SELECT
   -- original columns
   call_id,
@@ -18,6 +27,7 @@ SELECT
   event_type,
   received_at,
   payload_json,
+
   -- =========================
   -- Existing working fields
   -- =========================
@@ -63,6 +73,7 @@ SELECT
   JSON_VALUE(p, '$.utmc') AS utmc,
   JSON_VALUE(p, '$.utmv') AS utmv,
   JSON_VALUE(p, '$.utmz') AS utmz,
+
   -- =========================
   -- Added fields seen in sample payload (scalar)
   -- =========================
@@ -82,7 +93,7 @@ SELECT
   JSON_VALUE(p, '$.customer_country') AS customer_country,
   JSON_VALUE(p, '$.customer_name') AS customer_name,
   JSON_VALUE(p, '$.customer_state') AS customer_state,
-  JSON_VALUE(p, '$.source') AS SOURCE,
+  JSON_VALUE(p, '$.source') AS source,
   JSON_VALUE(p, '$.source_name') AS source_name,
   JSON_VALUE(p, '$.medium') AS medium,
   SAFE_CAST(NULLIF(JSON_VALUE(p, '$.recording_duration'), '') AS INT64) AS recording_duration_seconds,
@@ -107,6 +118,7 @@ SELECT
   JSON_VALUE(p, '$.company_resource_id') AS company_resource_id,
   JSON_VALUE(p, '$.tracker_resource_id') AS tracker_resource_id,
   JSON_VALUE(p, '$.session_uuid') AS session_uuid,
+
   -- =========================
   -- Added fields (arrays/objects) stored as JSON text
   -- =========================
@@ -118,5 +130,4 @@ SELECT
   TO_JSON_STRING(JSON_QUERY(p, '$.speaker_percent')) AS speaker_percent_json,
   TO_JSON_STRING(JSON_QUERY(p, '$.keywords_spotted')) AS keywords_spotted_json,
   TO_JSON_STRING(JSON_QUERY(p, '$.call_highlights')) AS call_highlights_json
-FROM
-  src;
+FROM src

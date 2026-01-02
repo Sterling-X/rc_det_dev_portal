@@ -1,111 +1,112 @@
-DECLARE param_cols STRING;
-DECLARE sql STRING;
+config {
+  type: "view",
+  schema: "webhook_wordpress_ramagefamilylaw",
+  name: "wordpress_webform_ramagefamilylaw_contactform_expanded"
+}
 
--- 1) Build dynamic URL param columns (one column per distinct param)
-SET param_cols = (
-  SELECT IFNULL(
-    STRING_AGG(
-      FORMAT(
-        "REGEXP_EXTRACT(JSON_VALUE(payload_json, '$.source_url'), r'[?&]%s=([^&#]*)') AS url_%s",
-        key,
-        normalized_name
+pre_operations {
+  DROP TABLE IF EXISTS `rc-datamart-forms-webhook.webhook_wordpress_ramagefamilylaw.wordpress_webform_ramagefamilylaw_contactform_expanded`
+}
+
+WITH base AS (
+  SELECT
+    -- Original columns
+    received_at,
+    source_site,
+    form_id,
+    form_title,
+    remote_ip,
+    user_agent,
+
+    -- ========= PAYLOAD_JSON (friendly names) =========
+    JSON_VALUE(payload_json, '$."10"') AS first_name,
+    JSON_VALUE(payload_json, '$."11"') AS utm_source,
+    JSON_VALUE(payload_json, '$."12"') AS payload_12,
+    JSON_VALUE(payload_json, '$."13"') AS webform_lead,
+    JSON_VALUE(payload_json, '$."14"') AS payload_14,
+    JSON_VALUE(payload_json, '$."15"') AS payload_15,
+    JSON_VALUE(payload_json, '$."16"') AS payload_16,
+    JSON_VALUE(payload_json, '$."17"') AS payload_17,
+    JSON_VALUE(payload_json, '$."18"') AS payload_18,
+    JSON_VALUE(payload_json, '$."19"') AS type_of_matter,
+    JSON_VALUE(payload_json, '$."2"' ) AS email,
+    JSON_VALUE(payload_json, '$."20"') AS last_name,
+    JSON_VALUE(payload_json, '$."21"') AS lead_source,
+    JSON_VALUE(payload_json, '$."22"') AS time_of_day_period,
+    JSON_VALUE(payload_json, '$."3"' ) AS message,
+    JSON_VALUE(payload_json, '$."7"' ) AS zip,
+    JSON_VALUE(payload_json, '$."9"' ) AS phone,
+
+    -- ========= Named keys in payload_json =========
+    JSON_VALUE(payload_json, '$.created_by')        AS created_by,
+    JSON_VALUE(payload_json, '$.currency')          AS currency,
+    JSON_VALUE(payload_json, '$.date_created')      AS date_created,
+    JSON_VALUE(payload_json, '$.date_updated')      AS date_updated,
+    JSON_VALUE(payload_json, '$.form_id')           AS payload_form_id,
+    JSON_VALUE(payload_json, '$.id')                AS submission_id,
+    JSON_VALUE(payload_json, '$.ip')                AS payload_ip,
+    JSON_VALUE(payload_json, '$.is_fulfilled')      AS is_fulfilled,
+    JSON_VALUE(payload_json, '$.is_read')           AS is_read,
+    JSON_VALUE(payload_json, '$.is_starred')        AS is_starred,
+    JSON_VALUE(payload_json, '$.payment_amount')    AS payment_amount,
+    JSON_VALUE(payload_json, '$.payment_date')      AS payment_date,
+    JSON_VALUE(payload_json, '$.payment_method')    AS payment_method,
+    JSON_VALUE(payload_json, '$.payment_status')    AS payment_status,
+    JSON_VALUE(payload_json, '$.post_id')           AS post_id,
+    JSON_VALUE(payload_json, '$.source_id')         AS source_id,
+    JSON_VALUE(payload_json, '$.source_url')        AS source_url,
+    JSON_VALUE(payload_json, '$.status')            AS status,
+    JSON_VALUE(payload_json, '$.submission_speeds') AS submission_speeds,
+    JSON_VALUE(payload_json, '$.transaction_id')    AS transaction_id,
+    JSON_VALUE(payload_json, '$.transaction_type')  AS transaction_type,
+    JSON_VALUE(payload_json, '$.user_agent')        AS payload_user_agent,
+
+    -- ========= REQUEST_HEADERS =========
+    JSON_VALUE(request_headers, '$.Accept')                  AS header_accept,
+    JSON_VALUE(request_headers, '$."Accept-Encoding"')       AS header_accept_encoding,
+    JSON_VALUE(request_headers, '$."Content-Length"')        AS header_content_length,
+    JSON_VALUE(request_headers, '$."Content-Type"')          AS header_content_type,
+    JSON_VALUE(request_headers, '$.Forwarded')               AS header_forwarded,
+    JSON_VALUE(request_headers, '$.Host')                    AS header_host,
+    JSON_VALUE(request_headers, '$.Traceparent')             AS header_traceparent,
+    JSON_VALUE(request_headers, '$."User-Agent"')            AS header_user_agent,
+    JSON_VALUE(request_headers, '$."X-Cloud-Trace-Context"') AS header_x_cloud_trace_context,
+    JSON_VALUE(request_headers, '$."X-Forwarded-For"')       AS header_x_forwarded_for,
+    JSON_VALUE(request_headers, '$."X-Forwarded-Proto"')     AS header_x_forwarded_proto
+  FROM
+    `rc-datamart-forms-webhook.webhook_wordpress_ramagefamilylaw.wordpress_webform_contactform`
+),
+
+url_kv AS (
+  SELECT
+    b.*,
+
+    -- Key/value array of ALL query-string params from source_url (stable schema; no dynamic columns needed)
+    IFNULL(
+      ARRAY(
+        SELECT AS STRUCT
+          k AS key,
+          v AS value
+        FROM UNNEST(REGEXP_EXTRACT_ALL(b.source_url, r'[?&]([^=&#]+)=')) WITH OFFSET off_k AS k
+        JOIN UNNEST(REGEXP_EXTRACT_ALL(b.source_url, r'[?&][^=&#]+=([^&#]*)')) WITH OFFSET off_v AS v
+        ON off_k = off_v
       ),
-      ',\n  '
-    ),
-    ''
-  )
-  FROM (
-    SELECT DISTINCT
-      key,
-      LOWER(REGEXP_REPLACE(key, r'[^A-Za-z0-9]+', '_')) AS normalized_name
-    FROM `rc-datamart-forms-webhook.webhook_wordpress_ramagefamilylaw.wordpress_webform_contactform`,
-    UNNEST(
-      REGEXP_EXTRACT_ALL(
-        JSON_VALUE(payload_json, '$.source_url'),
-        r'[?&]([^=&#]+)='
-      )
-    ) AS key
-    WHERE JSON_VALUE(payload_json, '$.source_url') IS NOT NULL
-  )
-);
-
--- Add a leading comma if we actually have any params
-SET param_cols = IF(param_cols = '', '', ',\n  ' || param_cols);
-
--- 2) Build the full CREATE OR REPLACE TABLE statement
-SET sql = FORMAT(R"""CREATE OR REPLACE TABLE
-  `rc-datamart-forms-webhook.webhook_wordpress_ramagefamilylaw.wordpress_webform_ramagefamilylaw_contactform_expanded`
-AS
+      ARRAY<STRUCT<key STRING, value STRING>>[]
+    ) AS url_params_kv
+  FROM base b
+)
 
 SELECT
-  -- Original columns
-  received_at,
-  source_site,
-  form_id,
-  form_title,
-  remote_ip,
-  user_agent,
+  *,
+  TO_JSON_STRING(url_params_kv) AS url_params_json,
 
-  -- ========= PAYLOAD_JSON (friendly names) =========
-  JSON_VALUE(payload_json, '$."10"') AS first_name,
-  JSON_VALUE(payload_json, '$."11"') AS utm_source,
-  JSON_VALUE(payload_json, '$."12"') AS payload_12,
-  JSON_VALUE(payload_json, '$."13"') AS webform_lead,
-  JSON_VALUE(payload_json, '$."14"') AS payload_14,
-  JSON_VALUE(payload_json, '$."15"') AS payload_15,
-  JSON_VALUE(payload_json, '$."16"') AS payload_16,
-  JSON_VALUE(payload_json, '$."17"') AS payload_17,
-  JSON_VALUE(payload_json, '$."18"') AS payload_18,
-  JSON_VALUE(payload_json, '$."19"') AS type_of_matter,
-  JSON_VALUE(payload_json, '$."2"' ) AS email,
-  JSON_VALUE(payload_json, '$."20"') AS last_name,
-  JSON_VALUE(payload_json, '$."21"') AS lead_source,
-  JSON_VALUE(payload_json, '$."22"') AS time_of_day_period,
-  JSON_VALUE(payload_json, '$."3"' ) AS message,
-  JSON_VALUE(payload_json, '$."7"' ) AS zip,
-  JSON_VALUE(payload_json, '$."9"' ) AS phone,
-
-  -- ========= Named keys in payload_json =========
-  JSON_VALUE(payload_json, '$.created_by')        AS created_by,
-  JSON_VALUE(payload_json, '$.currency')          AS currency,
-  JSON_VALUE(payload_json, '$.date_created')      AS date_created,
-  JSON_VALUE(payload_json, '$.date_updated')      AS date_updated,
-  JSON_VALUE(payload_json, '$.form_id')           AS payload_form_id,
-  JSON_VALUE(payload_json, '$.id')                AS submission_id,
-  JSON_VALUE(payload_json, '$.ip')                AS payload_ip,
-  JSON_VALUE(payload_json, '$.is_fulfilled')      AS is_fulfilled,
-  JSON_VALUE(payload_json, '$.is_read')           AS is_read,
-  JSON_VALUE(payload_json, '$.is_starred')        AS is_starred,
-  JSON_VALUE(payload_json, '$.payment_amount')    AS payment_amount,
-  JSON_VALUE(payload_json, '$.payment_date')      AS payment_date,
-  JSON_VALUE(payload_json, '$.payment_method')    AS payment_method,
-  JSON_VALUE(payload_json, '$.payment_status')    AS payment_status,
-  JSON_VALUE(payload_json, '$.post_id')           AS post_id,
-  JSON_VALUE(payload_json, '$.source_id')         AS source_id,
-  JSON_VALUE(payload_json, '$.source_url')        AS source_url,
-  JSON_VALUE(payload_json, '$.status')            AS status,
-  JSON_VALUE(payload_json, '$.submission_speeds') AS submission_speeds,
-  JSON_VALUE(payload_json, '$.transaction_id')    AS transaction_id,
-  JSON_VALUE(payload_json, '$.transaction_type')  AS transaction_type,
-  JSON_VALUE(payload_json, '$.user_agent')        AS payload_user_agent,
-
-  -- ========= REQUEST_HEADERS =========
-  JSON_VALUE(request_headers, '$.Accept')                  AS header_accept,
-  JSON_VALUE(request_headers, '$."Accept-Encoding"')       AS header_accept_encoding,
-  JSON_VALUE(request_headers, '$."Content-Length"')        AS header_content_length,
-  JSON_VALUE(request_headers, '$."Content-Type"')          AS header_content_type,
-  JSON_VALUE(request_headers, '$.Forwarded')               AS header_forwarded,
-  JSON_VALUE(request_headers, '$.Host')                    AS header_host,
-  JSON_VALUE(request_headers, '$.Traceparent')             AS header_traceparent,
-  JSON_VALUE(request_headers, '$."User-Agent"')            AS header_user_agent,
-  JSON_VALUE(request_headers, '$."X-Cloud-Trace-Context"') AS header_x_cloud_trace_context,
-  JSON_VALUE(request_headers, '$."X-Forwarded-For"')       AS header_x_forwarded_for,
-  JSON_VALUE(request_headers, '$."X-Forwarded-Proto"')     AS header_x_forwarded_proto
-  %s
-FROM
-  `rc-datamart-forms-webhook.webhook_wordpress_ramagefamilylaw.wordpress_webform_contactform`""",
-  param_cols
-);
-
--- 3) Execute the dynamically built SQL
-EXECUTE IMMEDIATE sql;
+  -- Optional: fixed common URL param columns (add/remove as you like)
+  (SELECT value FROM UNNEST(url_params_kv) WHERE key = 'utm_source'  LIMIT 1) AS url_utm_source,
+  (SELECT value FROM UNNEST(url_params_kv) WHERE key = 'utm_medium'  LIMIT 1) AS url_utm_medium,
+  (SELECT value FROM UNNEST(url_params_kv) WHERE key = 'utm_campaign' LIMIT 1) AS url_utm_campaign,
+  (SELECT value FROM UNNEST(url_params_kv) WHERE key = 'utm_term'    LIMIT 1) AS url_utm_term,
+  (SELECT value FROM UNNEST(url_params_kv) WHERE key = 'utm_content' LIMIT 1) AS url_utm_content,
+  (SELECT value FROM UNNEST(url_params_kv) WHERE key = 'gclid'       LIMIT 1) AS url_gclid,
+  (SELECT value FROM UNNEST(url_params_kv) WHERE key = 'fbclid'      LIMIT 1) AS url_fbclid,
+  (SELECT value FROM UNNEST(url_params_kv) WHERE key = 'msclkid'     LIMIT 1) AS url_msclkid
+FROM url_kv

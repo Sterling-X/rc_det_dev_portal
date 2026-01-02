@@ -1,5 +1,13 @@
-CREATE OR REPLACE TABLE
-  `rc-datamart-forms-webhook.callrail_fanashfamilylaw_webhook.callrail_fanashfamilylaw_pre_call_expanded` AS
+config {
+  type: "view",
+  schema: "callrail_fanashfamilylaw_webhook",
+  name: "callrail_fanashfamilylaw_pre_call_expanded"
+}
+
+pre_operations {
+  DROP TABLE IF EXISTS `rc-datamart-forms-webhook.callrail_fanashfamilylaw_webhook.callrail_fanashfamilylaw_pre_call_expanded`
+}
+
 WITH src AS (
   SELECT
     call_id,
@@ -33,13 +41,14 @@ SELECT
   JSON_VALUE(p, '$.customer_phone_number') AS customer_phone_number,
 
   JSON_VALUE(p, '$.datetime') AS datetime_raw,
-  SAFE.PARSE_TIMESTAMP('%Y-%m-%d %H:%M:%S', JSON_VALUE(p, '$.datetime')) AS datetime_ts,
+  -- If datetime is "YYYY-MM-DD HH:MM:SS" and should be treated as UTC, pass 'UTC' like your other pattern
+  SAFE.PARSE_TIMESTAMP('%Y-%m-%d %H:%M:%S', JSON_VALUE(p, '$.datetime'), 'UTC') AS datetime_ts,
 
   JSON_VALUE(p, '$.destinationnum') AS destination_num,
   JSON_VALUE(p, '$.device_type') AS device_type,
 
   JSON_VALUE(p, '$.duration') AS duration_raw,
-  SAFE_CAST(JSON_VALUE(p, '$.duration') AS INT64) AS duration_seconds,
+  SAFE_CAST(NULLIF(JSON_VALUE(p, '$.duration'), '') AS INT64) AS duration_seconds,
 
   JSON_VALUE(p, '$.first_call') AS first_call_raw,
   SAFE_CAST(JSON_VALUE(p, '$.first_call') AS BOOL) AS first_call,
@@ -68,5 +77,4 @@ SELECT
   JSON_VALUE(p, '$.utmc') AS utmc,
   JSON_VALUE(p, '$.utmv') AS utmv,
   JSON_VALUE(p, '$.utmz') AS utmz
-
-FROM src;
+FROM src

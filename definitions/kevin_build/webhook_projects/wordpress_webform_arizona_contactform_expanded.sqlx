@@ -1,6 +1,13 @@
-CREATE OR REPLACE TABLE
-  `rc-datamart-forms-webhook.webhook_wordpress_arizonafamilylaw.wordpress_webform_arizonafamilylawcontactform_expanded`
-AS
+config {
+  type: "view",
+  schema: "webhook_wordpress_arizonafamilylaw",
+  name: "wordpress_webform_arizonafamilylawcontactform_expanded"
+}
+
+pre_operations {
+  DROP TABLE IF EXISTS `rc-datamart-forms-webhook.webhook_wordpress_arizonafamilylaw.wordpress_webform_arizonafamilylawcontactform_expanded`
+}
+
 SELECT
   -- Original columns
   received_at,
@@ -37,6 +44,5 @@ SELECT
   JSON_EXTRACT_SCALAR(TO_JSON_STRING(request_headers), "$['X-Cloud-Trace-Context']")  AS header_x_cloud_trace_context,
   JSON_EXTRACT_SCALAR(TO_JSON_STRING(request_headers), "$['X-Forwarded-For']")        AS header_x_forwarded_for,
   JSON_EXTRACT_SCALAR(TO_JSON_STRING(request_headers), "$['X-Forwarded-Proto']")      AS header_x_forwarded_proto
-
 FROM
-  `rc-datamart-forms-webhook.webhook_wordpress_arizonafamilylaw.wordpress_webform_contactform`;
+  `rc-datamart-forms-webhook.webhook_wordpress_arizonafamilylaw.wordpress_webform_contactform`
