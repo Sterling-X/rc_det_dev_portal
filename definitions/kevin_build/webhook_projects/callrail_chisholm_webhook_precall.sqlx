@@ -1,11 +1,8 @@
 config {
-  type: "view",
+  type: "table",
+  database: "rc-datamart-forms-webhook",
   schema: "callrail_chisholm_webhook",
   name: "callrail_chisholm_pre_call_expanded"
-}
-
-pre_operations {
-  DROP TABLE IF EXISTS `rc-datamart-forms-webhook.callrail_chisholm_webhook.callrail_chisholm_pre_call_expanded`;
 }
 
 WITH src AS (
@@ -16,16 +13,22 @@ WITH src AS (
     received_at,
     payload_json,
     SAFE.PARSE_JSON(payload_json) AS p
-  FROM
-    `rc-datamart-forms-webhook.callrail_chisholm_webhook.callrail_chisholm_pre_call`
+  FROM `rc-datamart-forms-webhook.callrail_chisholm_webhook.callrail_chisholm_pre_call`
 )
-SELECT
-  call_id,
-  company_id,
-  event_type,
-  received_at,
-  payload_json,
 
+SELECT
+  -- keep original columns reliably
+  src.* EXCEPT(p),
+
+  -- =========================
+  -- IMPORTANT: preserve ALL current + future JSON keys
+  -- =========================
+  p AS payload,                               -- JSON (new fields auto preserved)
+  TO_JSON_STRING(p) AS payload_json_canonical, -- STRING canonical copy
+
+  -- =========================
+  -- Existing working fields
+  -- =========================
   JSON_VALUE(p, '$.answered') AS answered_raw,
   SAFE_CAST(JSON_VALUE(p, '$.answered') AS BOOL) AS answered,
   JSON_VALUE(p, '$.callercity') AS caller_city,
@@ -37,12 +40,20 @@ SELECT
   JSON_VALUE(p, '$.campaign') AS campaign,
   JSON_VALUE(p, '$.custom') AS custom,
   JSON_VALUE(p, '$.customer_phone_number') AS customer_phone_number,
+
   JSON_VALUE(p, '$.datetime') AS datetime_raw,
-  SAFE.PARSE_TIMESTAMP('%Y-%m-%d %H:%M:%S', JSON_VALUE(p, '$.datetime'), 'UTC') AS datetime_ts,
+  -- "YYYY-MM-DD HH:MM:SS" -> treat as UTC safely
+  TIMESTAMP(
+    SAFE.PARSE_DATETIME('%Y-%m-%d %H:%M:%S', JSON_VALUE(p, '$.datetime')),
+    'UTC'
+  ) AS datetime_ts,
+
   JSON_VALUE(p, '$.destinationnum') AS destination_num,
   JSON_VALUE(p, '$.device_type') AS device_type,
+
   JSON_VALUE(p, '$.duration') AS duration_raw,
   SAFE_CAST(NULLIF(JSON_VALUE(p, '$.duration'), '') AS INT64) AS duration_seconds,
+
   JSON_VALUE(p, '$.first_call') AS first_call_raw,
   SAFE_CAST(JSON_VALUE(p, '$.first_call') AS BOOL) AS first_call,
   JSON_VALUE(p, '$.ga') AS ga,
@@ -68,18 +79,33 @@ SELECT
   JSON_VALUE(p, '$.utmv') AS utmv,
   JSON_VALUE(p, '$.utmz') AS utmz,
 
+  -- =========================
+  -- Added fields (scalar)
+  -- =========================
   JSON_VALUE(p, '$.business_phone_number') AS business_phone_number,
   JSON_VALUE(p, '$.call_type') AS call_type,
   JSON_VALUE(p, '$.call_disposition') AS call_disposition,
   JSON_VALUE(p, '$.direction') AS direction,
   JSON_VALUE(p, '$.company_name') AS company_name,
   JSON_VALUE(p, '$.company_time_zone') AS company_time_zone,
+
   JSON_VALUE(p, '$.created_at') AS created_at_raw,
-  SAFE.PARSE_TIMESTAMP('%Y-%m-%dT%H:%M:%E*S%Ez', JSON_VALUE(p, '$.created_at')) AS created_at_ts,
+  COALESCE(
+    SAFE.PARSE_TIMESTAMP('%Y-%m-%dT%H:%M:%E*S%Ez', JSON_VALUE(p, '$.created_at')),
+    SAFE.PARSE_TIMESTAMP('%Y-%m-%dT%H:%M:%E*SZ',  JSON_VALUE(p, '$.created_at'))
+  ) AS created_at_ts,
+
   JSON_VALUE(p, '$.start_time') AS start_time_raw,
-  SAFE.PARSE_TIMESTAMP('%Y-%m-%dT%H:%M:%E*S%Ez', JSON_VALUE(p, '$.start_time')) AS start_time_ts,
+  COALESCE(
+    SAFE.PARSE_TIMESTAMP('%Y-%m-%dT%H:%M:%E*S%Ez', JSON_VALUE(p, '$.start_time')),
+    SAFE.PARSE_TIMESTAMP('%Y-%m-%dT%H:%M:%E*SZ',  JSON_VALUE(p, '$.start_time'))
+  ) AS start_time_ts,
+
   JSON_VALUE(p, '$.timestamp') AS timestamp_raw,
-  SAFE.PARSE_TIMESTAMP('%Y-%m-%dT%H:%M:%E*S%Ez', JSON_VALUE(p, '$.timestamp')) AS timestamp_ts,
+  COALESCE(
+    SAFE.PARSE_TIMESTAMP('%Y-%m-%dT%H:%M:%E*S%Ez', JSON_VALUE(p, '$.timestamp')),
+    SAFE.PARSE_TIMESTAMP('%Y-%m-%dT%H:%M:%E*SZ',  JSON_VALUE(p, '$.timestamp'))
+  ) AS timestamp_ts,
 
   JSON_VALUE(p, '$.customer_city') AS customer_city,
   JSON_VALUE(p, '$.customer_country') AS customer_country,
@@ -117,6 +143,9 @@ SELECT
   JSON_VALUE(p, '$.tracker_resource_id') AS tracker_resource_id,
   JSON_VALUE(p, '$.session_uuid') AS session_uuid,
 
+  -- =========================
+  -- Arrays/objects stored as JSON strings
+  -- =========================
   TO_JSON_STRING(JSON_QUERY(p, '$.tags')) AS tags_json,
   TO_JSON_STRING(JSON_QUERY(p, '$.detail_tags')) AS detail_tags_json,
   TO_JSON_STRING(JSON_QUERY(p, '$.waveforms')) AS waveforms_json,
@@ -125,4 +154,5 @@ SELECT
   TO_JSON_STRING(JSON_QUERY(p, '$.speaker_percent')) AS speaker_percent_json,
   TO_JSON_STRING(JSON_QUERY(p, '$.keywords_spotted')) AS keywords_spotted_json,
   TO_JSON_STRING(JSON_QUERY(p, '$.call_highlights')) AS call_highlights_json
+
 FROM src

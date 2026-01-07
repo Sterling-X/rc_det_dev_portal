@@ -317,6 +317,26 @@ johnson_unbounce_daily AS (
   GROUP BY web_date
 ),
 
+chisholm_dedup AS (
+  SELECT
+    CAST(opp_id AS STRING) AS opp_id,
+    opp_createdat,
+    ROW_NUMBER() OVER (
+      PARTITION BY CAST(opp_id AS STRING)
+      ORDER BY COALESCE(
+        SAFE_CAST(opp_createdat AS TIMESTAMP),
+        SAFE.PARSE_TIMESTAMP('%Y-%m-%dT%H:%M:%E*S%Ez', TRIM(CAST(opp_createdat AS STRING))),
+        SAFE.PARSE_TIMESTAMP('%Y-%m-%dT%H:%M:%E*S%z',  TRIM(CAST(opp_createdat AS STRING))),
+        SAFE.PARSE_TIMESTAMP('%Y-%m-%d %H:%M:%E*S%Ez', TRIM(CAST(opp_createdat AS STRING))),
+        SAFE.PARSE_TIMESTAMP('%Y-%m-%d %H:%M:%E*S%z',  TRIM(CAST(opp_createdat AS STRING))),
+        SAFE.PARSE_TIMESTAMP('%Y-%m-%d %H:%M:%S',      TRIM(CAST(opp_createdat AS STRING))),
+        SAFE.PARSE_TIMESTAMP('%Y-%m-%dT%H:%M:%E*S',    TRIM(CAST(opp_createdat AS STRING)))
+      ) DESC
+    ) AS rn
+  FROM `focused-sentry-464713-u0.gohighlevel_chisolm.chisholm_alldata_delta`
+  WHERE COALESCE(TRIM(CAST(opp_id AS STRING)), '') <> ''
+),
+
 vdl AS (
   SELECT
     'VDL-vdl1001' AS Firm_Unique_ID,
@@ -715,6 +735,39 @@ johnson AS (
   WHERE j.rn = 1
 ),
 
+chisholm AS (
+  SELECT
+    'chisholmlawfirm-1012' AS Firm_Unique_ID,
+    'Chisholm Law Firm'    AS Firm_Name,
+    CAST(opp_id AS STRING) AS Lead_Unique_ID,
+    to_iso_date_keep_local(opp_createdat) AS Lead_Create_Date,
+    CAST(NULL AS STRING) AS Consultation_Date,
+    CAST(NULL AS STRING) AS Consult_Completed_Date,
+    CAST(NULL AS STRING) AS Retainer_Sent_Date,
+    CAST(NULL AS STRING) AS Retainer_Signed_Date,
+    CAST(NULL AS STRING) AS Retainer_Funded_Date,
+    CAST(NULL AS STRING) AS Web_Lead_Indicator,
+    CAST(NULL AS STRING) AS Lead_Source,
+    CAST(NULL AS STRING) AS Marketing_Channel,
+    CAST(NULL AS STRING) AS Form_Submit_URL,
+    CAST(NULL AS STRING) AS UTM_Campaign,
+    CAST(NULL AS STRING) AS UTM_Content,
+    CAST(NULL AS STRING) AS UTM_Medium,
+    CAST(NULL AS STRING) AS UTM_Pageview_Count,
+    CAST(NULL AS STRING) AS UTM_Session_Count,
+    CAST(NULL AS STRING) AS UTM_Source,
+    CAST(NULL AS STRING) AS UTM_Term,
+    CAST(NULL AS STRING) AS gclid,
+    CAST(NULL AS BOOL) AS _f1,
+    CAST(NULL AS BOOL) AS _f2,
+    CAST(NULL AS STRING) AS QPC,
+    CAST(NULL AS STRING) AS UTM_ICT_Reference_NUMBER,
+    CAST(NULL AS STRING) AS ga_client_id,
+    CAST(NULL AS STRING) AS ga_user_id
+  FROM chisholm_dedup
+  WHERE rn = 1
+),
+
 slo_base AS (
   SELECT
     s.*,
@@ -852,4 +905,5 @@ UNION ALL SELECT * FROM kalish
 UNION ALL SELECT * FROM ireland
 UNION ALL SELECT * FROM brucelaw
 UNION ALL SELECT * FROM johnson
+UNION ALL SELECT * FROM chisholm
 UNION ALL SELECT * FROM slo;
