@@ -1,6 +1,3 @@
--- =========================
--- HELPERS (UNCHANGED)
--- =========================
 CREATE TEMP FUNCTION
   to_date_safe(x ANY TYPE) AS (
     COALESCE(
@@ -60,7 +57,6 @@ CREATE TEMP FUNCTION
     )
   );
 
--- NEW YORK helper (UNCHANGED)
 CREATE TEMP FUNCTION
   to_iso_date_new_york(x ANY TYPE) AS (
     COALESCE(
@@ -83,10 +79,6 @@ CREATE TEMP FUNCTION
     )
   );
 
--- =========================
--- CRM UNIVERSAL TABLE BUILD
--- (ONLY ADD JOHNSON BLOCK; EVERYTHING ELSE KEPT AS-IS)
--- =========================
 CREATE OR REPLACE TABLE
   `focused-sentry-464713-u0.crm_universal_tables.genesis_crm_universal_table` AS
 WITH
@@ -110,8 +102,7 @@ vdl_dedup AS (
     lead_sync_status,
     updated_at,
     ROW_NUMBER() OVER (PARTITION BY prospectid ORDER BY updated_at DESC) AS rn
-  FROM
-    `focused-sentry-464713-u0.lawmatics_vdl.vdl_alldata_delta`
+  FROM `focused-sentry-464713-u0.lawmatics_vdl.vdl_alldata_delta`
 ),
 
 smb_dedup AS (
@@ -130,10 +121,8 @@ smb_dedup AS (
     contact__tags,
     opp__attribution_medium,
     to_date_safe(opp__createdat) AS opp__createdat_date
-  FROM
-    `focused-sentry-464713-u0.turbine_smb.smb_alldata_delta`
-  WHERE
-    to_date_safe(opp__createdat) >= DATE '2025-07-01'
+  FROM `focused-sentry-464713-u0.turbine_smb.smb_alldata_delta`
+  WHERE to_date_safe(opp__createdat) >= DATE '2025-07-01'
 ),
 
 smb_dedup_ranked AS (
@@ -154,8 +143,7 @@ haffner_dedup AS (
       PARTITION BY CAST(lead_id AS STRING)
       ORDER BY lead_lastupdatedate DESC
     ) AS rn
-  FROM
-    `focused-sentry-464713-u0.leaddocket_haffner.initialdata_delta`
+  FROM `focused-sentry-464713-u0.leaddocket_haffner.initialdata_delta`
 ),
 
 kalish_dedup AS (
@@ -166,8 +154,7 @@ kalish_dedup AS (
       PARTITION BY CAST(lead_id AS STRING)
       ORDER BY lead_lastupdatedate DESC
     ) AS rn
-  FROM
-    `focused-sentry-464713-u0.leaddocket_kalishandjaggars.initialdata_delta`
+  FROM `focused-sentry-464713-u0.leaddocket_kalishandjaggars.initialdata_delta`
 ),
 
 summit_dedup AS (
@@ -197,10 +184,8 @@ summit_dedup AS (
       PARTITION BY contact_record_id
       ORDER BY contact_last_modified_date DESC, contact_create_date DESC
     ) AS rn
-  FROM
-    `focused-sentry-464713-u0.hubspot_summit.summit_alldata_delta`
-  WHERE
-    to_date_safe(contact_create_date) >= DATE '2025-04-01'
+  FROM `focused-sentry-464713-u0.hubspot_summit.summit_alldata_delta`
+  WHERE to_date_safe(contact_create_date) >= DATE '2025-04-01'
 ),
 
 rosenblum_dedup AS (
@@ -215,8 +200,7 @@ rosenblum_dedup AS (
     gclid,
     updated_at,
     ROW_NUMBER() OVER (PARTITION BY prospectid ORDER BY updated_at DESC) AS rn
-  FROM
-    `focused-sentry-464713-u0.lawmatics_rosenblum.rosenblum_alldata_delta`
+  FROM `focused-sentry-464713-u0.lawmatics_rosenblum.rosenblum_alldata_delta`
 ),
 
 meyerpink_dedup AS (
@@ -235,8 +219,7 @@ meyerpink_dedup AS (
     gclid,
     updated_at,
     ROW_NUMBER() OVER (PARTITION BY prospectid ORDER BY updated_at DESC) AS rn
-  FROM
-    `focused-sentry-464713-u0.lawmatics_meyerpink.meyerpink_alldata_delta`
+  FROM `focused-sentry-464713-u0.lawmatics_meyerpink.meyerpink_alldata_delta`
 ),
 
 aurit_dedup AS (
@@ -254,13 +237,9 @@ aurit_dedup AS (
     lead_pi__utm_source__c,
     lead_pi__utm_term__c,
     ROW_NUMBER() OVER (PARTITION BY lead_Id ORDER BY lead_CreatedDate DESC) AS rn
-  FROM
-    `focused-sentry-464713-u0.salesforce_auritmediation.auritmediation_alldata_delta`
+  FROM `focused-sentry-464713-u0.salesforce_auritmediation.auritmediation_alldata_delta`
 ),
 
-/* -----------------------------
-   Ireland and Associates (UNCHANGED)
---------------------------------*/
 ireland_dedup AS (
   SELECT
     CAST(lead_id AS STRING) AS lead_id,
@@ -275,15 +254,10 @@ ireland_dedup AS (
         SAFE.PARSE_TIMESTAMP('%Y-%m-%dT%H:%M:%E*S',    TRIM(CAST(created_at AS STRING)))
       ) DESC
     ) AS rn
-  FROM
-    `focused-sentry-464713-u0.mycase_ireland.leads`
-  WHERE
-    COALESCE(TRIM(CAST(lead_id AS STRING)), '') <> ''
+  FROM `focused-sentry-464713-u0.mycase_ireland.leads`
+  WHERE COALESCE(TRIM(CAST(lead_id AS STRING)), '') <> ''
 ),
 
-/* -----------------------------
-   Bruce Law (Clio) (UNCHANGED)
---------------------------------*/
 brucelaw_dedup AS (
   SELECT
     CAST(m_custom_id AS STRING) AS m_custom_id,
@@ -309,15 +283,10 @@ brucelaw_dedup AS (
         SAFE.PARSE_TIMESTAMP('%Y-%m-%dT%H:%M:%E*S',    TRIM(CAST(m_created AS STRING)))
       ) DESC
     ) AS rn
-  FROM
-    `focused-sentry-464713-u0.clio_brucelaw.clio_alldata_delta`
-  WHERE
-    COALESCE(TRIM(CAST(m_custom_id AS STRING)), '') <> ''
+  FROM `focused-sentry-464713-u0.clio_brucelaw.clio_alldata_delta`
+  WHERE COALESCE(TRIM(CAST(m_custom_id AS STRING)), '') <> ''
 ),
 
-/* -----------------------------
-   NEW: Johnson Law Group (Clio)
---------------------------------*/
 johnson_dedup AS (
   SELECT
     CAST(m_custom_id AS STRING) AS m_custom_id,
@@ -339,7 +308,15 @@ johnson_dedup AS (
   WHERE COALESCE(TRIM(CAST(m_custom_id AS STRING)), '') <> ''
 ),
 
--- VDL SELECT (UNCHANGED)
+johnson_unbounce_daily AS (
+  SELECT
+    to_date_safe(date_submitted) AS web_date
+  FROM `focused-sentry-464713-u0.unbounce_johnson.johnson_alldata_delta`
+  WHERE date_submitted IS NOT NULL
+    AND COALESCE(TRIM(CAST(date_submitted AS STRING)), '') <> ''
+  GROUP BY web_date
+),
+
 vdl AS (
   SELECT
     'VDL-vdl1001' AS Firm_Unique_ID,
@@ -700,21 +677,21 @@ brucelaw AS (
   WHERE rn = 1
 ),
 
-/* -----------------------------
-   NEW: Johnson Law Group (Clio) SELECT
---------------------------------*/
 johnson AS (
   SELECT
     'johnsonlawgroup-1016' AS Firm_Unique_ID,
     'Johnson Law group'    AS Firm_Name,
-    CAST(m_custom_id AS STRING) AS Lead_Unique_ID,
-    to_iso_date_keep_local(m_created) AS Lead_Create_Date,
-    to_iso_date_keep_local(m_scheduled_initial_consultation_date) AS Consultation_Date,
+    CAST(j.m_custom_id AS STRING) AS Lead_Unique_ID,
+    to_iso_date_keep_local(j.m_created) AS Lead_Create_Date,
+    to_iso_date_keep_local(j.m_scheduled_initial_consultation_date) AS Consultation_Date,
     CAST(NULL AS STRING) AS Consult_Completed_Date,
     CAST(NULL AS STRING) AS Retainer_Sent_Date,
     CAST(NULL AS STRING) AS Retainer_Signed_Date,
     CAST(NULL AS STRING) AS Retainer_Funded_Date,
-    CAST(NULL AS STRING) AS Web_Lead_Indicator,
+    CASE
+      WHEN u.web_date IS NOT NULL THEN FORMAT_DATE('%Y-%m-%d', u.web_date)
+      ELSE NULL
+    END AS Web_Lead_Indicator,
     CAST(NULL AS STRING) AS Lead_Source,
     CAST(NULL AS STRING) AS Marketing_Channel,
     CAST(NULL AS STRING) AS Form_Submit_URL,
@@ -732,11 +709,12 @@ johnson AS (
     CAST(NULL AS STRING) AS UTM_ICT_Reference_Number,
     CAST(NULL AS STRING) AS ga_client_id,
     CAST(NULL AS STRING) AS ga_user_id
-  FROM johnson_dedup
-  WHERE rn = 1
+  FROM johnson_dedup j
+  LEFT JOIN johnson_unbounce_daily u
+    ON u.web_date = to_date_safe(j.m_created)
+  WHERE j.rn = 1
 ),
 
-/* -------- SLO block unchanged below -------- */
 slo_base AS (
   SELECT
     s.*,
@@ -790,8 +768,7 @@ slo_base AS (
     NOT REGEXP_CONTAINS(COALESCE(SAFE_CAST(quote_Opportunity_Account_Name__c AS STRING), ''), r'(?i)participant') AS oppacct_not_participant,
     NOT REGEXP_CONTAINS(COALESCE(SAFE_CAST(opportunity_Name AS STRING), ''), r'(?i)test') AS oppname_not_test,
     SAFE_CAST(quote_Opportunity__c AS STRING) = SAFE_CAST(opportunity_Id AS STRING) AS has_quote_link
-  FROM
-    `focused-sentry-464713-u0.salesforce_slo.slo_alldata_delta` s
+  FROM `focused-sentry-464713-u0.salesforce_slo.slo_alldata_delta` s
 ),
 
 slo_dedup AS (
@@ -801,10 +778,8 @@ slo_dedup AS (
       PARTITION BY CAST(lead_Id AS STRING)
       ORDER BY lead_created_central_d DESC, opportunity_created_central_d DESC
     ) AS rn
-  FROM
-    slo_base
-  WHERE
-    lead_created_central_d IS NOT NULL
+  FROM slo_base
+  WHERE lead_created_central_d IS NOT NULL
     AND leadsource_not_nps
     AND is_converted_falseish
     AND is_potential_falseish
