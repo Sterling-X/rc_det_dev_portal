@@ -105,6 +105,19 @@ vdl_dedup AS (
   FROM `focused-sentry-464713-u0.lawmatics_vdl.vdl_alldata_delta`
 ),
 
+cutrer_dedup AS (
+  SELECT
+    prospectid,
+    created_at,
+    utm_campaign,
+    utm_medium,
+    utm_source,
+    utm_term,
+    updated_at,
+    ROW_NUMBER() OVER (PARTITION BY prospectid ORDER BY updated_at DESC) AS rn
+  FROM `focused-sentry-464713-u0.lawmatics_cutrer.cutrer_alldata_delta`
+),
+
 smb_dedup AS (
   SELECT
     opp__id,
@@ -319,22 +332,22 @@ johnson_unbounce_daily AS (
 
 chisholm_dedup AS (
   SELECT
-    CAST(opp_id AS STRING) AS opp_id,
-    opp_createdat,
+    CAST(opp__id AS STRING) AS opp__id,
+    opp__createdat,
     ROW_NUMBER() OVER (
-      PARTITION BY CAST(opp_id AS STRING)
+      PARTITION BY CAST(opp__id AS STRING)
       ORDER BY COALESCE(
-        SAFE_CAST(opp_createdat AS TIMESTAMP),
-        SAFE.PARSE_TIMESTAMP('%Y-%m-%dT%H:%M:%E*S%Ez', TRIM(CAST(opp_createdat AS STRING))),
-        SAFE.PARSE_TIMESTAMP('%Y-%m-%dT%H:%M:%E*S%z',  TRIM(CAST(opp_createdat AS STRING))),
-        SAFE.PARSE_TIMESTAMP('%Y-%m-%d %H:%M:%E*S%Ez', TRIM(CAST(opp_createdat AS STRING))),
-        SAFE.PARSE_TIMESTAMP('%Y-%m-%d %H:%M:%E*S%z',  TRIM(CAST(opp_createdat AS STRING))),
-        SAFE.PARSE_TIMESTAMP('%Y-%m-%d %H:%M:%S',      TRIM(CAST(opp_createdat AS STRING))),
-        SAFE.PARSE_TIMESTAMP('%Y-%m-%dT%H:%M:%E*S',    TRIM(CAST(opp_createdat AS STRING)))
+        SAFE_CAST(opp__createdat AS TIMESTAMP),
+        SAFE.PARSE_TIMESTAMP('%Y-%m-%dT%H:%M:%E*S%Ez', TRIM(CAST(opp__createdat AS STRING))),
+        SAFE.PARSE_TIMESTAMP('%Y-%m-%dT%H:%M:%E*S%z',  TRIM(CAST(opp__createdat AS STRING))),
+        SAFE.PARSE_TIMESTAMP('%Y-%m-%d %H:%M:%E*S%Ez', TRIM(CAST(opp__createdat AS STRING))),
+        SAFE.PARSE_TIMESTAMP('%Y-%m-%d %H:%M:%E*S%z',  TRIM(CAST(opp__createdat AS STRING))),
+        SAFE.PARSE_TIMESTAMP('%Y-%m-%d %H:%M:%S',      TRIM(CAST(opp__createdat AS STRING))),
+        SAFE.PARSE_TIMESTAMP('%Y-%m-%dT%H:%M:%E*S',    TRIM(CAST(opp__createdat AS STRING)))
       ) DESC
     ) AS rn
   FROM `focused-sentry-464713-u0.gohighlevel_chisolm.chisholm_alldata_delta`
-  WHERE COALESCE(TRIM(CAST(opp_id AS STRING)), '') <> ''
+  WHERE COALESCE(TRIM(CAST(opp__id AS STRING)), '') <> ''
 ),
 
 vdl AS (
@@ -369,6 +382,39 @@ vdl AS (
   FROM vdl_dedup
   WHERE rn = 1
     AND LOWER(COALESCE(lead_sync_status, '')) = 'active'
+),
+
+cutrer AS (
+  SELECT
+    'cutrerlaw-1017' AS Firm_Unique_ID,
+    'Cutrer Law'     AS Firm_Name,
+    CAST(prospectid AS STRING) AS Lead_Unique_ID,
+    to_iso_date_keep_local(created_at) AS Lead_Create_Date,
+    CAST(NULL AS STRING) AS Consultation_Date,
+    CAST(NULL AS STRING) AS Consult_Completed_Date,
+    CAST(NULL AS STRING) AS Retainer_Sent_Date,
+    CAST(NULL AS STRING) AS Retainer_Signed_Date,
+    CAST(NULL AS STRING) AS Retainer_Funded_Date,
+    CAST(NULL AS STRING) AS Web_Lead_Indicator,
+    CAST(NULL AS STRING) AS Lead_Source,
+    CAST(NULL AS STRING) AS Marketing_Channel,
+    CAST(NULL AS STRING) AS Form_Submit_URL,
+    CAST(utm_campaign AS STRING) AS UTM_Campaign,
+    CAST(NULL AS STRING) AS UTM_Content,
+    CAST(utm_medium   AS STRING) AS UTM_Medium,
+    CAST(NULL AS STRING) AS UTM_Pageview_Count,
+    CAST(NULL AS STRING) AS UTM_Session_Count,
+    CAST(utm_source   AS STRING) AS UTM_Source,
+    CAST(utm_term     AS STRING) AS UTM_Term,
+    CAST(NULL AS STRING) AS gclid,
+    CAST(NULL AS BOOL) AS _f1,
+    CAST(NULL AS BOOL) AS _f2,
+    CAST(NULL AS STRING) AS QPC,
+    CAST(NULL AS STRING) AS UTM_ICT_Reference_NUMBER,
+    CAST(NULL AS STRING) AS ga_client_id,
+    CAST(NULL AS STRING) AS ga_user_id
+  FROM cutrer_dedup
+  WHERE rn = 1
 ),
 
 smb AS (
@@ -739,8 +785,8 @@ chisholm AS (
   SELECT
     'chisholmlawfirm-1012' AS Firm_Unique_ID,
     'Chisholm Law Firm'    AS Firm_Name,
-    CAST(opp_id AS STRING) AS Lead_Unique_ID,
-    to_iso_date_keep_local(opp_createdat) AS Lead_Create_Date,
+    CAST(opp__id AS STRING) AS Lead_Unique_ID,
+    to_iso_date_keep_local(opp__createdat) AS Lead_Create_Date,
     CAST(NULL AS STRING) AS Consultation_Date,
     CAST(NULL AS STRING) AS Consult_Completed_Date,
     CAST(NULL AS STRING) AS Retainer_Sent_Date,
@@ -895,6 +941,7 @@ slo AS (
 )
 
 SELECT * FROM vdl
+UNION ALL SELECT * FROM cutrer
 UNION ALL SELECT * FROM smb
 UNION ALL SELECT * FROM summit
 UNION ALL SELECT * FROM rosenblum
