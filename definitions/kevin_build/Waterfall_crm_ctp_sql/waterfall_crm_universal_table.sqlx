@@ -142,16 +142,9 @@ azfamilylaw_dedup AS (
     ROW_NUMBER() OVER (PARTITION BY prospectid ORDER BY updated_at DESC) AS rn
   FROM `focused-sentry-464713-u0.lawmatics_azfamilylaw.azfamilylaw_alldata_delta`
 ),
-
--- ============================================================
--- SMB (Scott M Brown) - ROW-LEVEL (preserves raw row counts)
--- Fixes:
---   • Lead_Unique_ID = opp__id (alias of opp_id)
---   • Lead_Create_Date = opp_createdat (via opp_created_ts)
---   • Web logic matches raw investigation SQL
--- ============================================================
 smb_src AS (
   SELECT
+    -- Use opp__id alias for consistency
     CAST(opp_id AS STRING) AS opp__id,
 
     opp_createdat,
@@ -169,6 +162,7 @@ smb_src AS (
     contact_source,
     contact_tags,
 
+    -- robust timestamps for created/updated
     COALESCE(
       SAFE_CAST(opp_createdat AS TIMESTAMP),
       SAFE.PARSE_TIMESTAMP('%Y-%m-%dT%H:%M:%E*S%Ez', TRIM(CAST(opp_createdat AS STRING))),
@@ -185,9 +179,11 @@ smb_src AS (
       SAFE.PARSE_TIMESTAMP('%Y-%m-%dT%H:%M:%E*S',    TRIM(CAST(opp_updatedat AS STRING)))
     ) AS opp_updated_ts,
 
+    -- lowercased fields
     LOWER(IFNULL(contact_source, '')) AS contact_source_lc,
     LOWER(IFNULL(contact_tags,   '')) AS contact_tags_lc,
 
+    -- raw web logic (exactly as your investigation SQL)
     (
       LOWER(IFNULL(contact_source, '')) LIKE '%website%'
       OR (
@@ -540,31 +536,39 @@ azfamilylaw AS (
 ),
 
 -- ============================================================
--- SMB MAPPER (ROW-LEVEL; Lead_Unique_ID=opp__id; Lead_Create_Date=opp_createdat)
+-- SMB MAPPER (ROW-LEVEL, matches raw row-based counts)
+-- Requirements applied:
+--   • Lead_Unique_ID = opp__id
+--   • Lead_Create_Date = opp_createdat
 -- ============================================================
 smb AS (
   SELECT
-    'SMB-smb1002'   AS Firm_Unique_ID,
-    'Scott M Brown' AS Firm_Name,
+    'SMB-smb1002'     AS Firm_Unique_ID,
+    'Scott M Brown'   AS Firm_Name,
 
+    -- Lead Unique ID = opp__id
     opp__id AS Lead_Unique_ID,
 
-    -- Lead Create Date = opp_createdat (normalized to YYYY-MM-DD)
-    to_iso_date_string(DATE(opp_created_ts)) AS Lead_Create_Date,
+    -- Lead Create Date = opp_createdat (DATE)
+    FORMAT_DATE('%Y-%m-%d', DATE(opp_created_ts)) AS Lead_Create_Date,
 
+    -- Consultation scheduled (raw)
     to_iso_date_string(consult_scheduled_date) AS Consultation_Date,
 
+    -- Consult completed (raw logic)
     CASE
       WHEN consult_completed_flag = '["Yes"]'
            AND consult_date IS NOT NULL
       THEN to_iso_date_string(consult_date)
-      ELSE to_iso_date_string(DATE(opp_created_ts))
+      ELSE FORMAT_DATE('%Y-%m-%d', DATE(opp_created_ts))
     END AS Consult_Completed_Date,
 
-    to_iso_date_string(retainer_sent_date) AS Retainer_Sent_Date,
-    CAST(NULL AS STRING)                   AS Retainer_Signed_Date,
+    -- Retainer sent / funded (raw)
+    to_iso_date_string(retainer_sent_date)   AS Retainer_Sent_Date,
+    CAST(NULL AS STRING)                     AS Retainer_Signed_Date,
     to_iso_date_string(retainer_funded_date) AS Retainer_Funded_Date,
 
+    -- Web indicator (store as Website string; downstream can treat NOT NULL as true)
     CASE WHEN is_web_lead THEN 'Website' ELSE NULL END AS Web_Lead_Indicator,
 
     CAST(opp_source AS STRING) AS Lead_Source,
@@ -581,13 +585,16 @@ smb AS (
     CAST(NULL AS BOOL)         AS _f1,
     CAST(NULL AS BOOL)         AS _f2,
 
+    -- QPC (raw)
     to_iso_date_string(qpc_date) AS QPC,
 
     CAST(NULL AS STRING) AS UTM_ICT_Reference_Number,
     CAST(NULL AS STRING) AS ga_client_id,
     CAST(NULL AS STRING) AS ga_user_id
+
   FROM smb_src
 ),
+
 
 summit AS (
   SELECT
