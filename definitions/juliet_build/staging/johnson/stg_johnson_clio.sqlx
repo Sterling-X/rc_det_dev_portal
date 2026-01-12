@@ -3,7 +3,7 @@ config {
   database: "focused-sentry-464713-u0",
   schema: "clio_johnson", 
   name: "stg_johnson_clio", 
-  tags: ["clio", "matters", "contacts", "bruce law"]
+  tags: ["clio", "matters", "contacts", "johnson"]
 }
 
 /*
