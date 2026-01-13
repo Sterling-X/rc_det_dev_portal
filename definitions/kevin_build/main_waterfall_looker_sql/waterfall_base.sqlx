@@ -462,7 +462,8 @@ SELECT
   r.Firm_Name,
   r.Marketing_Channel,
   m.metric_name,
-  ROUND(m.metric_value, 1) AS metric_value
+  ROUND(m.metric_value + 1e-9, 1) AS metric_value
+
 FROM roll r
 CROSS JOIN UNNEST([
   -- Calls

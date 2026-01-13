@@ -28,14 +28,6 @@ CREATE TEMP FUNCTION
   );
 
 CREATE TEMP FUNCTION
-  is_truth (x ANY TYPE) AS (
-    REGEXP_CONTAINS(
-      LOWER(TRIM(CAST(x AS STRING))),
-      r'(^|\W)(true|t|yes|y|1)($|\W)'
-    )
-  );
-
-CREATE TEMP FUNCTION
   to_iso_date_phoenix(x ANY TYPE) AS (
     COALESCE(
       FORMAT_DATE(
@@ -91,6 +83,7 @@ vdl_dedup AS (
     prospectid,
     created_at,
     cf_discovery_session_date,
+    cf_ds_completed_date,
     cf_consult_completed_date,
     cf_retainer_sent_date,
     cf_date_hired,
@@ -108,6 +101,7 @@ vdl_dedup AS (
     ROW_NUMBER() OVER (PARTITION BY prospectid ORDER BY updated_at DESC) AS rn
   FROM `focused-sentry-464713-u0.lawmatics_vdl.vdl_alldata_delta`
 ),
+
 
 -- -----------------------------
 -- Lawmatics (Cutrer) dedup
@@ -142,6 +136,10 @@ azfamilylaw_dedup AS (
     ROW_NUMBER() OVER (PARTITION BY prospectid ORDER BY updated_at DESC) AS rn
   FROM `focused-sentry-464713-u0.lawmatics_azfamilylaw.azfamilylaw_alldata_delta`
 ),
+
+-- ============================================================
+-- SMB SOURCE CTE (Modified to include specific negative fields)
+-- ============================================================
 smb_src AS (
   SELECT
     -- Use opp__id alias for consistency
@@ -150,17 +148,26 @@ smb_src AS (
     opp_createdat,
     opp_updatedat,
 
+    -- PRIMARY FIELDS
     opp_cf_opportunity_date_the_consultation_is_scheduled    AS consult_scheduled_date,
     opp_cf_opportunity_date_new_lead_became_a_qualified_lead AS qpc_date,
     opp_cf_opportunity_retainer_sent_date                    AS retainer_sent_date,
     opp_cf_opportunity_date_new_lead_became_a_client         AS retainer_funded_date,
 
+    -- DEDUCTION FIELDS (Added for Consult Completed Calculation)
+    opp_cf_opportunity_consult_rescheduled_tag_applied,
+    opp_cf_opportunity_no_show_tag_applied,
+    opp_cf_opportunity_consult_cancelled_tag_applied,
+    opp_cf_opportunity_not_retained_tag_applied, -- Used for "Consult Not Set" logic
+    
+    -- Legacy/Existing fields
     opp_cf_opportunity_consult_completed                     AS consult_completed_flag,
     opp_cf_opportunity_consult_date                          AS consult_date,
 
     opp_source,
     contact_source,
     contact_tags,
+    opp_contact_tags, -- Added to ensure we have the specific tag field from verification sql
 
     -- robust timestamps for created/updated
     COALESCE(
@@ -182,6 +189,7 @@ smb_src AS (
     -- lowercased fields
     LOWER(IFNULL(contact_source, '')) AS contact_source_lc,
     LOWER(IFNULL(contact_tags,   '')) AS contact_tags_lc,
+    LOWER(IFNULL(opp_contact_tags, '')) AS opp_contact_tags_lc,
 
     -- raw web logic (exactly as your investigation SQL)
     (
@@ -436,43 +444,106 @@ chisholm_dedup AS (
 -- MAPPERS
 -- ============================================================
 vdl AS (
+
+  -- ---------------------------------------------------------
+  -- A) CONSULT COMPLETED "EVENT" ROWS (1–2 rows per prospect)
+  --     - counts both cf_ds_completed_date and cf_consult_completed_date
+  -- ---------------------------------------------------------
   SELECT
     'VDL-vdl1001' AS Firm_Unique_ID,
     'Vasquez de Lara' AS Firm_Name,
+
+    -- event-specific id so rows are distinct
+    CONCAT(CAST(prospectid AS STRING), '-', cc.cc_type) AS Lead_Unique_ID,
+
+    to_iso_date_string(created_at)                 AS Lead_Create_Date,
+    to_iso_date_string(cf_discovery_session_date)  AS Consultation_Date,
+
+    FORMAT_DATE('%Y-%m-%d', cc.cc_date)            AS Consult_Completed_Date,
+
+    to_iso_date_string(cf_retainer_sent_date)      AS Retainer_Sent_Date,
+    CAST(NULL AS STRING)                           AS Retainer_Signed_Date,
+    to_iso_date_string(cf_date_hired)              AS Retainer_Funded_Date,
+
+    CAST(cf_email_newsletter_opt_in AS STRING)     AS Web_Lead_Indicator,
+    CAST(cf_lead_type AS STRING)                   AS Lead_Source,
+    CAST(cf_marketing_source AS STRING)            AS Marketing_CHANNEL,
+    CAST(NULL AS STRING)                           AS Form_Submit_URL,
+    CAST(cf_utm_campaign AS STRING)                AS UTM_Campaign,
+    CAST(cf_utm_content  AS STRING)                AS UTM_Content,
+    CAST(cf_utm_medium   AS STRING)                AS UTM_Medium,
+    CAST(NULL AS STRING)                           AS UTM_Pageview_Count,
+    CAST(NULL AS STRING)                           AS UTM_Session_Count,
+    CAST(cf_utm_source   AS STRING)                AS UTM_Source,
+    CAST(cf_utm_term     AS STRING)                AS UTM_Term,
+    CAST(NULL AS STRING)                           AS gclid,
+    CAST(NULL AS BOOL)                             AS _f1,
+    CAST(NULL AS BOOL)                             AS _f2,
+    to_iso_date_string(cf_case_eval_date)          AS QPC,
+    CAST(NULL AS STRING)                           AS UTM_ICT_Reference_NUMBER,
+    CAST(NULL AS STRING)                           AS ga_client_id,
+    CAST(NULL AS STRING)                           AS ga_user_id
+  FROM vdl_dedup
+  CROSS JOIN UNNEST([
+    STRUCT('ds_completed'      AS cc_type, to_date_safe(cf_ds_completed_date)       AS cc_date),
+    STRUCT('consult_completed' AS cc_type, to_date_safe(cf_consult_completed_date) AS cc_date)
+  ]) AS cc
+  WHERE rn = 1
+    AND LOWER(COALESCE(lead_sync_status, '')) = 'active'
+    AND cc.cc_date IS NOT NULL
+
+  UNION ALL
+
+  -- ---------------------------------------------------------
+  -- B) FALLBACK ROW (exactly 1 row per prospect)
+  --    - only when BOTH completion dates are NULL
+  --    - prevents funded-only leads from disappearing
+  -- ---------------------------------------------------------
+  SELECT
+    'VDL-vdl1001' AS Firm_Unique_ID,
+    'Vasquez de Lara' AS Firm_Name,
+
+    -- base id (no suffix)
     CAST(prospectid AS STRING) AS Lead_Unique_ID,
-    to_iso_date_new_york(created_at) AS Lead_Create_Date,
-    to_iso_date_new_york(cf_discovery_session_date) AS Consultation_Date,
-    to_iso_date_new_york(cf_consult_completed_date) AS Consult_Completed_Date,
-    to_iso_date_new_york(cf_retainer_sent_date) AS Retainer_Sent_Date,
-    CAST(NULL AS STRING) AS Retainer_Signed_Date,
-    to_iso_date_new_york(cf_date_hired) AS Retainer_Funded_Date,
-    CAST(cf_email_newsletter_opt_in AS STRING) AS Web_Lead_Indicator,
-    CAST(cf_lead_type AS STRING) AS Lead_Source,
-    CAST(cf_marketing_source AS STRING) AS Marketing_CHANNEL,
-    CAST(NULL AS STRING) AS Form_Submit_URL,
-    CAST(cf_utm_campaign AS STRING) AS UTM_Campaign,
-    CAST(cf_utm_content AS STRING) AS UTM_Content,
-    CAST(cf_utm_medium AS STRING) AS UTM_Medium,
-    CAST(NULL AS STRING) AS UTM_Pageview_Count,
-    CAST(NULL AS STRING) AS UTM_Session_Count,
-    CAST(cf_utm_source AS STRING) AS UTM_Source,
-    CAST(cf_utm_term AS STRING) AS UTM_Term,
-    CAST(NULL AS STRING) AS gclid,
-    CAST(NULL AS BOOL) AS _f1,
-    CAST(NULL AS BOOL) AS _f2,
-    to_iso_date_new_york(cf_case_eval_date) AS QPC,
-    CAST(NULL AS STRING) AS UTM_ICT_Reference_NUMBER,
-    CAST(NULL AS STRING) AS ga_client_id,
-    CAST(NULL AS STRING) AS ga_user_id
+
+    to_iso_date_string(created_at)                 AS Lead_Create_Date,
+    to_iso_date_string(cf_discovery_session_date)  AS Consultation_Date,
+    CAST(NULL AS STRING)                           AS Consult_Completed_Date,
+
+    to_iso_date_string(cf_retainer_sent_date)      AS Retainer_Sent_Date,
+    CAST(NULL AS STRING)                           AS Retainer_Signed_Date,
+    to_iso_date_string(cf_date_hired)              AS Retainer_Funded_Date,
+
+    CAST(cf_email_newsletter_opt_in AS STRING)     AS Web_Lead_Indicator,
+    CAST(cf_lead_type AS STRING)                   AS Lead_Source,
+    CAST(cf_marketing_source AS STRING)            AS Marketing_CHANNEL,
+    CAST(NULL AS STRING)                           AS Form_Submit_URL,
+    CAST(cf_utm_campaign AS STRING)                AS UTM_Campaign,
+    CAST(cf_utm_content  AS STRING)                AS UTM_Content,
+    CAST(cf_utm_medium   AS STRING)                AS UTM_Medium,
+    CAST(NULL AS STRING)                           AS UTM_Pageview_Count,
+    CAST(NULL AS STRING)                           AS UTM_Session_Count,
+    CAST(cf_utm_source   AS STRING)                AS UTM_Source,
+    CAST(cf_utm_term     AS STRING)                AS UTM_Term,
+    CAST(NULL AS STRING)                           AS gclid,
+    CAST(NULL AS BOOL)                             AS _f1,
+    CAST(NULL AS BOOL)                             AS _f2,
+    to_iso_date_string(cf_case_eval_date)          AS QPC,
+    CAST(NULL AS STRING)                           AS UTM_ICT_Reference_NUMBER,
+    CAST(NULL AS STRING)                           AS ga_client_id,
+    CAST(NULL AS STRING)                           AS ga_user_id
   FROM vdl_dedup
   WHERE rn = 1
     AND LOWER(COALESCE(lead_sync_status, '')) = 'active'
+    AND to_date_safe(cf_ds_completed_date) IS NULL
+    AND to_date_safe(cf_consult_completed_date) IS NULL
 ),
+
 
 cutrer AS (
   SELECT
     'cutrerlaw-1017' AS Firm_Unique_ID,
-    'Cutrer Law'     AS Firm_Name,
+    'Cutrer Law'      AS Firm_Name,
     CAST(prospectid AS STRING) AS Lead_Unique_ID,
     to_iso_date_keep_local(created_at) AS Lead_Create_Date,
     CAST(NULL AS STRING) AS Consultation_Date,
@@ -536,15 +607,12 @@ azfamilylaw AS (
 ),
 
 -- ============================================================
--- SMB MAPPER (ROW-LEVEL, matches raw row-based counts)
--- Requirements applied:
---   • Lead_Unique_ID = opp__id
---   • Lead_Create_Date = opp_createdat
+-- SMB MAPPER (ROW-LEVEL)
 -- ============================================================
 smb AS (
   SELECT
-    'SMB-smb1002'     AS Firm_Unique_ID,
-    'Scott M Brown'   AS Firm_Name,
+    'SMB-smb1002'      AS Firm_Unique_ID,
+    'Scott M Brown'    AS Firm_Name,
 
     -- Lead Unique ID = opp__id
     opp__id AS Lead_Unique_ID,
@@ -555,12 +623,28 @@ smb AS (
     -- Consultation scheduled (raw)
     to_iso_date_string(consult_scheduled_date) AS Consultation_Date,
 
-    -- Consult completed (raw logic)
+    -- Consult Completed (Logic matches verification SQL subtraction method)
     CASE
-      WHEN consult_completed_flag = '["Yes"]'
-           AND consult_date IS NOT NULL
-      THEN to_iso_date_string(consult_date)
-      ELSE FORMAT_DATE('%Y-%m-%d', DATE(opp_created_ts))
+      -- 1. If not scheduled, it cannot be completed
+      WHEN consult_scheduled_date IS NULL THEN NULL
+      
+      -- 2. DEDUCT: Rescheduled
+      WHEN opp_cf_opportunity_consult_rescheduled_tag_applied IS NOT NULL THEN NULL
+      
+      -- 3. DEDUCT: No Show
+      WHEN opp_cf_opportunity_no_show_tag_applied IS NOT NULL THEN NULL
+      
+      -- 4. DEDUCT: Cancelled
+      WHEN opp_cf_opportunity_consult_cancelled_tag_applied IS NOT NULL THEN NULL
+      
+      -- 5. DEDUCT: Consult Not Set (Uses Not Retained Date + Tag string match)
+      -- Matches verification SQL: REGEXP_CONTAINS(opp_contact_tags_lc, r'(^|[|,\s-])consult not set([|,\s-]|$)')
+      WHEN opp_cf_opportunity_not_retained_tag_applied IS NOT NULL 
+           AND REGEXP_CONTAINS(LOWER(IFNULL(opp_contact_tags, '')), r'(^|[|,\s-])consult not set([|,\s-]|$)')
+           THEN NULL
+
+      -- 6. Else, it counts as completed (return the scheduled date)
+      ELSE to_iso_date_string(consult_scheduled_date)
     END AS Consult_Completed_Date,
 
     -- Retainer sent / funded (raw)
@@ -951,7 +1035,7 @@ chisholm AS (
 ),
 
 -- ------------------------------------------------------------
--- Salesforce SLO (unchanged from your script)
+-- Salesforce SLO
 -- ------------------------------------------------------------
 slo_base AS (
   SELECT
