@@ -623,29 +623,40 @@ smb AS (
     -- Consultation scheduled (raw)
     to_iso_date_string(consult_scheduled_date) AS Consultation_Date,
 
-    -- Consult Completed (Logic matches verification SQL subtraction method)
-    CASE
-      -- 1. If not scheduled, it cannot be completed
-      WHEN consult_scheduled_date IS NULL THEN NULL
+    -- -- Consult Completed (Logic matches verification SQL subtraction method)
+    -- CASE
+    --   -- 1. If not scheduled, it cannot be completed
+    --   WHEN consult_scheduled_date IS NULL THEN NULL
       
-      -- 2. DEDUCT: Rescheduled
-      WHEN opp_cf_opportunity_consult_rescheduled_tag_applied IS NOT NULL THEN NULL
+    --   -- 2. DEDUCT: Rescheduled
+    --   WHEN opp_cf_opportunity_consult_rescheduled_tag_applied IS NOT NULL THEN NULL
       
-      -- 3. DEDUCT: No Show
-      WHEN opp_cf_opportunity_no_show_tag_applied IS NOT NULL THEN NULL
+    --   -- 3. DEDUCT: No Show
+    --   WHEN opp_cf_opportunity_no_show_tag_applied IS NOT NULL THEN NULL
       
-      -- 4. DEDUCT: Cancelled
-      WHEN opp_cf_opportunity_consult_cancelled_tag_applied IS NOT NULL THEN NULL
+    --   -- 4. DEDUCT: Cancelled
+    --   WHEN opp_cf_opportunity_consult_cancelled_tag_applied IS NOT NULL THEN NULL
       
-      -- 5. DEDUCT: Consult Not Set (Uses Not Retained Date + Tag string match)
-      -- Matches verification SQL: REGEXP_CONTAINS(opp_contact_tags_lc, r'(^|[|,\s-])consult not set([|,\s-]|$)')
-      WHEN opp_cf_opportunity_not_retained_tag_applied IS NOT NULL 
-           AND REGEXP_CONTAINS(LOWER(IFNULL(opp_contact_tags, '')), r'(^|[|,\s-])consult not set([|,\s-]|$)')
-           THEN NULL
+    --   -- 5. DEDUCT: Consult Not Set (Uses Not Retained Date + Tag string match)
+    --   -- Matches verification SQL: REGEXP_CONTAINS(opp_contact_tags_lc, r'(^|[|,\s-])consult not set([|,\s-]|$)')
+    --   WHEN opp_cf_opportunity_not_retained_tag_applied IS NOT NULL 
+    --        AND REGEXP_CONTAINS(LOWER(IFNULL(opp_contact_tags, '')), r'(^|[|,\s-])consult not set([|,\s-]|$)')
+    --        THEN NULL
 
-      -- 6. Else, it counts as completed (return the scheduled date)
-      ELSE to_iso_date_string(consult_scheduled_date)
-    END AS Consult_Completed_Date,
+    --   -- 6. Else, it counts as completed (return the scheduled date)
+    --   ELSE to_iso_date_string(consult_scheduled_date)
+    -- END AS Consult_Completed_Date,
+
+    -- FIX: Consult Completed - 2026-01-14
+      CASE
+        WHEN consult_scheduled_date IS NOT NULL
+        AND opp_cf_opportunity_consult_rescheduled_tag_applied IS NULL
+        AND opp_cf_opportunity_consult_cancelled_tag_applied IS NULL
+        AND opp_cf_opportunity_no_show_tag_applied IS NULL
+        AND LOWER(opp_contact_tags) NOT LIKE '%consult not set%'
+        THEN to_iso_date_string(opp_created_ts)
+        ELSE NULL
+      END AS Consult_Completed_Date,
 
     -- Retainer sent / funded (raw)
     to_iso_date_string(retainer_sent_date)   AS Retainer_Sent_Date,
