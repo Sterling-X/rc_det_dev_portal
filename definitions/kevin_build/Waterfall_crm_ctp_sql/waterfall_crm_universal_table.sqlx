@@ -137,6 +137,23 @@ azfamilylaw_dedup AS (
   FROM `focused-sentry-464713-u0.lawmatics_azfamilylaw.azfamilylaw_alldata_delta`
 ),
 
+-- -----------------------------
+-- Lawmatics (TDE) dedup
+-- -----------------------------
+tde_dedup AS (
+  SELECT
+    prospectid,
+    created_at,
+    utm_campaign,
+    utm_medium,
+    utm_source,
+    utm_term,
+    updated_at,
+    cf_funded_date,
+    ROW_NUMBER() OVER (PARTITION BY prospectid ORDER BY updated_at DESC) AS rn
+  FROM `focused-sentry-464713-u0.lawmatics_tde.tde_alldata_delta`
+),
+
 -- ============================================================
 -- SMB SOURCE CTE (Modified to include specific negative fields)
 -- ============================================================
@@ -302,6 +319,10 @@ meyerpink_dedup AS (
     utm_term,
     gclid,
     updated_at,
+    cf_consult_scheduled_date,
+    cf_consult_completed_date,
+    cf_retainer_sent_date,
+    cf_qualified_date,
     ROW_NUMBER() OVER (PARTITION BY prospectid ORDER BY updated_at DESC) AS rn
   FROM `focused-sentry-464713-u0.lawmatics_meyerpink.meyerpink_alldata_delta`
 ),
@@ -769,10 +790,10 @@ meyerpink AS (
     'Meyer Pink Law' AS Firm_Name,
     CAST(prospectid AS STRING) AS Lead_Unique_ID,
     to_iso_date_keep_local(created_at) AS Lead_Create_Date,
-    to_iso_date_string(cf_fl_consult_scheduled_entry_date) AS Consultation_Date,
-    to_iso_date_string(cf_discovery_consultation_complete) AS Consult_Completed_Date,
-    to_iso_date_string(cf_retainer_signed_date) AS Retainer_Sent_Date,
-    CAST(NULL AS STRING) AS Retainer_Signed_Date,
+    to_iso_date_string(cf_consult_scheduled_date) AS Consultation_Date,
+    to_iso_date_string(cf_consult_completed_date) AS Consult_Completed_Date,
+    to_iso_date_string(cf_retainer_sent_date) AS Retainer_Sent_Date,
+    to_iso_date_string(cf_retainer_signed_date) AS Retainer_Signed_Date,
     to_iso_date_string(cf_hired_date) AS Retainer_Funded_Date,
     CAST(cf_entity_website AS STRING) AS Web_Lead_Indicator,
     CAST(NULL AS STRING) AS Lead_Source,
@@ -788,7 +809,7 @@ meyerpink AS (
     CAST(gclid AS STRING) AS gclid,
     CAST(NULL AS BOOL) AS _f1,
     CAST(NULL AS BOOL) AS _f2,
-    CAST(NULL AS STRING) AS QPC,
+    to_iso_date_string(cf_qualified_date) AS QPC,
     CAST(NULL AS STRING) AS UTM_ICT_Reference_NUMBER,
     CAST(NULL AS STRING) AS ga_client_id,
     CAST(NULL AS STRING) AS ga_user_id
@@ -1045,6 +1066,39 @@ chisholm AS (
   WHERE rn = 1
 ),
 
+tde AS (
+  SELECT
+    'tdefamilylaw-1024' AS Firm_Unique_ID,
+    'Tessie D. Edwards & Associates Family Law' AS Firm_Name,
+    CAST(prospectid AS STRING) AS Lead_Unique_ID,
+    to_iso_date_keep_local(created_at) AS Lead_Create_Date,
+    CAST(NULL AS STRING) AS Consultation_Date,
+    CAST(NULL AS STRING) AS Consult_Completed_Date,
+    CAST(NULL AS STRING) AS Retainer_Sent_Date,
+    CAST(NULL AS STRING) AS Retainer_Signed_Date,
+    CAST(cf_funded_date AS STRING) AS Retainer_Funded_Date,
+    CAST(NULL AS STRING) AS Web_Lead_Indicator,
+    CAST(NULL AS STRING) AS Lead_Source,
+    CAST(NULL AS STRING) AS Marketing_Channel,
+    CAST(NULL AS STRING) AS Form_Submit_URL,
+    CAST(utm_campaign AS STRING) AS UTM_Campaign,
+    CAST(NULL AS STRING) AS UTM_Content,
+    CAST(utm_medium AS STRING) AS UTM_Medium,
+    CAST(NULL AS STRING) AS UTM_Pageview_Count,
+    CAST(NULL AS STRING) AS UTM_Session_Count,
+    CAST(utm_source AS STRING) AS UTM_Source,
+    CAST(utm_term AS STRING) AS UTM_Term,
+    CAST(NULL AS STRING) AS gclid,
+    CAST(NULL AS BOOL) AS _f1,
+    CAST(NULL AS BOOL) AS _f2,
+    CAST(NULL AS STRING) AS QPC,
+    CAST(NULL AS STRING) AS UTM_ICT_Reference_NUMBER,
+    CAST(NULL AS STRING) AS ga_client_id,
+    CAST(NULL AS STRING) AS ga_user_id
+  FROM tde_dedup
+  WHERE rn = 1
+),
+
 -- ------------------------------------------------------------
 -- Salesforce SLO
 -- ------------------------------------------------------------
@@ -1191,4 +1245,5 @@ UNION ALL SELECT * FROM ireland
 UNION ALL SELECT * FROM brucelaw
 UNION ALL SELECT * FROM johnson
 UNION ALL SELECT * FROM chisholm
+UNION ALL SELECT * FROM tde
 UNION ALL SELECT * FROM slo;
