@@ -436,7 +436,7 @@ chisholm_dedup AS (
         SAFE.PARSE_TIMESTAMP('%Y-%m-%dT%H:%M:%E*S',    TRIM(CAST(opp_createdat AS STRING)))
       ) DESC
     ) AS rn
-  FROM `focused-sentry-464713-u0.gohighlevel_chisolm.chisholm_alldata_delta`
+  FROM `focused-sentry-464713-u0.gohighlevel_chisholm.chisholm_alldata_delta`
   WHERE COALESCE(TRIM(CAST(opp_id AS STRING)), '') <> ''
 ),
 
