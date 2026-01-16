@@ -751,6 +751,44 @@ ranked_ireland AS (
   FROM base_ireland
 ),
 
+base_tde AS (
+  SELECT
+    'tdefamilylaw-1024' AS firm_unique_id,
+    'Tessie D. Edwards & Associates Family Law' AS firm_name,
+    CAST(answered AS BOOL) AS answered,
+    direction,
+    SAFE_CAST(duration AS INT64) AS recording_duration,
+    id AS call_tracking_unique_id,
+    SAFE_CAST(recording_duration AS INT64) AS call_recording_duration,
+    COALESCE(
+      SAFE.PARSE_TIMESTAMP('%Y-%m-%dT%H:%M:%E*S%Ez', TRIM(CAST(start_time AS STRING))),
+      SAFE.PARSE_TIMESTAMP('%Y-%m-%d %H:%M:%E*S%Ez', TRIM(CAST(start_time AS STRING))),
+      SAFE.PARSE_TIMESTAMP('%Y-%m-%d %H:%M:%S%Ez',  TRIM(CAST(start_time AS STRING))),
+      CAST(start_time AS TIMESTAMP)
+    ) AS start_datetime,
+    source               AS source,
+    CAST(NULL AS STRING) AS practice_area,
+    CAST(NULL AS STRING) AS marketing_channel,
+    utm_campaign         AS utm_campaign,
+    utm_content          AS utm_content,
+    CAST(NULL AS STRING) AS utm_ict_reference_number,
+    utm_medium           AS utm_medium,
+    CAST(NULL AS INT64)  AS utm_pageview_count,
+    CAST(NULL AS INT64)  AS utm_session_count,
+    utm_source           AS utm_source,
+    utm_term             AS utm_term,
+    CAST(NULL AS STRING) AS ga_client_id,
+    CAST(NULL AS STRING) AS ga_user_id,
+    gclid                AS gclid,
+    CAST(NULL AS STRING) AS google_ads
+  FROM `focused-sentry-464713-u0.callrail_tde.callrail_alldata_delta`
+  WHERE REGEXP_CONTAINS(COALESCE(direction, ''), r'(?i)^\s*inbound\s*$')
+),
+ranked_tde AS (
+  SELECT *, ROW_NUMBER() OVER (PARTITION BY call_tracking_unique_id ORDER BY start_datetime DESC) AS row_num
+  FROM base_tde
+),
+
 unioned AS (
   SELECT firm_unique_id, firm_name, answered, direction, recording_duration,
          call_tracking_unique_id, call_recording_duration, start_datetime,
@@ -866,6 +904,12 @@ unioned AS (
          utm_ict_reference_number, utm_medium, utm_pageview_count, utm_session_count,
          utm_source, utm_term, ga_client_id, ga_user_id, gclid, google_ads
   FROM ranked_ireland WHERE row_num = 1
+  UNION ALL SELECT firm_unique_id, firm_name, answered, direction, recording_duration,
+         call_tracking_unique_id, call_recording_duration, start_datetime,
+         source, practice_area, marketing_channel, utm_campaign, utm_content,
+         utm_ict_reference_number, utm_medium, utm_pageview_count, utm_session_count,
+         utm_source, utm_term, ga_client_id, ga_user_id, gclid, google_ads
+  FROM ranked_tde WHERE row_num = 1
 ),
 
 marketing_dir AS (
@@ -951,6 +995,8 @@ unioned_with_numbers AS (
     ON u.firm_unique_id = 'lancaster-1023' AND cr_lancaster.id = u.call_tracking_unique_id
   LEFT JOIN `focused-sentry-464713-u0.wave_ireland.wave_alldata_delta` AS wv_ireland
     ON u.firm_unique_id = 'irelandandassociates-1021' AND wv_ireland.call_id = u.call_tracking_unique_id
+  LEFT JOIN `focused-sentry-464713-u0.callrail_tde.callrail_alldata_delta` AS cr_tde
+    ON u.firm_unique_id = 'tdefamilylaw-1024' AND cr_tde.id = u.call_tracking_unique_id
 ),
 
 unioned_normalized AS (
