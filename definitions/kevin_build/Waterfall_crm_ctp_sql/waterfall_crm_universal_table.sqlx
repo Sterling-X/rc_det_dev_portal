@@ -938,7 +938,12 @@ chisholm AS (
     END AS Retainer_Funded_Date,
 
     CAST(NULL AS STRING) AS Retainer_Signed_Date,
-    CAST(NULL AS STRING) AS Web_Lead_Indicator,
+  -- updated weblead indicator field
+        CASE
+      WHEN to_iso_date_keep_local(opp_createdat) <= '2026-01-13' THEN NULL
+      WHEN REGEXP_CONTAINS(CAST(contact_cf_contact_weblead_indicator AS STRING), r'WebLead Indicator') THEN '1'
+      ELSE NULL
+    END AS Web_Lead_Indicator,
     CAST(opp_source AS STRING) AS Lead_Source,
     CAST(NULL AS STRING) AS Marketing_Channel,
     CAST(NULL AS STRING) AS Form_Submit_URL,
@@ -952,7 +957,10 @@ chisholm AS (
     CAST(NULL AS STRING) AS gclid,
     CAST(NULL AS BOOL) AS _f1,
     CAST(NULL AS BOOL) AS _f2,
-    CAST(contact_cf_contact_qualified_date AS STRING) AS QPC,
+        CASE
+        WHEN to_iso_date_keep_local(contact_cf_contact_qualified_date) <= '2026-01-13' THEN NULL 
+        ELSE to_iso_date_keep_local(contact_cf_contact_qualified_date)
+    END AS QPC,
     CAST(NULL AS STRING) AS UTM_ICT_Reference_NUMBER,
     CAST(NULL AS STRING) AS ga_client_id,
     CAST(NULL AS STRING) AS ga_user_id
