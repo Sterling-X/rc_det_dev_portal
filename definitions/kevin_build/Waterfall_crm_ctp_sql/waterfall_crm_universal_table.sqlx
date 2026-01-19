@@ -371,27 +371,10 @@ johnson_dedup AS (
     m_scheduled_initial_consultation_date,
     ROW_NUMBER() OVER (
       PARTITION BY CAST(m_custom_id AS STRING)
-      ORDER BY COALESCE(
-        SAFE_CAST(m_created AS TIMESTAMP),
-        SAFE.PARSE_TIMESTAMP('%Y-%m-%dT%H:%M:%E*S%Ez', TRIM(CAST(m_created AS STRING))),
-        SAFE.PARSE_TIMESTAMP('%Y-%m-%dT%H:%M:%E*S%z',  TRIM(CAST(m_created AS STRING))),
-        SAFE.PARSE_TIMESTAMP('%Y-%m-%d %H:%M:%E*S%Ez', TRIM(CAST(m_created AS STRING))),
-        SAFE.PARSE_TIMESTAMP('%Y-%m-%d %H:%M:%E*S%z',  TRIM(CAST(m_created AS STRING))),
-        SAFE.PARSE_TIMESTAMP('%Y-%m-%d %H:%M:%S',      TRIM(CAST(m_created AS STRING))),
-        SAFE.PARSE_TIMESTAMP('%Y-%m-%dT%H:%M:%E*S',    TRIM(CAST(m_created AS STRING)))
-      ) DESC
+      ORDER BY m_created DESC
     ) AS rn
   FROM `focused-sentry-464713-u0.clio_johnson.clio_alldata_delta`
   WHERE COALESCE(TRIM(CAST(m_custom_id AS STRING)), '') <> ''
-),
-
-johnson_unbounce_daily AS (
-  SELECT
-    to_date_safe(date_submitted) AS web_date
-  FROM `focused-sentry-464713-u0.unbounce_johnson.johnson_alldata_delta`
-  WHERE date_submitted IS NOT NULL
-    AND COALESCE(TRIM(CAST(date_submitted AS STRING)), '') <> ''
-  GROUP BY web_date
 ),
 
 chisholm_dedup AS (
@@ -895,16 +878,16 @@ johnson AS (
     'johnsonlawgroup-1016' AS Firm_Unique_ID,
     'Johnson Law group'    AS Firm_Name,
     CAST(j.m_custom_id AS STRING) AS Lead_Unique_ID,
-    to_iso_date_keep_local(j.m_created) AS Lead_Create_Date,
+    to_iso_date_string(j.m_created) AS Lead_Create_Date,
     to_iso_date_keep_local(j.m_scheduled_initial_consultation_date) AS Consultation_Date,
+
     CAST(NULL AS STRING) AS Consult_Completed_Date,
     CAST(NULL AS STRING) AS Retainer_Sent_Date,
     CAST(NULL AS STRING) AS Retainer_Signed_Date,
     CAST(NULL AS STRING) AS Retainer_Funded_Date,
-    CASE
-      WHEN u.web_date IS NOT NULL THEN FORMAT_DATE('%Y-%m-%d', u.web_date)
-      ELSE NULL
-    END AS Web_Lead_Indicator,
+
+    CAST(NULL AS STRING) AS Web_Lead_Indicator,
+
     CAST(NULL AS STRING) AS Lead_Source,
     CAST(NULL AS STRING) AS Marketing_Channel,
     CAST(NULL AS STRING) AS Form_Submit_URL,
@@ -923,9 +906,7 @@ johnson AS (
     CAST(NULL AS STRING) AS ga_client_id,
     CAST(NULL AS STRING) AS ga_user_id
   FROM johnson_dedup j
-  LEFT JOIN johnson_unbounce_daily u
-    ON u.web_date = to_date_safe(j.m_created)
-  WHERE j.rn = 1
+  WHERE rn = 1
 ),
 
 chisholm AS (
@@ -935,28 +916,29 @@ chisholm AS (
     CAST(opp_id AS STRING) AS Lead_Unique_ID,
     to_iso_date_keep_local(opp_createdat) AS Lead_Create_Date,
     -- non destructive way to remove the test data for January 13, 2026 (QPC, Consultation Date, Consult Completed Date, Retainer / Agreement Sent Date and Retainer / Agreement Funded Date)
+    -- Logic updated to NULL out dates on or before 2026-01-13
     CASE
-        WHEN to_iso_date_from_unix(contact_cf_contact_booked_a_call_date) = '2026-01-13' THEN NULL 
+        WHEN to_iso_date_from_unix(contact_cf_contact_booked_a_call_date) <= '2026-01-13' THEN NULL 
         ELSE to_iso_date_from_unix(contact_cf_contact_booked_a_call_date)
     END AS Consultation_Date,
 
     CASE
-        WHEN to_iso_date_keep_local(opp_cf_opportunity_consult_completed_date) = '2026-01-13' THEN NULL
+        WHEN to_iso_date_keep_local(opp_cf_opportunity_consult_completed_date) <= '2026-01-13' THEN NULL
         ELSE to_iso_date_keep_local(opp_cf_opportunity_consult_completed_date) 
     END AS Consult_Completed_Date,
     
     CASE
-        WHEN to_iso_date_keep_local(opp_cf_opportunity_retainer_sent_date) = '2026-01-13' THEN NULL 
+        WHEN to_iso_date_keep_local(opp_cf_opportunity_retainer_sent_date) <= '2026-01-13' THEN NULL 
         ELSE to_iso_date_keep_local(opp_cf_opportunity_retainer_sent_date) 
     END AS Retainer_Sent_Date,
 
     CASE
-        WHEN to_iso_date_keep_local(opp_cf_opportunity_funded_date) = '2026-01-13' THEN NULL 
+        WHEN to_iso_date_keep_local(opp_cf_opportunity_funded_date) <= '2026-01-13' THEN NULL 
         ELSE to_iso_date_keep_local(opp_cf_opportunity_funded_date)
     END AS Retainer_Funded_Date,
 
     CAST(NULL AS STRING) AS Retainer_Signed_Date,
-    CAST(contact_cf_contact_weblead_indicator AS STRING) AS Web_Lead_Indicator,
+    CAST(NULL AS STRING) AS Web_Lead_Indicator,
     CAST(opp_source AS STRING) AS Lead_Source,
     CAST(NULL AS STRING) AS Marketing_Channel,
     CAST(NULL AS STRING) AS Form_Submit_URL,
