@@ -692,9 +692,21 @@ meyerpink AS (
     'Meyer Pink Law' AS Firm_Name,
     CAST(prospectid AS STRING) AS Lead_Unique_ID,
     to_iso_date_keep_local(created_at) AS Lead_Create_Date,
-    to_iso_date_string(cf_consult_scheduled_date) AS Consultation_Date,
-    to_iso_date_string(cf_consult_completed_date) AS Consult_Completed_Date,
-    to_iso_date_string(cf_retainer_sent_date) AS Retainer_Sent_Date,
+    CASE
+        WHEN to_iso_date_string(cf_consult_scheduled_date) = '2026-01-14' 
+THEN NULL
+	ELSE to_iso_date_string(cf_consult_scheduled_date)
+END AS Consultation_Date,
+    CASE
+        WHEN to_iso_date_string(cf_consult_completed_date) = '2026-01-14' 
+THEN NULL
+	ELSE to_iso_date_string(cf_consult_completed_date)
+END AS Consult_Completed_Date,
+    CASE
+        WHEN to_iso_date_string(cf_retainer_sent_date)= '2026-01-14' 
+THEN NULL
+	ELSE to_iso_date_string(cf_retainer_sent_date)
+END AS Retainer_Sent_Date,
     to_iso_date_string(cf_retainer_signed_date) AS Retainer_Signed_Date,
     to_iso_date_string(cf_hired_date) AS Retainer_Funded_Date,
     CAST(cf_entity_website AS STRING) AS Web_Lead_Indicator,
@@ -713,7 +725,11 @@ meyerpink AS (
     CAST(gclid AS STRING) AS gclid,
     CAST(NULL AS BOOL) AS _f1,
     CAST(NULL AS BOOL) AS _f2,
-    to_iso_date_string(cf_qualified_date) AS QPC,
+    CASE
+        WHEN to_iso_date_string(cf_qualified_date) = '2026-01-14' 
+		THEN NULL 
+	ELSE to_iso_date_string(cf_qualified_date)
+		END AS QPC,
     CAST(NULL AS STRING) AS UTM_ICT_Reference_NUMBER,
     CAST(NULL AS STRING) AS ga_client_id,
     CAST(NULL AS STRING) AS ga_user_id

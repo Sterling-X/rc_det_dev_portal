@@ -469,11 +469,11 @@ ROUND(
      AND r.metric_date    >= DATE '2026-01-14'
      AND m.metric_name IN (
        'Web Leads',
+       'QPCs',
        'Consults Scheduled',
        'Consults Completed',
        'Quotes',
-       'Funded Agreements',
-       'QPC'
+       'Funded Agreements'
      )
      AND (
        (m.date_window = 'last_28_days'   AND r.metric_date < DATE_ADD(DATE '2026-01-14', INTERVAL  28 DAY)) OR
@@ -485,6 +485,7 @@ ROUND(
     ELSE m.metric_value
   END
 , 1) AS metric_value
+
 
 
 FROM roll r
