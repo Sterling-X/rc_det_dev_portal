@@ -223,4 +223,88 @@ SELECT
   CAST(Firm_Name AS STRING)        AS Firm_Name,
   NULL                             AS source_status,
   CAST(bq_source_status AS STRING) AS bq_source_status
-FROM `rc-datamart-report-082025.waterfall_marketing_channel_tables.Kalish_marketing_table`;
+FROM `rc-datamart-report-082025.waterfall_marketing_channel_tables.Kalish_marketing_table`
+
+UNION ALL
+
+SELECT
+  CAST(tracking_number AS STRING)  AS ctp_number,
+  CAST(number_name AS STRING)      AS ctp_label,
+  NULL                             AS ctp_source,
+  CAST(forward_calls_to AS STRING) AS forward_calls_to,
+  CAST(channel AS STRING)          AS channel,
+  CAST(Firm_Unique_ID AS STRING)   AS Firm_Unique_ID,
+  CAST(Firm_Name AS STRING)        AS Firm_Name,
+  NULL                             AS source_status,
+  CAST(bq_source_status AS STRING) AS bq_source_status
+FROM `rc-datamart-report-082025.waterfall_marketing_channel_tables.Arizona_marketing_table`
+
+UNION ALL
+
+SELECT
+  CAST(tracking_number AS STRING)  AS ctp_number,
+  CAST(number_name AS STRING)      AS ctp_label,
+  NULL                             AS ctp_source,
+  CAST(forward_calls_to AS STRING) AS forward_calls_to,
+  CAST(channel AS STRING)          AS channel,
+  CAST(Firm_Unique_ID AS STRING)   AS Firm_Unique_ID,
+  CAST(Firm_Name AS STRING)        AS Firm_Name,
+  NULL                             AS source_status,
+  CAST(bq_source_status AS STRING) AS bq_source_status
+FROM `rc-datamart-report-082025.waterfall_marketing_channel_tables.Cutrer_marketing_table`
+
+UNION ALL
+
+SELECT
+  CAST(tracking_number AS STRING)  AS ctp_number,
+  CAST(number_name AS STRING)      AS ctp_label,
+  NULL                             AS ctp_source,
+  CAST(forward_calls_to AS STRING) AS forward_calls_to,
+  CAST(channel AS STRING)          AS channel,
+  CAST(Firm_Unique_ID AS STRING)   AS Firm_Unique_ID,
+  CAST(Firm_Name AS STRING)        AS Firm_Name,
+  NULL                             AS source_status,
+  CAST(bq_source_status AS STRING) AS bq_source_status
+FROM `rc-datamart-report-082025.waterfall_marketing_channel_tables.Fanash_marketing_table`
+
+UNION ALL
+
+SELECT
+  CAST(tracking_number AS STRING)  AS ctp_number,
+  CAST(number_name AS STRING)      AS ctp_label,
+  NULL                             AS ctp_source,
+  CAST(forward_calls_to AS STRING) AS forward_calls_to,
+  CAST(channel AS STRING)          AS channel,
+  CAST(Firm_Unique_ID AS STRING)   AS Firm_Unique_ID,
+  CAST(Firm_Name AS STRING)        AS Firm_Name,
+  NULL                             AS source_status,
+  CAST(bq_source_status AS STRING) AS bq_source_status
+FROM `rc-datamart-report-082025.waterfall_marketing_channel_tables.Johnson_marketing_table`
+
+UNION ALL
+
+SELECT
+  CAST(tracking_number AS STRING)  AS ctp_number,
+  CAST(number_name AS STRING)      AS ctp_label,
+  NULL                             AS ctp_source,
+  CAST(forward_calls_to AS STRING) AS forward_calls_to,
+  CAST(channel AS STRING)          AS channel,
+  CAST(Firm_Unique_ID AS STRING)   AS Firm_Unique_ID,
+  CAST(Firm_Name AS STRING)        AS Firm_Name,
+  NULL                             AS source_status,
+  CAST(bq_source_status AS STRING) AS bq_source_status
+FROM `rc-datamart-report-082025.waterfall_marketing_channel_tables.Lancaster_marketing_table`
+
+UNION ALL
+
+SELECT
+  CAST(tracking_number AS STRING)  AS ctp_number,
+  CAST(number_name AS STRING)      AS ctp_label,
+  NULL                             AS ctp_source,
+  CAST(forward_calls_to AS STRING) AS forward_calls_to,
+  CAST(channel AS STRING)          AS channel,
+  CAST(Firm_Unique_ID AS STRING)   AS Firm_Unique_ID,
+  CAST(Firm_Name AS STRING)        AS Firm_Name,
+  NULL                             AS source_status,
+  CAST(bq_source_status AS STRING) AS bq_source_status
+FROM `rc-datamart-report-082025.waterfall_marketing_channel_tables.TDE_marketing_table`;
