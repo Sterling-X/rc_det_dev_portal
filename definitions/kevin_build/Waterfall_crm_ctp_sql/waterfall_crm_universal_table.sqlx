@@ -985,14 +985,13 @@ chisholm AS (
         WHEN to_iso_date_keep_local(opp_cf_opportunity_retainer_sent_date) <= '2026-01-13' THEN NULL 
         ELSE to_iso_date_keep_local(opp_cf_opportunity_retainer_sent_date) 
     END AS Retainer_Sent_Date,
-
+    CAST(NULL AS STRING) AS Retainer_Signed_Date,
     CASE
         WHEN to_iso_date_keep_local(opp_cf_opportunity_funded_date) <= '2026-01-13' THEN NULL 
         ELSE to_iso_date_keep_local(opp_cf_opportunity_funded_date)
     END AS Retainer_Funded_Date,
 
-    CAST(NULL AS STRING) AS Retainer_Signed_Date,
-  -- updated weblead indicator field
+
         CASE
       WHEN to_iso_date_keep_local(opp_createdat) <= '2026-01-13' THEN NULL
       WHEN REGEXP_CONTAINS(CAST(contact_cf_contact_weblead_indicator AS STRING), r'WebLead Indicator') THEN '1'
