@@ -170,7 +170,7 @@ smb_src AS (
     CAST(opp_id AS STRING) AS opp__id,
     opp_createdat,
     opp_updatedat,
-    opp_cf_opportunity_date_the_consultation_is_scheduled    AS consult_scheduled_date,
+    opp_cf_opportunity_date_the_consultation_is_scheduled   AS consult_scheduled_date,
     opp_cf_opportunity_date_new_lead_became_a_qualified_lead AS qpc_date,
     opp_cf_opportunity_retainer_sent_date                    AS retainer_sent_date,
     opp_cf_opportunity_date_new_lead_became_a_client         AS retainer_funded_date,
@@ -184,6 +184,7 @@ smb_src AS (
     contact_source,
     contact_tags,
     opp_contact_tags,
+    opp_cf_opportunity_date_consult_is_recorded,
     COALESCE(
       SAFE_CAST(opp_createdat AS TIMESTAMP),
       SAFE.PARSE_TIMESTAMP('%Y-%m-%dT%H:%M:%E*S%Ez', TRIM(CAST(opp_createdat AS STRING))),
@@ -574,7 +575,7 @@ smb AS (
     'Scott M Brown'    AS Firm_Name,
     opp__id            AS Lead_Unique_ID,
     FORMAT_DATE('%Y-%m-%d', DATE(opp_created_ts)) AS Lead_Create_Date,
-    to_iso_date_string(consult_scheduled_date) AS Consultation_Date,
+    to_iso_date_string(opp_cf_opportunity_date_consult_is_recorded) AS Consultation_Date,
     CASE
       WHEN consult_scheduled_date IS NOT NULL
        AND opp_cf_opportunity_consult_rescheduled_tag_applied IS NULL
