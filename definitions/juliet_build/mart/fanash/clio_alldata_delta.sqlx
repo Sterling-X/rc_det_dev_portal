@@ -1,0 +1,14 @@
+config {
+  type: "table",
+  database: "focused-sentry-464713-u0",
+  schema: "clio_fanash", 
+  name: "clio_alldata_delta", 
+  tags: ["clio", "matters", "contacts", "fanash"]
+}
+
+/*
+  Changelog: yyyy-mm-dd jbatoy: 
+*/
+
+SELECT *
+FROM `focused-sentry-464713-u0.clio_fanash.stg_fanash_clio`

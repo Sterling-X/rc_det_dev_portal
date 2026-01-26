@@ -1,0 +1,106 @@
+CREATE OR REPLACE TABLE
+  `rc-datamart-report-082025.genesis_looker_crm_ctp_universal_table.genesis_historical_waterfallreport` AS
+
+WITH all_metrics AS (
+  -- Base (non-SLO)
+  SELECT
+    metric_date,
+    date_window,
+    Firm_Unique_ID,
+    Firm_Name,
+    Marketing_Channel,
+    metric_name,
+    metric_value
+  FROM `rc-datamart-report-082025.genesis_looker_crm_ctp_universal_table.tmp_historical_base`
+
+  UNION ALL
+
+  -- Combined ratios (non-SLO)
+  SELECT
+    metric_date,
+    date_window,
+    Firm_Unique_ID,
+    Firm_Name,
+    Marketing_Channel,
+    metric_name,
+    metric_value
+  FROM `rc-datamart-report-082025.genesis_looker_crm_ctp_universal_table.tmp_historical_combined`
+
+  UNION ALL
+
+  -- SLO base
+  SELECT
+    metric_date,
+    date_window,
+    Firm_Unique_ID,
+    Firm_Name,
+    Marketing_Channel,
+    metric_name,
+    metric_value
+  FROM `rc-datamart-report-082025.genesis_looker_crm_ctp_universal_table.slo_tmp_historical_base`
+
+  UNION ALL
+
+  -- SLO combined ratios
+  SELECT
+    metric_date,
+    date_window,
+    Firm_Unique_ID,
+    Firm_Name,
+    Marketing_Channel,
+    metric_name,
+    metric_value
+  FROM `rc-datamart-report-082025.genesis_looker_crm_ctp_universal_table.slo_tmp_historical_combined`
+),
+
+wide_metrics AS (
+  SELECT
+    metric_date,
+    date_window,
+    Firm_Unique_ID,
+    Firm_Name,
+    Marketing_Channel,
+
+    MAX(IF(metric_name = 'Total Calls',            metric_value, NULL)) AS `Calls`,
+    MAX(IF(metric_name = 'Answered Calls',         metric_value, NULL)) AS `Answered Calls`,
+    MAX(IF(metric_name = 'Total Leads',            metric_value, NULL)) AS `Total Leads`,
+    MAX(IF(metric_name = 'Inbound Leads',          metric_value, NULL)) AS `Inbound Leads`,
+    MAX(IF(metric_name = 'Web Leads',              metric_value, NULL)) AS `Web Leads`,
+    MAX(IF(metric_name = 'QPCs',                   metric_value, NULL)) AS `QPCs`,
+    MAX(IF(metric_name = 'Consults Scheduled',     metric_value, NULL)) AS `Consults Scheduled`,
+    MAX(IF(metric_name = 'Consults Completed',     metric_value, NULL)) AS `Consults Completed`,
+    MAX(IF(metric_name = 'Quotes',                 metric_value, NULL)) AS `Quotes`,
+    MAX(IF(metric_name = 'Funded Agreements',      metric_value, NULL)) AS `Funded Agreements`,
+    MAX(IF(metric_name = 'Answer Rate',            metric_value, NULL)) AS `Answer Rate`,
+    MAX(IF(metric_name = 'Inbound Lead to Call',   metric_value, NULL)) AS `Inbound Lead to Call`,
+    MAX(IF(metric_name = 'QPC Rate',               metric_value, NULL)) AS `QPC Rate`,
+    MAX(IF(metric_name = 'QPC to Scheduled',       metric_value, NULL)) AS `QPC to Scheduled`,
+    MAX(IF(metric_name = 'Completion Rate',        metric_value, NULL)) AS `Completion Rate`,
+    MAX(IF(metric_name = 'Quote Rate',             metric_value, NULL)) AS `Quote Rate`,
+    MAX(IF(metric_name = 'Close Rate',             metric_value, NULL)) AS `Close Rate`
+  FROM all_metrics
+  GROUP BY
+    metric_date,
+    date_window,
+    Firm_Unique_ID,
+    Firm_Name,
+    Marketing_Channel
+)
+
+-- Output: wide + tall side-by-side
+SELECT
+  w.*,
+  m.metric_name,
+  m.metric_value
+FROM wide_metrics AS w
+LEFT JOIN all_metrics AS m
+  ON  w.metric_date       = m.metric_date
+  AND w.date_window       = m.date_window
+  AND w.Firm_Unique_ID    = m.Firm_Unique_ID
+  AND w.Firm_Name         = m.Firm_Name
+  AND w.Marketing_Channel IS NOT DISTINCT FROM m.Marketing_Channel
+ORDER BY
+  w.metric_date,
+  w.Firm_Unique_ID,
+  w.date_window,
+  m.metric_name;

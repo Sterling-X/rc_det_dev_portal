@@ -1,5 +1,13 @@
+<<<<<<< HEAD
 defaultProject: rc-datamart-report-082025
 defaultLocation: US
 defaultDataset: dataform
 defaultAssertionDataset: dataform_assertions
 dataformCoreVersion: 3.0.0
+=======
+defaultProject: focused-sentry-464713-u0
+defaultLocation: US
+defaultDataset: dataform
+defaultAssertionDataset: dataform_assertions
+dataformCoreVersion: 3.0.0
+>>>>>>> refs/heads/main_datamart

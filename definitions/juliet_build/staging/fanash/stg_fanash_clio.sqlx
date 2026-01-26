@@ -1,0 +1,101 @@
+config {
+  type: "view",
+  database: "focused-sentry-464713-u0",
+  schema: "clio_fanash", 
+  name: "stg_fanash_clio", 
+  tags: ["clio", "matters", "contacts", "fanash"]
+}
+
+/*
+  Changelog: yyyy-mm-dd jbatoy: 
+*/
+
+WITH cte_contacts AS (
+  SELECT
+    CASE
+      WHEN Primary_Email = 'nan' AND Primary_Phone = 'nan' THEN CONCAT(PARSE_DATE('%m/%d/%Y', Created), LOWER(First), LOWER(Last))
+      WHEN Primary_Email = 'nan' THEN CONCAT(PARSE_DATE('%m/%d/%Y', Created), REGEXP_REPLACE(Primary_Phone, r"^'", ""))
+      WHEN Primary_Phone = 'nan' THEN CONCAT(PARSE_DATE('%m/%d/%Y', Created), REGEXP_REPLACE(Primary_Email, r"^'", ""))
+    ELSE CONCAT(PARSE_DATE('%m/%d/%Y', Created), REGEXP_REPLACE(Primary_Email, r"^'", "")) END AS c_custom_id
+    , PARSE_DATE('%m/%d/%Y', Created) AS created
+    , IF(Contact_Global_ID = 'nan', NULL, Contact_Global_ID) AS c_contact_global_id
+    , IF(First = 'nan', NULL, First) AS c_first
+    , IF(Middle = 'nan', NULL, Middle) AS c_middle
+    , IF(Last = 'nan', NULL, Last) AS c_last
+    , IF(Date_of_Birth = 'nan', NULL, Date_of_Birth) AS c_date_of_birth
+    , IF(Company_Name = 'nan', NULL, Company_Name) AS c_company_name
+    , IF(Primary_Email = 'nan', NULL, Primary_Email) AS c_primary_email
+    , IF(Home_Email = 'nan', NULL, Home_Email) AS c_home_email
+    , IF(Work_Email = 'nan', NULL, Work_Email) AS c_work_email
+    , IF(Other_Email = 'nan', NULL, Other_Email) AS c_other_email
+    , IF(Primary_Phone = 'nan', NULL, Primary_Phone) AS c_primary_phone
+    , IF(Home_Phone = 'nan', NULL, Home_Phone) AS c_home_phone 
+    , IF(Mobile_Phone = 'nan', NULL, Mobile_Phone) AS c_mobile_phone
+    , IF(Work_Phone = 'nan', NULL, Work_Phone) AS c_work_phone
+    , IF(Street = 'nan', NULL, Street) AS c_street
+    , IF(City = 'nan', NULL, City) AS c_city
+    , IF(State = 'nan', NULL, State) AS c_state
+    , IF(Country = 'nan', NULL, Country) AS c_country
+    , IF(Zipcode = 'nan', NULL, Zipcode) AS c_zipcode
+    , IF(Source = 'nan', NULL, Source) AS c_source
+    , IF(Status = 'nan', NULL, Status) AS c_status
+    , IF(Client_Status = 'nan', NULL, Client_Status) AS c_client_status
+    , IF(URL = 'nan', NULL, URL) AS c_url
+    , IF(Tags = 'nan', NULL, Tags) AS c_tags
+    , IF(Referred_By = 'nan', NULL, Referred_By) AS c_referred_by
+    , IF(Driver_s_License_Number = 'nan', NULL, Driver_s_License_Number) AS c_driver_s_license_number
+    , IF(Employed_ = 'nan', NULL, Employed_) AS c_employed
+    , IF(Gender = 'nan', NULL, Gender) AS c_gender
+    , IF(MSCLKID = 'nan', NULL, MSCLKID) AS c_msclkid
+    , IF(Marital_Status = 'nan', NULL, Marital_Status) AS c_marital_status
+    , IF(Means_to_Pay_ = 'nan', NULL, Means_to_Pay_) AS c_means_to_pay
+    , IF(Preferred_Contact_Method = 'nan', NULL, Preferred_Contact_Method) AS c_preferred_contact_method
+    , IF(Social_Security_Number = 'nan', NULL, Social_Security_Number) AS c_social_security_number
+    , IF(gclid = 'nan', NULL, gclid) AS c_gclid
+    , IF(utm_campaign = 'nan', NULL, utm_campaign) AS c_utm_campaign
+    , IF(utm_campaign_id = 'nan', NULL, utm_campaign_id) AS c_utm_campaign_id
+    , IF(utm_content = 'nan', NULL, utm_content) AS c_utm_content
+    , IF(utm_medium = 'nan', NULL, utm_medium) AS c_utm_medium
+    , IF(utm_source = 'nan', NULL, utm_source) AS c_utm_source
+    , IF(utm_term = 'nan', NULL, utm_term) AS c_utm_term
+  FROM `focused-sentry-464713-u0.clio_fanash.manual_contacts`
+)
+
+, cte_matters AS (
+  SELECT
+    CASE
+      WHEN Client_Email = 'nan' AND Client_Phone_Number = 'nan' THEN CONCAT(PARSE_DATE('%m/%d/%Y', Created), LOWER(First_Name), LOWER(Last_Name))
+      WHEN Client_Email = 'nan' THEN CONCAT(PARSE_DATE('%m/%d/%Y', Created), Client_Phone_Number)
+      WHEN Client_Phone_Number = 'nan' THEN CONCAT(PARSE_DATE('%m/%d/%Y', Created), Client_Email)
+    ELSE CONCAT(PARSE_DATE('%m/%d/%Y', Created), Client_Email) END AS m_custom_id
+    , PARSE_DATE('%m/%d/%Y', Created) AS m_created
+    , IF(Matter_Type = 'nan', NULL, Matter_Type) AS m_matter_type
+    , IF(Status = 'nan', NULL, Status) AS m_status
+    , IF(Location = 'nan', NULL, Location) AS m_location
+    , IF(Assigned_To = 'nan', NULL, Assigned_To) AS m_assigned_to
+    , IF(Created_By = 'nan', NULL, Created_By) AS m_created_by
+    , IF(Description = 'nan', NULL, Description) AS m_description
+    , IF(Value = 'nan', NULL, Value) AS m_value
+    , IF(Client = 'nan', NULL, Client) AS m_client
+    , IF(Client_Contact_Type = 'nan', NULL, Client_Contact_Type) AS m_client_contact_type
+    , IF(Client_Status = 'nan', NULL, Client_Status) AS m_client_status
+    , IF(Client_Source = 'nan', NULL, Client_Source) AS m_client_source
+    , IF(First_Name = 'nan', NULL, First_Name) AS m_first_name
+    , IF(Last_Name = 'nan', NULL, Last_Name) AS m_last_name
+    , IF(Client_Email = 'nan', NULL, Client_Email) AS m_client_email
+    , IF(Client_Phone_Number = 'nan', NULL, Client_Phone_Number) AS m_client_phone_number
+    , IF(Client_Street = 'nan', NULL, Client_Street) AS m_client_street
+    , IF(Client_City = 'nan', NULL, Client_City) AS m_client_city
+    , IF(Client_State = 'nan', NULL, Client_State) AS m_client_state
+    , IF(Client_Zip = 'nan', NULL, Client_Zip) AS m_client_zip
+    , IF(Other_Contacts = 'nan', NULL, Other_Contacts) AS m_other_contacts
+    , IF(Referred_By = 'nan', NULL, Referred_By) AS m_referred_by
+    , IF(Matter_Source_1 = 'nan', NULL, Matter_Source_1) AS m_matter_source_1
+  FROM `focused-sentry-464713-u0.clio_fanash.manual_matters`
+)
+
+SELECT DISTINCT
+    c.*
+    , m.*
+FROM cte_contacts c
+LEFT JOIN cte_matters m ON c.c_custom_id = m.m_custom_id

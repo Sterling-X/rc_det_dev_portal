@@ -1,0 +1,1049 @@
+config {
+  type: "table",
+  schema: "ctp_universal_tables",
+  name: "genesis_ctp_universal_table"
+}
+
+WITH
+base_vdl AS (
+  SELECT
+    'VDL-vdl1001' AS firm_unique_id,
+    'Vasquez de Lara' AS firm_name,
+    CAST(answered AS BOOL) AS answered,
+    direction,
+    SAFE_CAST(duration AS INT64) AS recording_duration,
+    id AS call_tracking_unique_id,
+    SAFE_CAST(recording_duration AS INT64) AS call_recording_duration,
+    COALESCE(
+      SAFE.PARSE_TIMESTAMP('%Y-%m-%dT%H:%M:%E*S%Ez', TRIM(CAST(start_time AS STRING))),
+      SAFE.PARSE_TIMESTAMP('%Y-%m-%d %H:%M:%E*S%Ez', TRIM(CAST(start_time AS STRING))),
+      SAFE.PARSE_TIMESTAMP('%Y-%m-%d %H:%M:%S%Ez',  TRIM(CAST(start_time AS STRING))),
+      CAST(start_time AS TIMESTAMP)
+    ) AS start_datetime,
+    source               AS source,
+    CAST(NULL AS STRING) AS practice_area,
+    CAST(NULL AS STRING) AS marketing_channel,
+    CAST(NULL AS STRING) AS utm_campaign,
+    CAST(NULL AS STRING) AS utm_content,
+    CAST(NULL AS STRING) AS utm_ict_reference_number,
+    CAST(NULL AS STRING) AS utm_medium,
+    CAST(NULL AS INT64)  AS utm_pageview_count,
+    CAST(NULL AS INT64)  AS utm_session_count,
+    CAST(NULL AS STRING) AS utm_source,
+    CAST(NULL AS STRING) AS utm_term,
+    CAST(NULL AS STRING) AS ga_client_id,
+    CAST(NULL AS STRING) AS ga_user_id,
+    CAST(NULL AS STRING) AS gclid,
+    CAST(NULL AS STRING) AS google_ads
+  FROM `focused-sentry-464713-u0.callrail_vdl.callrail_alldata_delta`
+  WHERE REGEXP_CONTAINS(COALESCE(direction, ''), r'(?i)^\s*inbound\s*$')
+),
+ranked_vdl AS (
+  SELECT *, ROW_NUMBER() OVER (PARTITION BY call_tracking_unique_id ORDER BY start_datetime DESC) AS row_num
+  FROM base_vdl
+),
+
+base_smb AS (
+  SELECT
+    'SMB-smb1002' AS firm_unique_id,
+    'Scott M Brown' AS firm_name,
+    CAST(answered AS BOOL) AS answered,
+    direction,
+    SAFE_CAST(duration AS INT64) AS recording_duration,
+    id AS call_tracking_unique_id,
+    SAFE_CAST(recording_duration AS INT64) AS call_recording_duration,
+    COALESCE(
+      SAFE.PARSE_TIMESTAMP('%Y-%m-%dT%H:%M:%E*S%Ez', TRIM(CAST(start_time AS STRING))),
+      SAFE.PARSE_TIMESTAMP('%Y-%m-%d %H:%M:%E*S%Ez', TRIM(CAST(start_time AS STRING))),
+      SAFE.PARSE_TIMESTAMP('%Y-%m-%d %H:%M:%S%Ez',  TRIM(CAST(start_time AS STRING))),
+      CAST(start_time AS TIMESTAMP)
+    ) AS start_datetime,
+    source               AS source,
+    CAST(NULL AS STRING) AS practice_area,
+    CAST(NULL AS STRING) AS marketing_channel,
+    CAST(NULL AS STRING) AS utm_campaign,
+    CAST(NULL AS STRING) AS utm_content,
+    CAST(NULL AS STRING) AS utm_ict_reference_number,
+    CAST(NULL AS STRING) AS utm_medium,
+    CAST(NULL AS INT64)  AS utm_pageview_count,
+    CAST(NULL AS INT64)  AS utm_session_count,
+    CAST(NULL AS STRING) AS utm_source,
+    CAST(NULL AS STRING) AS utm_term,
+    CAST(NULL AS STRING) AS ga_client_id,
+    CAST(NULL AS STRING) AS ga_user_id,
+    CAST(NULL AS STRING) AS gclid,
+    CAST(NULL AS STRING) AS google_ads
+  FROM `focused-sentry-464713-u0.callrail_smb.callrail_alldata_delta`
+  WHERE REGEXP_CONTAINS(COALESCE(direction, ''), r'(?i)^\s*inbound\s*$')
+),
+ranked_smb AS (
+  SELECT *, ROW_NUMBER() OVER (PARTITION BY call_tracking_unique_id ORDER BY start_datetime DESC) AS row_num
+  FROM base_smb
+),
+
+base_rosenblum AS (
+  SELECT
+    'Rosenblum-ral1004' AS firm_unique_id,
+    'Rosenblum Allen Law' AS firm_name,
+    CAST(LOWER(call_status) = 'answered' AS BOOL) AS answered,
+    direction,
+    CAST(NULL AS INT64) AS recording_duration,
+    sid AS call_tracking_unique_id,
+    CAST(NULL AS INT64) AS call_recording_duration,
+    COALESCE(
+      SAFE.PARSE_TIMESTAMP('%Y-%m-%d %I:%M %p %Ez', TRIM(CAST(called_at AS STRING))),
+      SAFE.PARSE_TIMESTAMP('%Y-%m-%d %I:%M %p %z',  TRIM(CAST(called_at AS STRING))),
+      SAFE.PARSE_TIMESTAMP('%Y-%m-%d %I:%M:%S %p %Ez', TRIM(CAST(called_at AS STRING))),
+      SAFE.PARSE_TIMESTAMP('%Y-%m-%d %I:%M:%S %p %z',  TRIM(CAST(called_at AS STRING))),
+      SAFE.PARSE_TIMESTAMP('%Y-%m-%dT%H:%M:%E*S%Ez',   TRIM(CAST(called_at AS STRING))),
+      SAFE.PARSE_TIMESTAMP('%Y-%m-%d %H:%M:%E*S%Ez',   TRIM(CAST(called_at AS STRING))),
+      CAST(called_at AS TIMESTAMP)
+    ) AS start_datetime,
+    CAST(NULL AS STRING) AS source,
+    CAST(NULL AS STRING) AS practice_area,
+    CAST(NULL AS STRING) AS marketing_channel,
+    CAST(NULL AS STRING) AS utm_campaign,
+    CAST(NULL AS STRING) AS utm_content,
+    CAST(NULL AS STRING) AS utm_ict_reference_number,
+    CAST(NULL AS STRING) AS utm_medium,
+    CAST(NULL AS INT64)  AS utm_pageview_count,
+    CAST(NULL AS INT64)  AS utm_session_count,
+    CAST(NULL AS STRING) AS utm_source,
+    CAST(NULL AS STRING) AS utm_term,
+    CAST(NULL AS STRING) AS ga_client_id,
+    CAST(NULL AS STRING) AS ga_user_id,
+    CAST(NULL AS STRING) AS gclid,
+    CAST(NULL AS STRING) AS google_ads
+  FROM `focused-sentry-464713-u0.calltracking_rosenblum.ctp_initialdata_delta`
+  WHERE REGEXP_CONTAINS(COALESCE(direction, ''), r'(?i)^\s*inbound\s*$')
+),
+ranked_rosenblum AS (
+  SELECT *, ROW_NUMBER() OVER (PARTITION BY call_tracking_unique_id ORDER BY start_datetime DESC) AS row_num
+  FROM base_rosenblum
+),
+
+base_meyerpink AS (
+  SELECT
+    'meyerpinklaw-mpl1005' AS firm_unique_id,
+    'Meyer Pink Law' AS firm_name,
+    CAST(answered AS BOOL) AS answered,
+    direction,
+    SAFE_CAST(recording_duration AS INT64) AS recording_duration,
+    id AS call_tracking_unique_id,
+    SAFE_CAST(recording_duration AS INT64) AS call_recording_duration,
+    COALESCE(
+      SAFE.PARSE_TIMESTAMP('%Y-%m-%dT%H:%M:%E*S%Ez', TRIM(CAST(start_time AS STRING))),
+      SAFE.PARSE_TIMESTAMP('%Y-%m-%d %H:%M:%E*S%Ez', TRIM(CAST(start_time AS STRING))),
+      SAFE.PARSE_TIMESTAMP('%Y-%m-%d %H:%M:%S%Ez',  TRIM(CAST(start_time AS STRING))),
+      CAST(start_time AS TIMESTAMP)
+    ) AS start_datetime,
+    source               AS source,
+    CAST(NULL AS STRING) AS practice_area,
+    CAST(NULL AS STRING) AS marketing_channel,
+    CAST(NULL AS STRING) AS utm_campaign,
+    CAST(NULL AS STRING) AS utm_content,
+    CAST(NULL AS STRING) AS utm_ict_reference_number,
+    CAST(NULL AS STRING) AS utm_medium,
+    CAST(NULL AS INT64)  AS utm_pageview_count,
+    CAST(NULL AS INT64)  AS utm_session_count,
+    CAST(NULL AS STRING) AS utm_source,
+    CAST(NULL AS STRING) AS utm_term,
+    CAST(NULL AS STRING) AS ga_client_id,
+    CAST(NULL AS STRING) AS ga_user_id,
+    CAST(NULL AS STRING) AS gclid,
+    CAST(NULL AS STRING) AS google_ads
+  FROM `focused-sentry-464713-u0.callrail_meyerpink.callrail_alldata_delta`
+  WHERE REGEXP_CONTAINS(COALESCE(direction, ''), r'(?i)^\s*inbound\s*$')
+),
+ranked_meyerpink AS (
+  SELECT *, ROW_NUMBER() OVER (PARTITION BY call_tracking_unique_id ORDER BY start_datetime DESC) AS row_num
+  FROM base_meyerpink
+),
+
+base_auritmediation AS (
+  SELECT
+    'auritmediation-am1007' AS firm_unique_id,
+    'Aurit Mediation' AS firm_name,
+    CAST(answered AS BOOL) AS answered,
+    direction AS direction,
+    SAFE_CAST(recording_duration AS INT64) AS recording_duration,
+    id AS call_tracking_unique_id,
+    SAFE_CAST(recording_duration AS INT64) AS call_recording_duration,
+    COALESCE(
+      SAFE.PARSE_TIMESTAMP('%Y-%m-%dT%H:%M:%E*S%Ez', TRIM(CAST(start_time AS STRING))),
+      SAFE.PARSE_TIMESTAMP('%Y-%m-%d %H:%M:%E*S%Ez', TRIM(CAST(start_time AS STRING))),
+      SAFE.PARSE_TIMESTAMP('%Y-%m-%d %H:%M:%S%Ez',  TRIM(CAST(start_time AS STRING))),
+      CAST(start_time AS TIMESTAMP)
+    ) AS start_datetime,
+    source               AS source,
+    CAST(NULL AS STRING) AS practice_area,
+    CAST(NULL AS STRING) AS marketing_channel,
+    campaign             AS utm_campaign,
+    CAST(NULL AS STRING) AS utm_content,
+    CAST(NULL AS STRING) AS utm_ict_reference_number,
+    medium               AS utm_medium,
+    CAST(NULL AS INT64)  AS utm_pageview_count,
+    CAST(NULL AS INT64)  AS utm_session_count,
+    CAST(NULL AS STRING) AS utm_source,
+    CAST(NULL AS STRING) AS utm_term,
+    CAST(NULL AS STRING) AS ga_client_id,
+    CAST(NULL AS STRING) AS ga_user_id,
+    CAST(NULL AS STRING) AS gclid,
+    CAST(NULL AS STRING) AS google_ads
+  FROM `focused-sentry-464713-u0.callrail_auritmediation.callrail_alldata_delta`
+  WHERE REGEXP_CONTAINS(COALESCE(direction, ''), r'(?i)^\s*inbound\s*$')
+),
+ranked_auritmediation AS (
+  SELECT *, ROW_NUMBER() OVER (PARTITION BY call_tracking_unique_id ORDER BY start_datetime DESC) AS row_num
+  FROM base_auritmediation
+),
+
+base_summit AS (
+  SELECT
+    'sumitfamilylawinc-sfl1006' AS firm_unique_id,
+    'Summit Family Law P.C.' AS firm_name,
+    CAST(answered AS BOOL) AS answered,
+    direction,
+    SAFE_CAST(duration AS INT64) AS recording_duration,
+    id AS call_tracking_unique_id,
+    SAFE_CAST(recording_duration AS INT64) AS call_recording_duration,
+    COALESCE(
+      SAFE.PARSE_TIMESTAMP('%Y-%m-%dT%H:%M:%E*S%Ez', TRIM(CAST(start_time AS STRING))),
+      SAFE.PARSE_TIMESTAMP('%Y-%m-%d %H:%M:%E*S%Ez', TRIM(CAST(start_time AS STRING))),
+      SAFE.PARSE_TIMESTAMP('%Y-%m-%d %H:%M:%S%Ez',  TRIM(CAST(start_time AS STRING))),
+      CAST(start_time AS TIMESTAMP)
+    ) AS start_datetime,
+    CAST(NULL AS STRING) AS source,
+    CAST(NULL AS STRING) AS practice_area,
+    CAST(NULL AS STRING) AS marketing_channel,
+    CAST(NULL AS STRING) AS utm_campaign,
+    CAST(NULL AS STRING) AS utm_content,
+    CAST(NULL AS STRING) AS utm_ict_reference_number,
+    CAST(NULL AS STRING) AS utm_medium,
+    CAST(NULL AS INT64)  AS utm_pageview_count,
+    CAST(NULL AS INT64)  AS utm_session_count,
+    CAST(NULL AS STRING) AS utm_source,
+    CAST(NULL AS STRING) AS utm_term,
+    CAST(NULL AS STRING) AS ga_client_id,
+    CAST(NULL AS STRING) AS ga_user_id,
+    CAST(NULL AS STRING) AS gclid,
+    CAST(NULL AS STRING) AS google_ads
+  FROM `focused-sentry-464713-u0.callrail_summit.callrail_alldata_delta`
+  WHERE REGEXP_CONTAINS(COALESCE(direction, ''), r'(?i)^\s*inbound\s*$')
+),
+ranked_summit AS (
+  SELECT *, ROW_NUMBER() OVER (PARTITION BY call_tracking_unique_id ORDER BY start_datetime DESC) AS row_num
+  FROM base_summit
+),
+
+base_brucelaw AS (
+  SELECT
+    'Brucelaw-blg-1003' AS firm_unique_id,
+    'Bruce Law' AS firm_name,
+    CAST(answered AS BOOL) AS answered,
+    direction,
+    COALESCE(SAFE_CAST(duration AS INT64), SAFE_CAST(recording_duration AS INT64)) AS recording_duration,
+    id AS call_tracking_unique_id,
+    SAFE_CAST(recording_duration AS INT64) AS call_recording_duration,
+    COALESCE(
+      SAFE.PARSE_TIMESTAMP('%Y-%m-%dT%H:%M:%E*S%Ez', TRIM(CAST(start_time AS STRING))),
+      SAFE.PARSE_TIMESTAMP('%Y-%m-%d %H:%M:%E*S%Ez', TRIM(CAST(start_time AS STRING))),
+      SAFE.PARSE_TIMESTAMP('%Y-%m-%d %H:%M:%S%Ez',  TRIM(CAST(start_time AS STRING))),
+      CAST(start_time AS TIMESTAMP)
+    ) AS start_datetime,
+    source               AS source,
+    CAST(NULL AS STRING) AS practice_area,
+    CAST(NULL AS STRING) AS marketing_channel,
+    CAST(NULL AS STRING) AS utm_campaign,
+    CAST(NULL AS STRING) AS utm_content,
+    CAST(NULL AS STRING) AS utm_ict_reference_number,
+    CAST(NULL AS STRING) AS utm_medium,
+    CAST(NULL AS INT64)  AS utm_pageview_count,
+    CAST(NULL AS INT64)  AS utm_session_count,
+    CAST(NULL AS STRING) AS utm_source,
+    CAST(NULL AS STRING) AS utm_term,
+    CAST(NULL AS STRING) AS ga_client_id,
+    CAST(NULL AS STRING) AS ga_user_id,
+    CAST(NULL AS STRING) AS gclid,
+    CAST(NULL AS STRING) AS google_ads
+  FROM `focused-sentry-464713-u0.callrail_brucelaw.callrail_alldata_delta`
+  WHERE REGEXP_CONTAINS(COALESCE(direction, ''), r'(?i)^\s*inbound\s*$')
+),
+ranked_brucelaw AS (
+  SELECT *, ROW_NUMBER() OVER (PARTITION BY call_tracking_unique_id ORDER BY start_datetime DESC) AS row_num
+  FROM base_brucelaw
+),
+
+base_drakelaw AS (
+  SELECT
+    'drakelaw-dl1008' AS firm_unique_id,
+    'Drake Law' AS firm_name,
+    CAST(answered AS BOOL) AS answered,
+    direction,
+    COALESCE(SAFE_CAST(duration AS INT64), SAFE_CAST(recording_duration AS INT64)) AS recording_duration,
+    id AS call_tracking_unique_id,
+    SAFE_CAST(recording_duration AS INT64) AS call_recording_duration,
+    COALESCE(
+      SAFE.PARSE_TIMESTAMP('%Y-%m-%dT%H:%M:%E*S%Ez', TRIM(CAST(start_time AS STRING))),
+      SAFE.PARSE_TIMESTAMP('%Y-%m-%d %H:%M:%E*S%Ez', TRIM(CAST(start_time AS STRING))),
+      SAFE.PARSE_TIMESTAMP('%Y-%m-%d %H:%M:%S%Ez',  TRIM(CAST(start_time AS STRING))),
+      CAST(start_time AS TIMESTAMP)
+    ) AS start_datetime,
+    source               AS source,
+    CAST(NULL AS STRING) AS practice_area,
+    CAST(NULL AS STRING) AS marketing_channel,
+    CAST(NULL AS STRING) AS utm_campaign,
+    CAST(NULL AS STRING) AS utm_content,
+    CAST(NULL AS STRING) AS utm_ict_reference_number,
+    CAST(NULL AS STRING) AS utm_medium,
+    CAST(NULL AS INT64)  AS utm_pageview_count,
+    CAST(NULL AS INT64)  AS utm_session_count,
+    CAST(NULL AS STRING) AS utm_source,
+    CAST(NULL AS STRING) AS utm_term,
+    CAST(NULL AS STRING) AS ga_client_id,
+    CAST(NULL AS STRING) AS ga_user_id,
+    CAST(NULL AS STRING) AS gclid,
+    CAST(NULL AS STRING) AS google_ads
+  FROM `focused-sentry-464713-u0.callrail_drakelaw.callrail_alldata_delta`
+  WHERE REGEXP_CONTAINS(COALESCE(direction, ''), r'(?i)^\s*inbound\s*$')
+),
+ranked_drakelaw AS (
+  SELECT *, ROW_NUMBER() OVER (PARTITION BY call_tracking_unique_id ORDER BY start_datetime DESC) AS row_num
+  FROM base_drakelaw
+),
+
+base_haffner AS (
+  SELECT
+    'haffner-haffner1009' AS firm_unique_id,
+    'Haffner Law' AS firm_name,
+    CAST(LOWER(call_status) = 'answered' AS BOOL) AS answered,
+    direction,
+    SAFE_CAST(duration AS INT64) AS recording_duration,
+    sid AS call_tracking_unique_id,
+    CAST(NULL AS INT64) AS call_recording_duration,
+    COALESCE(
+      SAFE.PARSE_TIMESTAMP('%Y-%m-%d %I:%M %p %Ez', TRIM(CAST(called_at AS STRING))),
+      SAFE.PARSE_TIMESTAMP('%Y-%m-%d %I:%M %p %z',  TRIM(CAST(called_at AS STRING))),
+      SAFE.PARSE_TIMESTAMP('%Y-%m-%d %I:%M:%S %p %Ez', TRIM(CAST(called_at AS STRING))),
+      SAFE.PARSE_TIMESTAMP('%Y-%m-%d %I:%M:%S %p %z',  TRIM(CAST(called_at AS STRING))),
+      SAFE.PARSE_TIMESTAMP('%Y-%m-%dT%H:%M:%E*S%Ez', TRIM(CAST(called_at AS STRING))),
+      SAFE.PARSE_TIMESTAMP('%Y-%m-%d %H:%M:%E*S%Ez', TRIM(CAST(called_at AS STRING))),
+      CAST(called_at AS TIMESTAMP)
+    ) AS start_datetime,
+    CAST(NULL AS STRING) AS source,
+    CAST(NULL AS STRING) AS practice_area,
+    CAST(NULL AS STRING) AS marketing_channel,
+    CAST(NULL AS STRING) AS utm_campaign,
+    CAST(NULL AS STRING) AS utm_content,
+    CAST(NULL AS STRING) AS utm_ict_reference_number,
+    CAST(NULL AS STRING) AS utm_medium,
+    CAST(NULL AS INT64)  AS utm_pageview_count,
+    CAST(NULL AS INT64)  AS utm_session_count,
+    CAST(NULL AS STRING) AS utm_source,
+    CAST(NULL AS STRING) AS utm_term,
+    CAST(NULL AS STRING) AS ga_client_id,
+    CAST(NULL AS STRING) AS ga_user_id,
+    CAST(NULL AS STRING) AS gclid,
+    CAST(NULL AS STRING) AS google_ads
+  FROM `focused-sentry-464713-u0.calltracking_haffner.ctp_initialdata_delta`
+  WHERE REGEXP_CONTAINS(COALESCE(direction, ''), r'(?i)^\s*inbound\s*$')
+),
+ranked_haffner AS (
+  SELECT *, ROW_NUMBER() OVER (PARTITION BY call_tracking_unique_id ORDER BY start_datetime DESC) AS row_num
+  FROM base_haffner
+),
+
+slo_src AS (
+  SELECT
+    t.*,
+    COALESCE(
+      SAFE.TIMESTAMP_SECONDS(SAFE_CAST(unix_time AS INT64)),
+      SAFE.PARSE_TIMESTAMP('%Y-%m-%dT%H:%M:%E*S%Ez', CAST(called_at AS STRING)),
+      SAFE.PARSE_TIMESTAMP('%Y-%m-%d %H:%M:%E*S%Ez', CAST(called_at AS STRING)),
+      SAFE.PARSE_TIMESTAMP('%Y-%m-%d %H:%M:%S',      CAST(called_at AS STRING)),
+      SAFE.PARSE_TIMESTAMP('%Y-%m-%d',               CAST(called_at AS STRING))
+    ) AS called_ts
+  FROM `focused-sentry-464713-u0.calltracking_slo.ctp_initialdata_delta` AS t
+),
+base_slo AS (
+  SELECT
+    'SterlingLawOffice-1010' AS firm_unique_id,
+    'Sterling Lawyers' AS firm_name,
+    CAST(LOWER(call_status) = 'answered' AS BOOL) AS answered,
+    direction,
+    COALESCE(SAFE_CAST(duration AS INT64), 0) AS recording_duration,
+    sid AS call_tracking_unique_id,
+    CAST(NULL AS INT64) AS call_recording_duration,
+    called_ts AS start_datetime,
+    source,
+    CAST(NULL AS STRING) AS practice_area,
+    CAST(NULL AS STRING) AS marketing_channel,
+    CAST(NULL AS STRING) AS utm_campaign,
+    CAST(NULL AS STRING) AS utm_content,
+    CAST(NULL AS STRING) AS utm_ict_reference_number,
+    CAST(NULL AS STRING) AS utm_medium,
+    CAST(NULL AS INT64)  AS utm_pageview_count,
+    CAST(NULL AS INT64)  AS utm_session_count,
+    CAST(NULL AS STRING) AS utm_source,
+    CAST(NULL AS STRING) AS utm_term,
+    CAST(NULL AS STRING) AS ga_client_id,
+    CAST(NULL AS STRING) AS ga_user_id,
+    CAST(NULL AS STRING) AS gclid,
+    CAST(NULL AS STRING) AS google_ads
+  FROM slo_src
+  WHERE
+    called_ts IS NOT NULL
+    AND LOWER(COALESCE(direction, '')) = 'inbound'
+    AND COALESCE(SAFE_CAST(duration AS INT64), 0) >= 4
+    AND source IS NOT NULL
+    AND REGEXP_REPLACE(CAST(source AS STRING), r'[\s\p{Zs}\p{Zl}\p{Zp}]+', '') <> ''
+    AND LOWER(TRIM(source)) NOT IN (
+      'pbn','agent','agent - css','dead nap','consult recordings',
+      'credit card authorization recordings'
+    )
+    AND NOT REGEXP_CONTAINS(LOWER(COALESCE(tag_list, '')), r'\bspam\b')
+    AND EXTRACT(DAYOFWEEK FROM called_ts AT TIME ZONE "America/Chicago") NOT IN (1, 7)
+    AND EXTRACT(HOUR FROM called_ts AT TIME ZONE "America/Chicago") BETWEEN 8 AND 17
+),
+ranked_slo AS (
+  SELECT *, ROW_NUMBER() OVER (PARTITION BY call_tracking_unique_id ORDER BY start_datetime DESC) AS row_num
+  FROM base_slo
+),
+
+base_ramage AS (
+  SELECT
+    'theramagelawgroup-1011' AS firm_unique_id,
+    'The Ramage Law Group' AS firm_name,
+    CAST(answered AS BOOL) AS answered,
+    direction,
+    SAFE_CAST(recording_duration AS INT64) AS recording_duration,
+    id AS call_tracking_unique_id,
+    SAFE_CAST(recording_duration AS INT64) AS call_recording_duration,
+    COALESCE(
+      SAFE.PARSE_TIMESTAMP('%Y-%m-%dT%H:%M:%E*S%Ez', TRIM(CAST(start_time AS STRING))),
+      SAFE.PARSE_TIMESTAMP('%Y-%m-%d %H:%M:%E*S%Ez', TRIM(CAST(start_time AS STRING))),
+      SAFE.PARSE_TIMESTAMP('%Y-%m-%d %H:%M:%S%Ez',  TRIM(CAST(start_time AS STRING))),
+      CAST(start_time AS TIMESTAMP)
+    ) AS start_datetime,
+    source               AS source,
+    CAST(NULL AS STRING) AS practice_area,
+    CAST(NULL AS STRING) AS marketing_channel,
+    CAST(NULL AS STRING) AS utm_campaign,
+    CAST(NULL AS STRING) AS utm_content,
+    CAST(NULL AS STRING) AS utm_ict_reference_number,
+    CAST(NULL AS STRING) AS utm_medium,
+    CAST(NULL AS INT64)  AS utm_pageview_count,
+    CAST(NULL AS INT64)  AS utm_session_count,
+    CAST(NULL AS STRING) AS utm_source,
+    CAST(NULL AS STRING) AS utm_term,
+    CAST(NULL AS STRING) AS ga_client_id,
+    CAST(NULL AS STRING) AS ga_user_id,
+    CAST(NULL AS STRING) AS gclid,
+    CAST(NULL AS STRING) AS google_ads
+  FROM `focused-sentry-464713-u0.callrail_theramagelawgroup.callrail_alldata_delta`
+  WHERE REGEXP_CONTAINS(COALESCE(direction, ''), r'(?i)^\s*inbound\s*$')
+),
+ranked_ramage AS (
+  SELECT *, ROW_NUMBER() OVER (PARTITION BY call_tracking_unique_id ORDER BY start_datetime DESC) AS row_num
+  FROM base_ramage
+),
+
+base_chisholm AS (
+  SELECT
+    'chisholmlawfirm-1012' AS firm_unique_id,
+    'Chisholm Law Firm' AS firm_name,
+    CAST(answered AS BOOL) AS answered,
+    direction,
+    SAFE_CAST(recording_duration AS INT64) AS recording_duration,
+    id AS call_tracking_unique_id,
+    SAFE_CAST(recording_duration AS INT64) AS call_recording_duration,
+    COALESCE(
+      SAFE.PARSE_TIMESTAMP('%Y-%m-%dT%H:%M:%E*S%Ez', TRIM(CAST(start_time AS STRING))),
+      SAFE.PARSE_TIMESTAMP('%Y-%m-%d %H:%M:%E*S%Ez', TRIM(CAST(start_time AS STRING))),
+      SAFE.PARSE_TIMESTAMP('%Y-%m-%d %H:%M:%S%Ez',  TRIM(CAST(start_time AS STRING))),
+      CAST(start_time AS TIMESTAMP)
+    ) AS start_datetime,
+    CAST(NULL AS STRING) AS source,
+    CAST(NULL AS STRING) AS practice_area,
+    CAST(NULL AS STRING) AS marketing_channel,
+    CAST(NULL AS STRING) AS utm_campaign,
+    CAST(NULL AS STRING) AS utm_content,
+    CAST(NULL AS STRING) AS utm_ict_reference_number,
+    CAST(NULL AS STRING) AS utm_medium,
+    CAST(NULL AS INT64)  AS utm_pageview_count,
+    CAST(NULL AS INT64)  AS utm_session_count,
+    CAST(NULL AS STRING) AS utm_source,
+    CAST(NULL AS STRING) AS utm_term,
+    CAST(NULL AS STRING) AS ga_client_id,
+    CAST(NULL AS STRING) AS ga_user_id,
+    CAST(NULL AS STRING) AS gclid,
+    CAST(NULL AS STRING) AS google_ads
+  FROM `focused-sentry-464713-u0.callrail_chisholm.callrail_alldata_delta`
+  WHERE REGEXP_CONTAINS(COALESCE(direction, ''), r'(?i)^\s*inbound\s*$')
+),
+ranked_chisholm AS (
+  SELECT *, ROW_NUMBER() OVER (PARTITION BY call_tracking_unique_id ORDER BY start_datetime DESC) AS row_num
+  FROM base_chisholm
+),
+
+base_kalishjaggars AS (
+  SELECT
+    'kalishandjaggars-1013' AS firm_unique_id,
+    'Kalish And Jaggars' AS firm_name,
+    CAST(LOWER(call_status) = 'answered' AS BOOL) AS answered,
+    direction,
+    SAFE_CAST(duration AS INT64) AS recording_duration,
+    sid AS call_tracking_unique_id,
+    CAST(NULL AS INT64) AS call_recording_duration,
+    COALESCE(
+      SAFE.PARSE_TIMESTAMP('%Y-%m-%d %I:%M %p %Ez', TRIM(CAST(called_at AS STRING))),
+      SAFE.PARSE_TIMESTAMP('%Y-%m-%d %I:%M %p %z',  TRIM(CAST(called_at AS STRING))),
+      SAFE.PARSE_TIMESTAMP('%Y-%m-%d %I:%M:%S %p %Ez', TRIM(CAST(called_at AS STRING))),
+      SAFE.PARSE_TIMESTAMP('%Y-%m-%d %I:%M:%S %p %z',  TRIM(CAST(called_at AS STRING))),
+      SAFE.PARSE_TIMESTAMP('%Y-%m-%dT%H:%M:%E*S%Ez', TRIM(CAST(called_at AS STRING))),
+      SAFE.PARSE_TIMESTAMP('%Y-%m-%d %H:%M:%E*S%Ez', TRIM(CAST(called_at AS STRING))),
+      SAFE.TIMESTAMP(called_at),
+      SAFE.TIMESTAMP_SECONDS(SAFE_CAST(unix_time AS INT64))
+    ) AS start_datetime,
+    CAST(NULL AS STRING) AS source,
+    CAST(NULL AS STRING) AS practice_area,
+    CAST(NULL AS STRING) AS marketing_channel,
+    CAST(NULL AS STRING) AS utm_campaign,
+    CAST(NULL AS STRING) AS utm_content,
+    CAST(NULL AS STRING) AS utm_ict_reference_number,
+    CAST(NULL AS STRING) AS utm_medium,
+    CAST(NULL AS INT64)  AS utm_pageview_count,
+    CAST(NULL AS INT64)  AS utm_session_count,
+    CAST(NULL AS STRING) AS utm_source,
+    CAST(NULL AS STRING) AS utm_term,
+    CAST(NULL AS STRING) AS ga_client_id,
+    CAST(NULL AS STRING) AS ga_user_id,
+    ga.gclid AS gclid,
+    CAST(NULL AS STRING) AS google_ads
+  FROM `focused-sentry-464713-u0.calltracking_kalishandjaggars.ctp_initialdata_delta`
+  WHERE REGEXP_CONTAINS(COALESCE(direction, ''), r'(?i)^\s*inbound\s*$')
+),
+ranked_kalishjaggars AS (
+  SELECT *, ROW_NUMBER() OVER (PARTITION BY call_tracking_unique_id ORDER BY start_datetime DESC) AS row_num
+  FROM base_kalishjaggars
+),
+
+base_fanash AS (
+  SELECT
+    'fanashfamilylaw-1013' AS firm_unique_id,
+    'Fanash Family Law' AS firm_name,
+    CAST(answered AS BOOL) AS answered,
+    direction,
+    SAFE_CAST(duration AS INT64) AS recording_duration,
+    id AS call_tracking_unique_id,
+    SAFE_CAST(recording_duration AS INT64) AS call_recording_duration,
+    COALESCE(
+      SAFE.PARSE_TIMESTAMP('%Y-%m-%dT%H:%M:%E*S%Ez', TRIM(CAST(start_time AS STRING))),
+      SAFE.PARSE_TIMESTAMP('%Y-%m-%d %H:%M:%E*S%Ez', TRIM(CAST(start_time AS STRING))),
+      SAFE.PARSE_TIMESTAMP('%Y-%m-%d %H:%M:%S%Ez',  TRIM(CAST(start_time AS STRING))),
+      CAST(start_time AS TIMESTAMP)
+    ) AS start_datetime,
+    CAST(NULL AS STRING) AS source,
+    CAST(NULL AS STRING) AS practice_area,
+    CAST(NULL AS STRING) AS marketing_channel,
+    CAST(NULL AS STRING) AS utm_campaign,
+    CAST(NULL AS STRING) AS utm_content,
+    CAST(NULL AS STRING) AS utm_ict_reference_number,
+    CAST(NULL AS STRING) AS utm_medium,
+    CAST(NULL AS INT64)  AS utm_pageview_count,
+    CAST(NULL AS INT64)  AS utm_session_count,
+    CAST(NULL AS STRING) AS utm_source,
+    CAST(NULL AS STRING) AS utm_term,
+    CAST(NULL AS STRING) AS ga_client_id,
+    CAST(NULL AS STRING) AS ga_user_id,
+    CAST(NULL AS STRING) AS gclid,
+    CAST(NULL AS STRING) AS google_ads
+  FROM `focused-sentry-464713-u0.callrail_fanashfamilylaw.callrail_alldata_delta`
+  WHERE REGEXP_CONTAINS(COALESCE(direction, ''), r'(?i)^\s*inbound\s*$')
+),
+ranked_fanash AS (
+  SELECT *, ROW_NUMBER() OVER (PARTITION BY call_tracking_unique_id ORDER BY start_datetime DESC) AS row_num
+  FROM base_fanash
+),
+
+base_arizonafamilylaw AS (
+  SELECT
+    'arizonafamilylaw-1015' AS firm_unique_id,
+    'Arizona Family Law' AS firm_name,
+    CAST(answered AS BOOL) AS answered,
+    direction,
+    SAFE_CAST(duration AS INT64) AS recording_duration,
+    id AS call_tracking_unique_id,
+    SAFE_CAST(recording_duration AS INT64) AS call_recording_duration,
+    COALESCE(
+      SAFE.PARSE_TIMESTAMP('%Y-%m-%dT%H:%M:%E*S%Ez', TRIM(CAST(start_time AS STRING))),
+      SAFE.PARSE_TIMESTAMP('%Y-%m-%d %H:%M:%E*S%Ez', TRIM(CAST(start_time AS STRING))),
+      SAFE.PARSE_TIMESTAMP('%Y-%m-%d %H:%M:%S%Ez',  TRIM(CAST(start_time AS STRING))),
+      CAST(start_time AS TIMESTAMP)
+    ) AS start_datetime,
+    source,
+    CAST(NULL AS STRING) AS practice_area,
+    CAST(NULL AS STRING) AS marketing_channel,
+    utm_campaign,
+    utm_content,
+    CAST(NULL AS STRING) AS utm_ict_reference_number,
+    CAST(NULL AS STRING) AS utm_medium,
+    CAST(NULL AS INT64)  AS utm_pageview_count,
+    CAST(NULL AS INT64)  AS utm_session_count,
+    utm_source,
+    utm_term,
+    gclid,
+    CAST(NULL AS STRING) AS ga_client_id,
+    CAST(NULL AS STRING) AS ga_user_id,
+    CAST(NULL AS STRING) AS google_ads
+  FROM `focused-sentry-464713-u0.callrail_arizonafamilylaw.callrail_alldata_delta`
+  WHERE REGEXP_CONTAINS(COALESCE(direction, ''), r'(?i)^\s*inbound\s*$')
+),
+ranked_arizonafamilylaw AS (
+  SELECT *, ROW_NUMBER() OVER (PARTITION BY call_tracking_unique_id ORDER BY start_datetime DESC) AS row_num
+  FROM base_arizonafamilylaw
+),
+
+base_johnsonlawgroup AS (
+  SELECT
+    'johnsonlawgroup-1016' AS firm_unique_id,
+    'Johnson Law group' AS firm_name,
+    CAST(answered AS BOOL) AS answered,
+    direction,
+    SAFE_CAST(duration AS INT64) AS recording_duration,
+    id AS call_tracking_unique_id,
+    SAFE_CAST(recording_duration AS INT64) AS call_recording_duration,
+    COALESCE(
+      SAFE.PARSE_TIMESTAMP('%Y-%m-%dT%H:%M:%E*S%Ez', TRIM(CAST(start_time AS STRING))),
+      SAFE.PARSE_TIMESTAMP('%Y-%m-%d %H:%M:%E*S%Ez', TRIM(CAST(start_time AS STRING))),
+      SAFE.PARSE_TIMESTAMP('%Y-%m-%d %H:%M:%S%Ez',  TRIM(CAST(start_time AS STRING))),
+      CAST(start_time AS TIMESTAMP)
+    ) AS start_datetime,
+    source               AS source,
+    CAST(NULL AS STRING) AS practice_area,
+    CAST(NULL AS STRING) AS marketing_channel,
+    utm_campaign         AS utm_campaign,
+    utm_content          AS utm_content,
+    CAST(NULL AS STRING) AS utm_ict_reference_number,
+    utm_medium           AS utm_medium,
+    CAST(NULL AS INT64)  AS utm_pageview_count,
+    CAST(NULL AS INT64)  AS utm_session_count,
+    utm_source           AS utm_source,
+    utm_term             AS utm_term,
+    CAST(NULL AS STRING) AS ga_client_id,
+    CAST(NULL AS STRING) AS ga_user_id,
+    gclid                AS gclid,
+    CAST(NULL AS STRING) AS google_ads
+  FROM `focused-sentry-464713-u0.callrail_johnsonlawgroup.callrail_initialdata_delta`
+  WHERE REGEXP_CONTAINS(COALESCE(direction, ''), r'(?i)^\s*inbound\s*$')
+),
+ranked_johnsonlawgroup AS (
+  SELECT *, ROW_NUMBER() OVER (PARTITION BY call_tracking_unique_id ORDER BY start_datetime DESC) AS row_num
+  FROM base_johnsonlawgroup
+),
+
+base_cutrer AS (
+  SELECT
+    'cutrerlaw-1017' AS firm_unique_id,
+    'Cutrer Law' AS firm_name,
+    CAST(answered_bef43a30 AS BOOL) AS answered,
+    direction_ef72c37b AS direction,
+    SAFE_CAST(duration_b85ec314 AS INT64) AS recording_duration,
+    id_b80bb774 AS call_tracking_unique_id,
+    SAFE_CAST(recording_duration_e6d52b77 AS INT64) AS call_recording_duration,
+    COALESCE(
+      SAFE.PARSE_TIMESTAMP('%Y-%m-%dT%H:%M:%E*S%Ez', TRIM(CAST(start_time_c4d98dbd AS STRING))),
+      SAFE.PARSE_TIMESTAMP('%Y-%m-%d %H:%M:%E*S%Ez', TRIM(CAST(start_time_c4d98dbd AS STRING))),
+      SAFE.PARSE_TIMESTAMP('%Y-%m-%d %H:%M:%S%Ez',  TRIM(CAST(start_time_c4d98dbd AS STRING))),
+      CAST(start_time_c4d98dbd AS TIMESTAMP)
+    ) AS start_datetime,
+    source_36cd38f4      AS source,
+    CAST(NULL AS STRING) AS practice_area,
+    CAST(NULL AS STRING) AS marketing_channel,
+    CAST(NULL AS STRING) AS utm_campaign,
+    CAST(NULL AS STRING) AS utm_content,
+    CAST(NULL AS STRING) AS utm_ict_reference_number,
+    CAST(NULL AS STRING) AS utm_medium,
+    CAST(NULL AS INT64)  AS utm_pageview_count,
+    CAST(NULL AS INT64)  AS utm_session_count,
+    CAST(NULL AS STRING) AS utm_source,
+    CAST(NULL AS STRING) AS utm_term,
+    CAST(NULL AS STRING) AS ga_client_id,
+    CAST(NULL AS STRING) AS ga_user_id,
+    CAST(NULL AS STRING) AS gclid,
+    CAST(NULL AS STRING) AS google_ads
+  FROM `focused-sentry-464713-u0.callrail_cutrer.callrail_alldata_delta`
+  WHERE REGEXP_CONTAINS(COALESCE(direction_ef72c37b, ''), r'(?i)^\s*inbound\s*$')
+),
+ranked_cutrer AS (
+  SELECT *, ROW_NUMBER() OVER (PARTITION BY call_tracking_unique_id ORDER BY start_datetime DESC) AS row_num
+  FROM base_cutrer
+),
+
+base_lancaster AS (
+  SELECT
+    'lancaster-1023' AS firm_unique_id,
+    'Lancaster Law Group' AS firm_name,
+    CAST(answered AS BOOL) AS answered,
+    direction,
+    SAFE_CAST(duration AS INT64) AS recording_duration,
+    id AS call_tracking_unique_id,
+    SAFE_CAST(recording_duration AS INT64) AS call_recording_duration,
+    COALESCE(
+      SAFE.PARSE_TIMESTAMP('%Y-%m-%dT%H:%M:%E*S%Ez', TRIM(CAST(start_time AS STRING))),
+      SAFE.PARSE_TIMESTAMP('%Y-%m-%d %H:%M:%E*S%Ez', TRIM(CAST(start_time AS STRING))),
+      SAFE.PARSE_TIMESTAMP('%Y-%m-%d %H:%M:%S%Ez',  TRIM(CAST(start_time AS STRING))),
+      CAST(start_time AS TIMESTAMP)
+    ) AS start_datetime,
+    source               AS source,
+    CAST(NULL AS STRING) AS practice_area,
+    CAST(NULL AS STRING) AS marketing_channel,
+    CAST(NULL AS STRING) AS utm_campaign,
+    CAST(NULL AS STRING) AS utm_content,
+    CAST(NULL AS STRING) AS utm_ict_reference_number,
+    CAST(NULL AS STRING) AS utm_medium,
+    CAST(NULL AS INT64)  AS utm_pageview_count,
+    CAST(NULL AS INT64)  AS utm_session_count,
+    CAST(NULL AS STRING) AS utm_source,
+    CAST(NULL AS STRING) AS utm_term,
+    CAST(NULL AS STRING) AS ga_client_id,
+    CAST(NULL AS STRING) AS ga_user_id,
+    CAST(NULL AS STRING) AS gclid,
+    CAST(NULL AS STRING) AS google_ads
+  FROM `focused-sentry-464713-u0.callrail_lancaster.callrail_alldata_delta`
+  WHERE REGEXP_CONTAINS(COALESCE(direction, ''), r'(?i)^\s*inbound\s*$')
+),
+ranked_lancaster AS (
+  SELECT *, ROW_NUMBER() OVER (PARTITION BY call_tracking_unique_id ORDER BY start_datetime DESC) AS row_num
+  FROM base_lancaster
+),
+
+base_ireland AS (
+  SELECT
+    'irelandandassociates-1021' AS firm_unique_id,
+    'Ireland and Associates' AS firm_name,
+    REGEXP_CONTAINS(LOWER(COALESCE(release_cause, '')), r'bye') AS answered,
+    call_type AS direction,
+    SAFE_CAST(duration AS INT64) AS recording_duration,
+    call_id AS call_tracking_unique_id,
+    SAFE_CAST(duration AS INT64) AS call_recording_duration,
+    CAST(call_begin AS TIMESTAMP) AS start_datetime,
+    CAST(NULL AS STRING) AS source,
+    CAST(NULL AS STRING) AS practice_area,
+    CAST(NULL AS STRING) AS marketing_channel,
+    CAST(NULL AS STRING) AS utm_campaign,
+    CAST(NULL AS STRING) AS utm_content,
+    CAST(NULL AS STRING) AS utm_ict_reference_number,
+    CAST(NULL AS STRING) AS utm_medium,
+    CAST(NULL AS INT64)  AS utm_pageview_count,
+    CAST(NULL AS INT64)  AS utm_session_count,
+    CAST(NULL AS STRING) AS utm_source,
+    CAST(NULL AS STRING) AS utm_term,
+    CAST(NULL AS STRING) AS ga_client_id,
+    CAST(NULL AS STRING) AS ga_user_id,
+    CAST(NULL AS STRING) AS gclid,
+    CAST(NULL AS STRING) AS google_ads
+  FROM `focused-sentry-464713-u0.wave_ireland.wave_alldata_delta`
+  WHERE REGEXP_CONTAINS(COALESCE(call_type, ''), r'(?i)^\s*inbound\s*$')
+),
+ranked_ireland AS (
+  SELECT *, ROW_NUMBER() OVER (PARTITION BY call_tracking_unique_id ORDER BY start_datetime DESC) AS row_num
+  FROM base_ireland
+),
+
+base_tde AS (
+  SELECT
+    'tdefamilylaw-1024' AS firm_unique_id,
+    'Tessie D. Edwards & Associates Family Law' AS firm_name,
+    CAST(answered AS BOOL) AS answered,
+    direction,
+    SAFE_CAST(duration AS INT64) AS recording_duration,
+    id AS call_tracking_unique_id,
+    SAFE_CAST(recording_duration AS INT64) AS call_recording_duration,
+    COALESCE(
+      SAFE.PARSE_TIMESTAMP('%Y-%m-%dT%H:%M:%E*S%Ez', TRIM(CAST(start_time AS STRING))),
+      SAFE.PARSE_TIMESTAMP('%Y-%m-%d %H:%M:%E*S%Ez', TRIM(CAST(start_time AS STRING))),
+      SAFE.PARSE_TIMESTAMP('%Y-%m-%d %H:%M:%S%Ez',  TRIM(CAST(start_time AS STRING))),
+      CAST(start_time AS TIMESTAMP)
+    ) AS start_datetime,
+    source               AS source,
+    CAST(NULL AS STRING) AS practice_area,
+    CAST(NULL AS STRING) AS marketing_channel,
+    utm_campaign         AS utm_campaign,
+    utm_content          AS utm_content,
+    CAST(NULL AS STRING) AS utm_ict_reference_number,
+    utm_medium           AS utm_medium,
+    CAST(NULL AS INT64)  AS utm_pageview_count,
+    CAST(NULL AS INT64)  AS utm_session_count,
+    utm_source           AS utm_source,
+    utm_term             AS utm_term,
+    CAST(NULL AS STRING) AS ga_client_id,
+    CAST(NULL AS STRING) AS ga_user_id,
+    gclid                AS gclid,
+    CAST(NULL AS STRING) AS google_ads
+  FROM `focused-sentry-464713-u0.callrail_tde.callrail_alldata_delta`
+  WHERE REGEXP_CONTAINS(COALESCE(direction, ''), r'(?i)^\s*inbound\s*$')
+),
+ranked_tde AS (
+  SELECT *, ROW_NUMBER() OVER (PARTITION BY call_tracking_unique_id ORDER BY start_datetime DESC) AS row_num
+  FROM base_tde
+),
+
+unioned AS (
+  SELECT firm_unique_id, firm_name, answered, direction, recording_duration,
+         call_tracking_unique_id, call_recording_duration, start_datetime,
+         source, practice_area, marketing_channel, utm_campaign, utm_content,
+         utm_ict_reference_number, utm_medium, utm_pageview_count, utm_session_count,
+         utm_source, utm_term, ga_client_id, ga_user_id, gclid, google_ads
+  FROM ranked_vdl WHERE row_num = 1
+  UNION ALL SELECT firm_unique_id, firm_name, answered, direction, recording_duration,
+         call_tracking_unique_id, call_recording_duration, start_datetime,
+         source, practice_area, marketing_channel, utm_campaign, utm_content,
+         utm_ict_reference_number, utm_medium, utm_pageview_count, utm_session_count,
+         utm_source, utm_term, ga_client_id, ga_user_id, gclid, google_ads
+  FROM ranked_smb WHERE row_num = 1
+  UNION ALL SELECT firm_unique_id, firm_name, answered, direction, recording_duration,
+         call_tracking_unique_id, call_recording_duration, start_datetime,
+         source, practice_area, marketing_channel, utm_campaign, utm_content,
+         utm_ict_reference_number, utm_medium, utm_pageview_count, utm_session_count,
+         utm_source, utm_term, ga_client_id, ga_user_id, gclid, google_ads
+  FROM ranked_rosenblum WHERE row_num = 1
+  UNION ALL SELECT firm_unique_id, firm_name, answered, direction, recording_duration,
+         call_tracking_unique_id, call_recording_duration, start_datetime,
+         source, practice_area, marketing_channel, utm_campaign, utm_content,
+         utm_ict_reference_number, utm_medium, utm_pageview_count, utm_session_count,
+         utm_source, utm_term, ga_client_id, ga_user_id, gclid, google_ads
+  FROM ranked_meyerpink WHERE row_num = 1
+  UNION ALL SELECT firm_unique_id, firm_name, answered, direction, recording_duration,
+         call_tracking_unique_id, call_recording_duration, start_datetime,
+         source, practice_area, marketing_channel, utm_campaign, utm_content,
+         utm_ict_reference_number, utm_medium, utm_pageview_count, utm_session_count,
+         utm_source, utm_term, ga_client_id, ga_user_id, gclid, google_ads
+  FROM ranked_auritmediation WHERE row_num = 1
+  UNION ALL SELECT firm_unique_id, firm_name, answered, direction, recording_duration,
+         call_tracking_unique_id, call_recording_duration, start_datetime,
+         source, practice_area, marketing_channel, utm_campaign, utm_content,
+         utm_ict_reference_number, utm_medium, utm_pageview_count, utm_session_count,
+         utm_source, utm_term, ga_client_id, ga_user_id, gclid, google_ads
+  FROM ranked_summit WHERE row_num = 1
+  UNION ALL SELECT firm_unique_id, firm_name, answered, direction, recording_duration,
+         call_tracking_unique_id, call_recording_duration, start_datetime,
+         source, practice_area, marketing_channel, utm_campaign, utm_content,
+         utm_ict_reference_number, utm_medium, utm_pageview_count, utm_session_count,
+         utm_source, utm_term, ga_client_id, ga_user_id, gclid, google_ads
+  FROM ranked_brucelaw WHERE row_num = 1
+  UNION ALL SELECT firm_unique_id, firm_name, answered, direction, recording_duration,
+         call_tracking_unique_id, call_recording_duration, start_datetime,
+         source, practice_area, marketing_channel, utm_campaign, utm_content,
+         utm_ict_reference_number, utm_medium, utm_pageview_count, utm_session_count,
+         utm_source, utm_term, ga_client_id, ga_user_id, gclid, google_ads
+  FROM ranked_drakelaw WHERE row_num = 1
+  UNION ALL SELECT firm_unique_id, firm_name, answered, direction, recording_duration,
+         call_tracking_unique_id, call_recording_duration, start_datetime,
+         source, practice_area, marketing_channel, utm_campaign, utm_content,
+         utm_ict_reference_number, utm_medium, utm_pageview_count, utm_session_count,
+         utm_source, utm_term, ga_client_id, ga_user_id, gclid, google_ads
+  FROM ranked_haffner WHERE row_num = 1
+  UNION ALL SELECT firm_unique_id, firm_name, answered, direction, recording_duration,
+         call_tracking_unique_id, call_recording_duration, start_datetime,
+         source, practice_area, marketing_channel, utm_campaign, utm_content,
+         utm_ict_reference_number, utm_medium, utm_pageview_count, utm_session_count,
+         utm_source, utm_term, ga_client_id, ga_user_id, gclid, google_ads
+  FROM ranked_slo WHERE row_num = 1
+  UNION ALL SELECT firm_unique_id, firm_name, answered, direction, recording_duration,
+         call_tracking_unique_id, call_recording_duration, start_datetime,
+         source, practice_area, marketing_channel, utm_campaign, utm_content,
+         utm_ict_reference_number, utm_medium, utm_pageview_count, utm_session_count,
+         utm_source, utm_term, ga_client_id, ga_user_id, gclid, google_ads
+  FROM ranked_ramage WHERE row_num = 1
+  UNION ALL SELECT firm_unique_id, firm_name, answered, direction, recording_duration,
+         call_tracking_unique_id, call_recording_duration, start_datetime,
+         source, practice_area, marketing_channel, utm_campaign, utm_content,
+         utm_ict_reference_number, utm_medium, utm_pageview_count, utm_session_count,
+         utm_source, utm_term, ga_client_id, ga_user_id, gclid, google_ads
+  FROM ranked_chisholm WHERE row_num = 1
+  UNION ALL SELECT firm_unique_id, firm_name, answered, direction, recording_duration,
+         call_tracking_unique_id, call_recording_duration, start_datetime,
+         source, practice_area, marketing_channel, utm_campaign, utm_content,
+         utm_ict_reference_number, utm_medium, utm_pageview_count, utm_session_count,
+         utm_source, utm_term, ga_client_id, ga_user_id, gclid, google_ads
+  FROM ranked_kalishjaggars WHERE row_num = 1
+  UNION ALL SELECT firm_unique_id, firm_name, answered, direction, recording_duration,
+         call_tracking_unique_id, call_recording_duration, start_datetime,
+         source, practice_area, marketing_channel, utm_campaign, utm_content,
+         utm_ict_reference_number, utm_medium, utm_pageview_count, utm_session_count,
+         utm_source, utm_term, ga_client_id, ga_user_id, gclid, google_ads
+  FROM ranked_fanash WHERE row_num = 1
+  UNION ALL SELECT firm_unique_id, firm_name, answered, direction, recording_duration,
+         call_tracking_unique_id, call_recording_duration, start_datetime,
+         source, practice_area, marketing_channel, utm_campaign, utm_content,
+         utm_ict_reference_number, utm_medium, utm_pageview_count, utm_session_count,
+         utm_source, utm_term, ga_client_id, ga_user_id, gclid, google_ads
+  FROM ranked_arizonafamilylaw WHERE row_num = 1
+  UNION ALL SELECT firm_unique_id, firm_name, answered, direction, recording_duration,
+         call_tracking_unique_id, call_recording_duration, start_datetime,
+         source, practice_area, marketing_channel, utm_campaign, utm_content,
+         utm_ict_reference_number, utm_medium, utm_pageview_count, utm_session_count,
+         utm_source, utm_term, ga_client_id, ga_user_id, gclid, google_ads
+  FROM ranked_johnsonlawgroup WHERE row_num = 1
+  UNION ALL SELECT firm_unique_id, firm_name, answered, direction, recording_duration,
+         call_tracking_unique_id, call_recording_duration, start_datetime,
+         source, practice_area, marketing_channel, utm_campaign, utm_content,
+         utm_ict_reference_number, utm_medium, utm_pageview_count, utm_session_count,
+         utm_source, utm_term, ga_client_id, ga_user_id, gclid, google_ads
+  FROM ranked_cutrer WHERE row_num = 1
+  UNION ALL SELECT firm_unique_id, firm_name, answered, direction, recording_duration,
+         call_tracking_unique_id, call_recording_duration, start_datetime,
+         source, practice_area, marketing_channel, utm_campaign, utm_content,
+         utm_ict_reference_number, utm_medium, utm_pageview_count, utm_session_count,
+         utm_source, utm_term, ga_client_id, ga_user_id, gclid, google_ads
+  FROM ranked_lancaster WHERE row_num = 1
+  UNION ALL SELECT firm_unique_id, firm_name, answered, direction, recording_duration,
+         call_tracking_unique_id, call_recording_duration, start_datetime,
+         source, practice_area, marketing_channel, utm_campaign, utm_content,
+         utm_ict_reference_number, utm_medium, utm_pageview_count, utm_session_count,
+         utm_source, utm_term, ga_client_id, ga_user_id, gclid, google_ads
+  FROM ranked_ireland WHERE row_num = 1
+  UNION ALL SELECT firm_unique_id, firm_name, answered, direction, recording_duration,
+         call_tracking_unique_id, call_recording_duration, start_datetime,
+         source, practice_area, marketing_channel, utm_campaign, utm_content,
+         utm_ict_reference_number, utm_medium, utm_pageview_count, utm_session_count,
+         utm_source, utm_term, ga_client_id, ga_user_id, gclid, google_ads
+  FROM ranked_tde WHERE row_num = 1
+),
+
+marketing_dir AS (
+  SELECT
+    Firm_Unique_ID,
+    CASE
+      WHEN ctp_number IS NULL THEN NULL
+      ELSE
+        CASE
+          WHEN LENGTH(REGEXP_REPLACE(CAST(ctp_number AS STRING), r'\D', '')) > 10
+            THEN RIGHT(REGEXP_REPLACE(CAST(ctp_number AS STRING), r'\D', ''), 10)
+          ELSE REGEXP_REPLACE(CAST(ctp_number AS STRING), r'\D', '')
+        END
+    END AS normalized_ctp_number,
+    ctp_number,
+    ctp_label,
+    ctp_source,
+    forward_calls_to,
+    channel
+  FROM `rc-datamart-report-082025.waterfall_marketing_channel.universal_firm_marketing_channel`
+),
+
+unioned_with_numbers AS (
+  SELECT
+    u.*,
+    COALESCE(
+      cr_vdl.formatted_tracking_phone_number,
+      cr_smb.formatted_tracking_phone_number,
+      cr_meyerpink.formatted_tracking_phone_number,
+      cr_aurit.formatted_tracking_phone_number,
+      cr_summit.formatted_tracking_phone_number,
+      cr_bruce.formatted_tracking_phone_number,
+      cr_drake.formatted_tracking_phone_number,
+      cr_ramage.formatted_tracking_phone_number,
+      cr_chisholm.formatted_tracking_phone_number,
+      cr_fanash.formatted_tracking_phone_number,
+      cr_arizona.formatted_tracking_phone_number,
+      cr_johnson.formatted_tracking_phone_number,
+      cr_cutrer.formatted_tracking_phone_number,
+      cr_lancaster.formatted_tracking_phone_number,
+      wv_ireland.dialed_number,
+      ct_rosenblum.tracking_number_bare,
+      ct_haffner.tracking_number_bare,
+      ct_slo.tracking_number_bare,
+      ct_kalish.tracking_number_bare
+    ) AS tracking_number_source
+  FROM unioned u
+  LEFT JOIN `focused-sentry-464713-u0.callrail_vdl.callrail_alldata_delta` AS cr_vdl
+    ON u.firm_unique_id = 'VDL-vdl1001' AND cr_vdl.id = u.call_tracking_unique_id
+  LEFT JOIN `focused-sentry-464713-u0.callrail_smb.callrail_alldata_delta` AS cr_smb
+    ON u.firm_unique_id = 'SMB-smb1002' AND cr_smb.id = u.call_tracking_unique_id
+  LEFT JOIN `focused-sentry-464713-u0.calltracking_rosenblum.ctp_initialdata_delta` AS ct_rosenblum
+    ON u.firm_unique_id = 'Rosenblum-ral1004' AND ct_rosenblum.sid = u.call_tracking_unique_id
+  LEFT JOIN `focused-sentry-464713-u0.callrail_meyerpink.callrail_alldata_delta` AS cr_meyerpink
+    ON u.firm_unique_id = 'meyerpinklaw-mpl1005' AND cr_meyerpink.id = u.call_tracking_unique_id
+  LEFT JOIN `focused-sentry-464713-u0.callrail_auritmediation.callrail_alldata_delta` AS cr_aurit
+    ON u.firm_unique_id = 'auritmediation-am1007' AND cr_aurit.id = u.call_tracking_unique_id
+  LEFT JOIN `focused-sentry-464713-u0.callrail_summit.callrail_alldata_delta` AS cr_summit
+    ON u.firm_unique_id = 'sumitfamilylawinc-sfl1006' AND cr_summit.id = u.call_tracking_unique_id
+  LEFT JOIN `focused-sentry-464713-u0.callrail_brucelaw.callrail_alldata_delta` AS cr_bruce
+    ON u.firm_unique_id = 'Brucelaw-blg-1003' AND cr_bruce.id = u.call_tracking_unique_id
+  LEFT JOIN `focused-sentry-464713-u0.callrail_drakelaw.callrail_alldata_delta` AS cr_drake
+    ON u.firm_unique_id = 'drakelaw-dl1008' AND cr_drake.id = u.call_tracking_unique_id
+  LEFT JOIN `focused-sentry-464713-u0.calltracking_haffner.ctp_initialdata_delta` AS ct_haffner
+    ON u.firm_unique_id = 'haffner-haffner1009' AND ct_haffner.sid = u.call_tracking_unique_id
+  LEFT JOIN `focused-sentry-464713-u0.calltracking_slo.ctp_initialdata_delta` AS ct_slo
+    ON u.firm_unique_id = 'SterlingLawOffice-1010' AND ct_slo.sid = u.call_tracking_unique_id
+  LEFT JOIN `focused-sentry-464713-u0.callrail_theramagelawgroup.callrail_alldata_delta` AS cr_ramage
+    ON u.firm_unique_id = 'theramagelawgroup-1011' AND cr_ramage.id = u.call_tracking_unique_id
+  LEFT JOIN `focused-sentry-464713-u0.callrail_chisholm.callrail_alldata_delta` AS cr_chisholm
+    ON u.firm_unique_id = 'chisholmlawfirm-1012' AND cr_chisholm.id = u.call_tracking_unique_id
+  LEFT JOIN `focused-sentry-464713-u0.calltracking_kalishandjaggars.ctp_initialdata_delta` AS ct_kalish
+    ON u.firm_unique_id = 'kalishandjaggars-1013' AND ct_kalish.sid = u.call_tracking_unique_id
+  LEFT JOIN `focused-sentry-464713-u0.callrail_fanashfamilylaw.callrail_alldata_delta` AS cr_fanash
+    ON u.firm_unique_id = 'fanashfamilylaw-1013' AND cr_fanash.id = u.call_tracking_unique_id
+  LEFT JOIN `focused-sentry-464713-u0.callrail_arizonafamilylaw.callrail_alldata_delta` AS cr_arizona
+    ON u.firm_unique_id = 'arizonafamilylaw-1015' AND cr_arizona.id = u.call_tracking_unique_id
+  LEFT JOIN `focused-sentry-464713-u0.callrail_johnsonlawgroup.callrail_initialdata_delta` AS cr_johnson
+    ON u.firm_unique_id = 'johnsonlawgroup-1016' AND cr_johnson.id = u.call_tracking_unique_id
+  LEFT JOIN `focused-sentry-464713-u0.callrail_cutrer.callrail_alldata_delta` AS cr_cutrer
+    ON u.firm_unique_id = 'cutrerlaw-1017' AND cr_cutrer.id_b80bb774 = u.call_tracking_unique_id
+  LEFT JOIN `focused-sentry-464713-u0.callrail_lancaster.callrail_alldata_delta` AS cr_lancaster
+    ON u.firm_unique_id = 'lancaster-1023' AND cr_lancaster.id = u.call_tracking_unique_id
+  LEFT JOIN `focused-sentry-464713-u0.wave_ireland.wave_alldata_delta` AS wv_ireland
+    ON u.firm_unique_id = 'irelandandassociates-1021' AND wv_ireland.call_id = u.call_tracking_unique_id
+  LEFT JOIN `focused-sentry-464713-u0.callrail_tde.callrail_alldata_delta` AS cr_tde
+    ON u.firm_unique_id = 'tdefamilylaw-1024' AND cr_tde.id = u.call_tracking_unique_id
+),
+
+unioned_normalized AS (
+  SELECT
+    uwn.*,
+    CASE
+      WHEN tracking_number_source IS NULL THEN NULL
+      ELSE
+        CASE
+          WHEN LENGTH(REGEXP_REPLACE(CAST(tracking_number_source AS STRING), r'\D', '')) > 10
+            THEN RIGHT(REGEXP_REPLACE(CAST(tracking_number_source AS STRING), r'\D', ''), 10)
+          ELSE REGEXP_REPLACE(CAST(tracking_number_source AS STRING), r'\D', '')
+        END
+    END AS normalized_ctp_number
+  FROM unioned_with_numbers uwn
+)
+
+SELECT
+  u.firm_unique_id,
+  u.firm_name,
+  u.answered,
+  u.direction,
+  IFNULL(u.recording_duration, 0) AS recording_duration,
+  u.call_tracking_unique_id,
+  IFNULL(u.call_recording_duration, 0) AS call_recording_duration,
+  u.start_datetime,
+  u.source,
+  u.practice_area,
+  md.channel AS marketing_channel,
+  u.utm_campaign,
+  u.utm_content,
+  u.utm_ict_reference_number,
+  u.utm_medium,
+  u.utm_pageview_count,
+  u.utm_session_count,
+  u.utm_source,
+  u.utm_term,
+  u.ga_client_id,
+  u.ga_user_id,
+  u.gclid,
+  u.google_ads,
+  md.ctp_number,
+  md.ctp_label,
+  md.ctp_source,
+  md.forward_calls_to,
+  u.tracking_number_source
+FROM unioned_normalized u
+LEFT JOIN marketing_dir md
+  ON md.Firm_Unique_ID = u.firm_unique_id
+ AND md.normalized_ctp_number = u.normalized_ctp_number

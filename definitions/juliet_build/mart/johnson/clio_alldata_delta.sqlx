@@ -1,0 +1,14 @@
+config {
+  type: "table",
+  database: "focused-sentry-464713-u0",
+  schema: "clio_johnson", 
+  name: "clio_alldata_delta", 
+  tags: ["clio", "matters", "contacts", "johnson"]
+}
+
+/*
+  Changelog: yyyy-mm-dd jbatoy: 
+*/
+
+SELECT *
+FROM `focused-sentry-464713-u0.clio_johnson.stg_johnson_clio`

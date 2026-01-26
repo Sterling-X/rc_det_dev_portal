@@ -1,0 +1,48 @@
+config {
+  type: "view",
+  schema: "webhook_wordpress_arizonafamilylaw",
+  name: "wordpress_webform_arizonafamilylawcontactform_expanded"
+}
+
+pre_operations {
+  DROP TABLE IF EXISTS `rc-datamart-forms-webhook.webhook_wordpress_arizonafamilylaw.wordpress_webform_arizonafamilylawcontactform_expanded`
+}
+
+SELECT
+  -- Original columns
+  received_at,
+  source_site,
+  form_id,
+  form_title,
+  remote_ip,
+  user_agent,
+
+  -- ========= PAYLOAD_JSON (convert JSON -> STRING, then extract) =========
+  JSON_EXTRACT_SCALAR(TO_JSON_STRING(payload_json), "$['acceptance-649']") AS acceptance_649,
+  JSON_EXTRACT_SCALAR(TO_JSON_STRING(payload_json), "$['acceptance-650']") AS acceptance_650,
+  JSON_EXTRACT_SCALAR(TO_JSON_STRING(payload_json), "$['email-469']")      AS email,
+  JSON_EXTRACT_SCALAR(TO_JSON_STRING(payload_json), "$['first-name']")     AS first_name,
+  JSON_EXTRACT_SCALAR(TO_JSON_STRING(payload_json), "$['ga-campaign']")    AS ga_campaign,
+  JSON_EXTRACT_SCALAR(TO_JSON_STRING(payload_json), "$['ga-medium']")      AS ga_medium,
+  JSON_EXTRACT_SCALAR(TO_JSON_STRING(payload_json), "$['ga-source']")      AS ga_source,
+  JSON_EXTRACT_SCALAR(TO_JSON_STRING(payload_json), "$['ga-term']")        AS ga_term,
+  JSON_EXTRACT_SCALAR(TO_JSON_STRING(payload_json), "$['last-name']")      AS last_name,
+  JSON_EXTRACT_SCALAR(TO_JSON_STRING(payload_json), "$['referrer']")       AS referrer,
+  JSON_EXTRACT_SCALAR(TO_JSON_STRING(payload_json), "$['tel-177']")        AS phone,
+  JSON_EXTRACT_SCALAR(TO_JSON_STRING(payload_json), "$['textarea-829']")   AS message,
+  JSON_EXTRACT_SCALAR(TO_JSON_STRING(payload_json), "$['today_date']")     AS today_date,
+
+  -- ========= REQUEST_HEADERS (JSON -> STRING, then extract) =========
+  JSON_EXTRACT_SCALAR(TO_JSON_STRING(request_headers), "$['Accept']")                 AS header_accept,
+  JSON_EXTRACT_SCALAR(TO_JSON_STRING(request_headers), "$['Accept-Encoding']")        AS header_accept_encoding,
+  JSON_EXTRACT_SCALAR(TO_JSON_STRING(request_headers), "$['Content-Length']")         AS header_content_length,
+  JSON_EXTRACT_SCALAR(TO_JSON_STRING(request_headers), "$['Content-Type']")           AS header_content_type,
+  JSON_EXTRACT_SCALAR(TO_JSON_STRING(request_headers), "$['Forwarded']")              AS header_forwarded,
+  JSON_EXTRACT_SCALAR(TO_JSON_STRING(request_headers), "$['Host']")                   AS header_host,
+  JSON_EXTRACT_SCALAR(TO_JSON_STRING(request_headers), "$['Traceparent']")            AS header_traceparent,
+  JSON_EXTRACT_SCALAR(TO_JSON_STRING(request_headers), "$['User-Agent']")             AS header_user_agent,
+  JSON_EXTRACT_SCALAR(TO_JSON_STRING(request_headers), "$['X-Cloud-Trace-Context']")  AS header_x_cloud_trace_context,
+  JSON_EXTRACT_SCALAR(TO_JSON_STRING(request_headers), "$['X-Forwarded-For']")        AS header_x_forwarded_for,
+  JSON_EXTRACT_SCALAR(TO_JSON_STRING(request_headers), "$['X-Forwarded-Proto']")      AS header_x_forwarded_proto
+FROM
+  `rc-datamart-forms-webhook.webhook_wordpress_arizonafamilylaw.wordpress_webform_contactform`
