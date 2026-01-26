@@ -1,0 +1,105 @@
+CREATE OR REPLACE TABLE `rc-datamart-report-082025.slo_portal_data.slo_answer_rate_table`
+PARTITION BY metric_date
+CLUSTER BY Firm_Unique_ID, date_window, Marketing_Channel, metric_name AS
+
+WITH
+  src AS (
+    SELECT
+      metric_date,
+      date_window,
+      Firm_Unique_ID,
+      Firm_Name,
+      Marketing_Channel,
+      metric_name,
+      metric_value
+    FROM `rc-datamart-report-082025.genesis_looker_crm_ctp_universal_table.slo_tmp_historical_base`
+    WHERE metric_name IN (
+      'Total Calls',
+      'Answered Calls',
+      'QPCs',
+      'Funded Agreements'
+    )
+  ),
+
+  divisors AS (
+    SELECT 'last_7_days'    AS date_window, 5   AS bd_divisor UNION ALL
+    SELECT 'last_28_days'   AS date_window, 20  AS bd_divisor UNION ALL
+    SELECT 'last_3_months'  AS date_window, 65  AS bd_divisor UNION ALL
+    SELECT 'last_6_months'  AS date_window, 130 AS bd_divisor UNION ALL
+    SELECT 'last_12_months' AS date_window, 260 AS bd_divisor
+  ),
+
+  -- Aggregate to Marketing_Channel = 'All'
+  all_avg AS (
+    SELECT
+      s.metric_date,
+      s.date_window,
+      s.Firm_Unique_ID,
+      s.Firm_Name,
+      'All' AS Marketing_Channel,
+
+      SUM(IF(s.metric_name = 'Total Calls',        s.metric_value, 0)) AS total_calls_avg,
+      SUM(IF(s.metric_name = 'Answered Calls',     s.metric_value, 0)) AS answered_calls_avg,
+      SUM(IF(s.metric_name = 'QPCs',               s.metric_value, 0)) AS qpcs_avg,
+      SUM(IF(s.metric_name = 'Funded Agreements',  s.metric_value, 0)) AS funded_agreements_avg
+    FROM src s
+    GROUP BY
+      s.metric_date,
+      s.date_window,
+      s.Firm_Unique_ID,
+      s.Firm_Name
+  ),
+
+  all_with_summary AS (
+    SELECT
+      a.metric_date,
+      a.date_window,
+      a.Firm_Unique_ID,
+      a.Firm_Name,
+      a.Marketing_Channel,
+
+      -- Keep averages
+      a.total_calls_avg,
+      a.answered_calls_avg,
+      a.qpcs_avg,
+      a.funded_agreements_avg,
+
+      -- Reconstruct summaries: avg * business-day divisor
+      a.total_calls_avg        * COALESCE(d.bd_divisor, 1) AS total_calls_summary,
+      a.answered_calls_avg     * COALESCE(d.bd_divisor, 1) AS answered_calls_summary,
+      a.qpcs_avg               * COALESCE(d.bd_divisor, 1) AS qpcs_summary,
+      a.funded_agreements_avg  * COALESCE(d.bd_divisor, 1) AS funded_agreements_summary
+    FROM all_avg a
+    LEFT JOIN divisors d
+    USING (date_window)
+  )
+
+SELECT
+  t.metric_date,
+  t.date_window,
+  t.Firm_Unique_ID,
+  t.Firm_Name,
+  t.Marketing_Channel,
+  m.metric_name,
+  m.metric_value_summary,
+  m.metric_value_avg
+FROM all_with_summary AS t
+CROSS JOIN UNNEST([
+  -- Answer Rate = Answered Calls / Total Calls
+  STRUCT(
+    'Answer Rate' AS metric_name,
+    IFNULL(SAFE_DIVIDE(t.answered_calls_summary, NULLIF(t.total_calls_summary, 0)), 0) AS metric_value_summary,
+    IFNULL(SAFE_DIVIDE(t.answered_calls_avg,     NULLIF(t.total_calls_avg,     0)), 0) AS metric_value_avg
+  ),
+
+  -- QPC/FA Rate = Funded Agreements / QPCs (kept as requested)
+  STRUCT(
+    'QPC/FA Rate' AS metric_name,
+    IFNULL(SAFE_DIVIDE(t.funded_agreements_summary, NULLIF(t.qpcs_summary, 0)), 0) AS metric_value_summary,
+    IFNULL(SAFE_DIVIDE(t.funded_agreements_avg,     NULLIF(t.qpcs_avg,     0)), 0) AS metric_value_avg
+  ),
+
+  -- Base metrics for the service
+  STRUCT('Total Calls'       AS metric_name, t.total_calls_summary       AS metric_value_summary, t.total_calls_avg       AS metric_value_avg),
+  STRUCT('Answered Calls'    AS metric_name, t.answered_calls_summary    AS metric_value_summary, t.answered_calls_avg    AS metric_value_avg)
+]) AS m;
