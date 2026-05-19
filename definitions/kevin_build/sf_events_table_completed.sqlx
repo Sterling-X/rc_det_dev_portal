@@ -1,0 +1,6 @@
+CREATE TABLE IF NOT EXISTS `sterling-lawyers-database.sterling_sf_staging.sf_events_completed`
+PARTITION BY DATE(StartDateTime)
+CLUSTER BY OwnerId, Consult_Type__c
+AS
+SELECT *
+FROM `sterling-lawyers-database.sterling_salesforce_raw_data.Event`;
