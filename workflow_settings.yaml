@@ -1,4 +1,11 @@
+<<<<<<< HEAD
 defaultProject: sterling-lawyers-database
 defaultDataset: dataform
 defaultAssertionDataset: dataform_assertions
 dataformCoreVersion: 3.0.52
+=======
+defaultProject: rc-datamart-report-082025
+defaultDataset: dataform
+defaultAssertionDataset: dataform_assertions
+dataformCoreVersion: 3.0.37
+>>>>>>> refs/heads/sterling_database
