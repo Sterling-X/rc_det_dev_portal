@@ -12,7 +12,8 @@ CREATE TABLE IF NOT EXISTS `sterling-lawyers-database.sterling_sf_datamart.activ
   subject                   STRING,
   description               STRING,
   activity_type             STRING,
-  activity_subtype          STRING, 
+  event_subtype             STRING,   -- EventSubtype (Event only)
+  task_subtype              STRING,   -- TaskSubtype  (Task only)
   disposition               STRING,
   status                    STRING,
   priority                  STRING,
@@ -85,6 +86,7 @@ USING (
   -- duration_minutes  → CallDurationInSeconds / 60     (no DurationInMinutes on Task)
   -- is_all_day        → NULL                           (no IsAllDayEvent on Task)
   -- is_group_event    → NULL                           (no IsGroupEvent on Task)
+  -- event_subtype     → NULL                           (Task object only has TaskSubtype)
   SELECT
     Id                                                    AS sf_record_id,
     'Task'                                                AS source_object,
@@ -94,7 +96,8 @@ USING (
     Subject                                               AS subject,
     Description                                           AS description,
     Type                                                  AS activity_type,
-    TaskSubtype                                           AS activity_subtype,
+    NULL                                                  AS event_subtype,
+    TaskSubtype                                           AS task_subtype,
     Disposition__c                                        AS disposition,
     Status                                                AS status,
     Priority                                              AS priority,
@@ -157,6 +160,7 @@ USING (
   -- duration_minutes  → DurationInMinutes
   -- status            → derived via CASE on EndDateTime(no Status on Event)
   -- priority          → NULL                           (no Priority on Event)
+  -- task_subtype      → NULL                           (Event object only has EventSubtype)
   SELECT
     Id                                                    AS sf_record_id,
     'Event'                                               AS source_object,
@@ -166,7 +170,8 @@ USING (
     Subject                                               AS subject,
     Description                                           AS description,
     Type                                                  AS activity_type,
-    EventSubtype                                          AS activity_subtype,
+    EventSubtype                                          AS event_subtype,
+    NULL                                                  AS task_subtype,
     Disposition__c                                        AS disposition,
     CASE
       WHEN EndDateTime <= CURRENT_TIMESTAMP() THEN 'Completed'
@@ -240,7 +245,8 @@ WHEN MATCHED AND S.last_modified_date > T.last_modified_date THEN UPDATE SET
   T.subject                   = S.subject,
   T.description               = S.description,
   T.activity_type             = S.activity_type,
-  T.activity_subtype          = S.activity_subtype,
+  T.event_subtype             = S.event_subtype,
+  T.task_subtype              = S.task_subtype,
   T.disposition               = S.disposition,
   T.status                    = S.status,
   T.priority                  = S.priority,
@@ -293,7 +299,8 @@ WHEN MATCHED AND S.last_modified_date > T.last_modified_date THEN UPDATE SET
 -- ── INSERT: net-new records only ─────────────────────────────
 WHEN NOT MATCHED THEN INSERT (
   sf_record_id, source_object, account_id, owner_id, record_type_id,
-  subject, description, activity_type, activity_subtype, disposition, status, priority,
+  subject, description, activity_type, event_subtype, task_subtype,
+  disposition, status, priority,
   start_datetime, end_datetime, completed_datetime, duration_minutes,
   consult_attorney, consult_type, consult_location, consult_date,
   original_consult_attorney, original_consult_datetime, original_consult_location,
@@ -309,7 +316,8 @@ WHEN NOT MATCHED THEN INSERT (
 )
 VALUES (
   S.sf_record_id, S.source_object, S.account_id, S.owner_id, S.record_type_id,
-  S.subject, S.description, S.activity_type, S.activity_subtype, S.disposition, S.status, S.priority,
+  S.subject, S.description, S.activity_type, S.event_subtype, S.task_subtype,
+  S.disposition, S.status, S.priority,
   S.start_datetime, S.end_datetime, S.completed_datetime, S.duration_minutes,
   S.consult_attorney, S.consult_type, S.consult_location, S.consult_date,
   S.original_consult_attorney, S.original_consult_datetime, S.original_consult_location,
