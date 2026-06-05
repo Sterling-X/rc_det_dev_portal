@@ -1,0 +1,181 @@
+-- ============================================================
+-- TABLE 3 of 3: CRM INTAKE
+-- Partition : event_date (DATE)
+-- Cluster   : account_name, source_platform
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS
+  `rc-datamart-report-082025.leads_data_reconciliation.crm_intake`
+(
+  event_date                DATE     NOT NULL,
+  account_name              STRING   NOT NULL,
+  source_platform           STRING,
+  source_dataset            STRING,
+  crm_record_identifier     STRING,
+  crm_first_name            STRING,
+  crm_last_name             STRING,
+  normalized_phone_number   STRING,
+  validated_email_address   STRING,
+  matched_click_id          STRING,
+  ingested_at               TIMESTAMP
+)
+PARTITION BY event_date
+CLUSTER BY account_name, source_platform
+OPTIONS (description = 'Confirmed CRM intake records. One row per lead/matter per account.');
+
+-- ============================================================
+-- BACKFILL — CRM INTAKE
+-- ============================================================
+
+-- ── Cutrer Law (Lawmatics) ───────────────────────────────────
+INSERT INTO `rc-datamart-report-082025.leads_data_reconciliation.crm_intake`
+SELECT 
+  DATE(SAFE.PARSE_TIMESTAMP('%Y-%m-%dT%H:%M:%S%Ez', created_at)),
+  'Cutrer Law', 
+  'Lawmatics', 
+  'lawmatics_cutrer.cutrer_alldata_delta',
+  prospectid, 
+  NULLIF(TRIM(first_name), ''), 
+  NULLIF(TRIM(last_name), ''),
+  REGEXP_REPLACE(COALESCE(phone_number, phone, ''), r'[^0-9]', ''),
+  LOWER(TRIM(COALESCE(NULLIF(email, ''), NULLIF(email_address, '')))),
+  gclid, 
+  CURRENT_TIMESTAMP()
+FROM `focused-sentry-464713-u0.lawmatics_cutrer.cutrer_alldata_delta`
+WHERE created_at IS NOT NULL AND SAFE.PARSE_TIMESTAMP('%Y-%m-%dT%H:%M:%S%Ez', created_at) IS NOT NULL;
+
+-- ── Scott M Brown (Turbine) ──────────────────────────────
+INSERT INTO `rc-datamart-report-082025.leads_data_reconciliation.crm_intake`
+SELECT 
+  DATE(contact_dateadded),
+  'Scott M Brown', 
+  'Turbine', 
+  'turbine_smb.smb_alldata_delta',
+  contact_id, 
+  NULLIF(TRIM(contact_firstname), ''), 
+  NULLIF(TRIM(contact_lastname), ''),
+  REGEXP_REPLACE(CAST(contact_phone AS STRING), r'[^0-9]', ''),
+  LOWER(TRIM(contact_email)), 
+  contact_cf_contact_waterfall_gclid, 
+  CURRENT_TIMESTAMP()
+FROM `focused-sentry-464713-u0.turbine_smb.smb_alldata_delta`
+WHERE contact_dateadded IS NOT NULL; 
+
+-- ── Meyer Pink Law (Lawmatics) ───────────────────────────────
+INSERT INTO `rc-datamart-report-082025.leads_data_reconciliation.crm_intake`
+SELECT 
+  DATE(SAFE.PARSE_TIMESTAMP('%Y-%m-%dT%H:%M:%S%Ez', created_at)),
+  'Meyer Pink Law', 
+  'Lawmatics', 
+  'lawmatics_meyerpink.meyerpink_alldata_delta',
+  prospectid, 
+  NULLIF(TRIM(first_name), ''), 
+  NULLIF(TRIM(last_name), ''),
+  REGEXP_REPLACE(COALESCE(phone_number, phone, ''), r'[^0-9]', ''),
+  LOWER(TRIM(COALESCE(NULLIF(email, ''), NULLIF(email_address, '')))),
+  gclid, 
+  CURRENT_TIMESTAMP()
+FROM `focused-sentry-464713-u0.lawmatics_meyerpink.meyerpink_alldata_delta`
+WHERE created_at IS NOT NULL AND SAFE.PARSE_TIMESTAMP('%Y-%m-%dT%H:%M:%S%Ez', created_at) IS NOT NULL;
+
+-- ── Aurit Mediation (Salesforce) ────────────────────────────
+INSERT INTO `rc-datamart-report-082025.leads_data_reconciliation.crm_intake`
+SELECT 
+  DATE(lead_CreatedDate),
+  'Aurit Mediation', 
+  'Salesforce', 
+  'salesforce_auritmediation.auritmediation_alldata_delta',
+  lead_Id, 
+  NULLIF(TRIM(lead_FirstName), ''), 
+  NULLIF(TRIM(lead_LastName), ''),
+  REGEXP_REPLACE(COALESCE(lead_Phone, lead_MobilePhone, ''), r'[^0-9]', ''),
+  LOWER(TRIM(lead_Email)), 
+  lead_gclid__c, 
+  CURRENT_TIMESTAMP()
+FROM `focused-sentry-464713-u0.salesforce_auritmediation.auritmediation_alldata_delta`
+WHERE lead_CreatedDate IS NOT NULL;
+
+-- ── Haffner Law (LeadDocket) ─────────────────────────────────
+INSERT INTO `rc-datamart-report-082025.leads_data_reconciliation.crm_intake`
+SELECT 
+  DATE(opportunity_createddate),
+  'Haffner Law', 
+  'LeadDocket', 
+  'leaddocket_haffner.initialdata_delta',
+  opportunity_id, 
+  NULLIF(TRIM(opportunity_firstname), ''), 
+  NULLIF(TRIM(opportunity_lastname), ''),
+  REGEXP_REPLACE(COALESCE(opportunity_homephone, opportunity_workphone, CAST(opportunity_mobilephone AS STRING), ''), r'[^0-9]', ''),
+  LOWER(TRIM(opportunity_email)), 
+  NULL, 
+  CURRENT_TIMESTAMP()
+FROM `focused-sentry-464713-u0.leaddocket_haffner.initialdata_delta`
+WHERE opportunity_createddate IS NOT NULL;
+
+-- ── Kalish And Jaggars (LeadDocket) ─────────────────────────
+INSERT INTO `rc-datamart-report-082025.leads_data_reconciliation.crm_intake`
+SELECT 
+  DATE(lead_createddate),
+  'Kalish And Jaggars', 
+  'LeadDocket', 
+  'leaddocket_kalishandjaggars.initialdata_delta',
+  lead_id, 
+  NULLIF(TRIM(lead_firstname), ''), 
+  NULLIF(TRIM(lead_lastname), ''),
+  REGEXP_REPLACE(COALESCE(lead_phonenumber, CAST(contacts_mobilephone AS STRING), ''), r'[^0-9]', ''),
+  LOWER(TRIM(lead_email)), 
+  lead_cf_gclid, 
+  CURRENT_TIMESTAMP()
+FROM `focused-sentry-464713-u0.leaddocket_kalishandjaggars.initialdata_delta`
+WHERE lead_createddate IS NOT NULL;
+
+-- ── Ireland and Associates (MyCase) ─────────────────────────
+INSERT INTO `rc-datamart-report-082025.leads_data_reconciliation.crm_intake`
+SELECT 
+  DATE(lead_created_at),
+  'Ireland and Associates', 
+  'MyCase', 
+  'mycase_ireland.ireland_initial_alldata_delta',
+  CAST(lead_id AS STRING), 
+  NULLIF(TRIM(first_name), ''), 
+  NULLIF(TRIM(last_name), ''),
+  REGEXP_REPLACE(COALESCE(cell_phone_number, work_phone_number, home_phone_number, ''), r'[^0-9]', ''),
+  LOWER(TRIM(email)), 
+  NULL, 
+  CURRENT_TIMESTAMP()
+FROM `focused-sentry-464713-u0.mycase_ireland.ireland_initial_alldata_delta`
+WHERE lead_created_at IS NOT NULL;
+
+-- ── Johnson Law Group (Clio) ─────────────────────────────────
+INSERT INTO `rc-datamart-report-082025.leads_data_reconciliation.crm_intake`
+SELECT 
+  DATE(matter_created_at),
+  'Johnson Law Group', 
+  'Clio', 
+  'clio_johnson.alldata_delta',
+  matter_id, 
+  NULLIF(TRIM(SPLIT(TRIM(matter_client_full_name), ' ')[SAFE_OFFSET(0)]), ''),
+  NULLIF(TRIM(ARRAY_TO_STRING(ARRAY(SELECT part FROM UNNEST(SPLIT(TRIM(matter_client_full_name), ' ')) AS part WITH OFFSET pos WHERE pos > 0), ' ')), ''),
+  REGEXP_REPLACE(COALESCE(matter_client_phone_number, matter_primary_contact_phone_number, ''), r'[^0-9]', ''),
+  LOWER(TRIM(COALESCE(NULLIF(matter_client_primary_email, ''), NULLIF(matter_primary_contact_primary_email, '')))),
+  NULL, 
+  CURRENT_TIMESTAMP()
+FROM `focused-sentry-464713-u0.clio_johnson.alldata_delta`
+WHERE matter_created_at IS NOT NULL;
+
+-- ── Lancaster Law Group (QuickCRM) ──────────────────────────
+INSERT INTO `rc-datamart-report-082025.leads_data_reconciliation.crm_intake`
+SELECT 
+  DATE(created_date),
+  'Lancaster Law Group', 
+  'QuickCRM', 
+  'universal_quick_crm_lancaster.leads',
+  record_id, 
+  NULLIF(TRIM(SPLIT(TRIM(name), ' ')[SAFE_OFFSET(0)]), ''),
+  NULLIF(TRIM(ARRAY_TO_STRING(ARRAY(SELECT part FROM UNNEST(SPLIT(TRIM(name), ' ')) AS part WITH OFFSET pos WHERE pos > 0), ' ')), ''),
+  REGEXP_REPLACE(phone_number, r'[^0-9]', ''),
+  LOWER(TRIM(email)), 
+  gclid, 
+  CURRENT_TIMESTAMP()
+FROM `focused-sentry-464713-u0.universal_quick_crm_lancaster.leads`
+WHERE created_date IS NOT NULL;

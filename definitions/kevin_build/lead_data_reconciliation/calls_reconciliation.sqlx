@@ -1,0 +1,172 @@
+-- ============================================================
+-- TABLE 1 of 3: INBOUND CALLS
+-- Partition : event_date (DATE)
+-- Cluster   : account_name
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS
+  `rc-datamart-report-082025.leads_data_reconciliation.inbound_calls`
+(
+  event_date                  DATE     NOT NULL,
+  account_name                STRING   NOT NULL,
+  source_platform             STRING,
+  source_dataset              STRING,
+  unique_call_identifier      STRING,
+  event_start_timestamp       TIMESTAMP,
+  destination_tracking_number STRING,
+  originating_caller_number   STRING,
+  disposition                 STRING,
+  gclid                       STRING,
+  ingested_at                 TIMESTAMP
+)
+PARTITION BY event_date
+CLUSTER BY account_name
+OPTIONS (description = 'Daily inbound call activity. One row per call per account.');
+
+-- ============================================================
+-- BACKFILL — INBOUND CALLS
+-- ============================================================
+
+-- ── Cutrer Law (CallRail) ───────────────────────────────────────────────
+INSERT INTO `rc-datamart-report-082025.leads_data_reconciliation.inbound_calls`
+SELECT
+  DATE(SAFE.PARSE_TIMESTAMP('%Y-%m-%dT%H:%M:%S%Ez', start_time)),
+  'Cutrer Law', 'CallRail', 'callrail_cutrer.callrail_alldata_delta',
+  id, SAFE.PARSE_TIMESTAMP('%Y-%m-%dT%H:%M:%S%Ez', start_time),
+  tracking_phone_number, customer_phone_number,
+  CASE 
+    WHEN voicemail = TRUE THEN 'Voicemail' 
+    WHEN answered = TRUE THEN 'Answered' 
+    ELSE 'Missed' 
+  END,
+  gclid, CURRENT_TIMESTAMP()
+FROM `focused-sentry-464713-u0.callrail_cutrer.callrail_alldata_delta`
+WHERE start_time IS NOT NULL AND SAFE.PARSE_TIMESTAMP('%Y-%m-%dT%H:%M:%S%Ez', start_time) IS NOT NULL;
+
+-- ── Scott M Brown (CallRail) ────────────────────────────────────────────
+INSERT INTO `rc-datamart-report-082025.leads_data_reconciliation.inbound_calls`
+SELECT
+  DATE(SAFE.PARSE_TIMESTAMP('%Y-%m-%dT%H:%M:%S%Ez', start_time)),
+  'Scott M Brown', 'CallRail', 'callrail_smb.callrail_alldata_delta',
+  id, SAFE.PARSE_TIMESTAMP('%Y-%m-%dT%H:%M:%S%Ez', start_time),
+  tracking_phone_number, customer_phone_number,
+  CASE 
+    WHEN voicemail = TRUE THEN 'Voicemail' 
+    WHEN answered = TRUE THEN 'Answered' 
+    ELSE 'Missed' 
+  END,
+  gclid, CURRENT_TIMESTAMP()
+FROM `focused-sentry-464713-u0.callrail_smb.callrail_alldata_delta`
+WHERE start_time IS NOT NULL AND SAFE.PARSE_TIMESTAMP('%Y-%m-%dT%H:%M:%S%Ez', start_time) IS NOT NULL;
+
+-- ── Meyer Pink Law (CallRail) ───────────────────────────────────────────
+INSERT INTO `rc-datamart-report-082025.leads_data_reconciliation.inbound_calls`
+SELECT
+  DATE(SAFE.PARSE_TIMESTAMP('%Y-%m-%dT%H:%M:%S%Ez', start_time)),
+  'Meyer Pink Law', 'CallRail', 'callrail_meyerpink.callrail_alldata_delta',
+  id, SAFE.PARSE_TIMESTAMP('%Y-%m-%dT%H:%M:%S%Ez', start_time),
+  tracking_phone_number, customer_phone_number,
+  CASE 
+    WHEN voicemail = TRUE THEN 'Voicemail' 
+    WHEN answered = TRUE THEN 'Answered' 
+    ELSE 'Missed' 
+  END,
+  gclid, CURRENT_TIMESTAMP()
+FROM `focused-sentry-464713-u0.callrail_meyerpink.callrail_alldata_delta`
+WHERE start_time IS NOT NULL AND SAFE.PARSE_TIMESTAMP('%Y-%m-%dT%H:%M:%S%Ez', start_time) IS NOT NULL;
+
+-- ── Aurit Mediation (CallRail) ──────────────────────────────────────────
+INSERT INTO `rc-datamart-report-082025.leads_data_reconciliation.inbound_calls`
+SELECT
+  DATE(SAFE.PARSE_TIMESTAMP('%Y-%m-%dT%H:%M:%S%Ez', start_time)),
+  'Aurit Mediation', 'CallRail', 'callrail_auritmediation.callrail_alldata_delta',
+  id, SAFE.PARSE_TIMESTAMP('%Y-%m-%dT%H:%M:%S%Ez', start_time),
+  tracking_phone_number, customer_phone_number,
+  CASE 
+    WHEN voicemail = TRUE THEN 'Voicemail' 
+    WHEN answered = TRUE THEN 'Answered' 
+    ELSE 'Missed' 
+  END,
+  gclid, CURRENT_TIMESTAMP()
+FROM `focused-sentry-464713-u0.callrail_auritmediation.callrail_alldata_delta`
+WHERE start_time IS NOT NULL AND SAFE.PARSE_TIMESTAMP('%Y-%m-%dT%H:%M:%S%Ez', start_time) IS NOT NULL;
+
+-- ── Haffner Law (CallTrackingMetrics) ────────────────────────
+INSERT INTO `rc-datamart-report-082025.leads_data_reconciliation.inbound_calls`
+SELECT
+  DATE(SAFE_CAST(called_at AS TIMESTAMP)),
+  'Haffner Law', 'CallTrackingMetrics', 'calltracking_haffner.ctp_initialdata_delta',
+  sid, SAFE_CAST(called_at AS TIMESTAMP),
+  tracking_number, caller_number,
+  CASE 
+    WHEN LOWER(call_status) = 'no answer' THEN 'Missed' 
+    WHEN LOWER(call_status) = 'answered' THEN 'Answered' 
+    ELSE call_status 
+  END,
+  NULL, CURRENT_TIMESTAMP()
+FROM `focused-sentry-464713-u0.calltracking_haffner.ctp_initialdata_delta`
+WHERE called_at IS NOT NULL AND SAFE_CAST(called_at AS TIMESTAMP) IS NOT NULL;
+
+-- ── Kalish And Jaggars (CallTrackingMetrics) ─────────────────
+INSERT INTO `rc-datamart-report-082025.leads_data_reconciliation.inbound_calls`
+SELECT
+  DATE(SAFE_CAST(called_at AS TIMESTAMP)),
+  'Kalish And Jaggars', 'CallTrackingMetrics', 'calltracking_kalishandjaggars.ctp_initialdata_delta',
+  sid, SAFE_CAST(called_at AS TIMESTAMP),
+  tracking_number, caller_number,
+  CASE 
+    WHEN LOWER(call_status) = 'no answer' THEN 'Missed' 
+    WHEN LOWER(call_status) = 'answered' THEN 'Answered' 
+    ELSE call_status 
+  END,
+  ga.gclid, CURRENT_TIMESTAMP()
+FROM `focused-sentry-464713-u0.calltracking_kalishandjaggars.ctp_initialdata_delta`
+WHERE called_at IS NOT NULL AND SAFE_CAST(called_at AS TIMESTAMP) IS NOT NULL;
+
+-- ── Ireland and Associates (CallTrackingMetrics) ──────────────
+INSERT INTO `rc-datamart-report-082025.leads_data_reconciliation.inbound_calls`
+SELECT
+  DATE(SAFE_CAST(called_at AS TIMESTAMP)),
+  'Ireland and Associates', 'CallTrackingMetrics', 'calltracking_ireland.ctp_initialdata_delta',
+  sid, SAFE_CAST(called_at AS TIMESTAMP),
+  tracking_number, caller_number,
+  CASE 
+    WHEN LOWER(call_status) = 'no answer' THEN 'Missed' 
+    WHEN LOWER(call_status) = 'answered' THEN 'Answered' 
+    ELSE call_status 
+  END,
+  NULL, CURRENT_TIMESTAMP()
+FROM `focused-sentry-464713-u0.calltracking_ireland.ctp_initialdata_delta`
+WHERE called_at IS NOT NULL AND SAFE_CAST(called_at AS TIMESTAMP) IS NOT NULL;
+
+-- ── Johnson Law Group (CallRail) ────────────────────────────────────────
+INSERT INTO `rc-datamart-report-082025.leads_data_reconciliation.inbound_calls`
+SELECT
+  DATE(SAFE.PARSE_TIMESTAMP('%Y-%m-%dT%H:%M:%S%Ez', start_time)),
+  'Johnson Law Group', 'CallRail', 'callrail_johnsonlawgroup.callrail_initialdata_delta',
+  id, SAFE.PARSE_TIMESTAMP('%Y-%m-%dT%H:%M:%S%Ez', start_time),
+  tracking_phone_number, customer_phone_number,
+  CASE 
+    WHEN voicemail = TRUE THEN 'Voicemail' 
+    WHEN answered = TRUE THEN 'Answered' 
+    ELSE 'Missed' 
+  END,
+  gclid, CURRENT_TIMESTAMP()
+FROM `focused-sentry-464713-u0.callrail_johnsonlawgroup.callrail_initialdata_delta`
+WHERE start_time IS NOT NULL AND SAFE.PARSE_TIMESTAMP('%Y-%m-%dT%H:%M:%S%Ez', start_time) IS NOT NULL;
+
+-- ── Lancaster Law Group (CallRail) ──────────────────────────────────────
+INSERT INTO `rc-datamart-report-082025.leads_data_reconciliation.inbound_calls`
+SELECT
+  DATE(SAFE.PARSE_TIMESTAMP('%Y-%m-%dT%H:%M:%S%Ez', start_time)),
+  'Lancaster Law Group', 'CallRail', 'callrail_lancaster.callrail_alldata_delta',
+  id, SAFE.PARSE_TIMESTAMP('%Y-%m-%dT%H:%M:%S%Ez', start_time),
+  tracking_phone_number, customer_phone_number,
+  CASE 
+    WHEN voicemail = TRUE THEN 'Voicemail' 
+    WHEN answered = TRUE THEN 'Answered' 
+    ELSE 'Missed' 
+  END,
+  gclid, CURRENT_TIMESTAMP()
+FROM `focused-sentry-464713-u0.callrail_lancaster.callrail_alldata_delta`
+WHERE start_time IS NOT NULL AND SAFE.PARSE_TIMESTAMP('%Y-%m-%dT%H:%M:%S%Ez', start_time) IS NOT NULL;
