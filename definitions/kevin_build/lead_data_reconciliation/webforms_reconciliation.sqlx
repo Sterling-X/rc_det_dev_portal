@@ -1,0 +1,180 @@
+-- ============================================================
+-- TABLE 2 of 3: WEB FORM SUBMISSIONS
+-- Partition : event_date (DATE)
+-- Cluster   : account_name
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS
+  `rc-datamart-report-082025.leads_data_reconciliation.webform_submissions`
+(
+  event_date                DATE     NOT NULL,
+  account_name              STRING   NOT NULL,
+  source_platform           STRING,
+  source_dataset            STRING,
+  prospect_given_name       STRING,
+  prospect_surname          STRING,
+  contact_email_address     STRING,
+  originating_page_url      STRING,
+  gclid                     STRING,
+  ingested_at               TIMESTAMP
+)
+PARTITION BY event_date
+CLUSTER BY account_name
+OPTIONS (description = 'Normalized web form submissions. One row per submission per account.');
+
+
+-- ============================================================
+-- BACKFILL — WEB FORM SUBMISSIONS
+-- ============================================================
+
+-- ── Cutrer Law ───────────────────────────────────────────────
+INSERT INTO `rc-datamart-report-082025.leads_data_reconciliation.webform_submissions`
+SELECT 
+  DATE(received_at), 
+  'Cutrer Law', 
+  'WordPress', 
+  'webhook_wordpress_cutrer.fct_webhook_wordpress_cutrer_contactform_expanded',
+  NULLIF(TRIM(form_data_text_506), ''), 
+  NULLIF(TRIM(form_data_text_508), ''),
+  LOWER(TRIM(COALESCE(NULLIF(form_data_email_17, ''), NULLIF(form_data_email_49, '')))),
+  page_url, 
+  NULL, 
+  CURRENT_TIMESTAMP()
+FROM `rc-datamart-forms-webhook.webhook_wordpress_cutrer.fct_webhook_wordpress_cutrer_contactform_expanded`
+WHERE received_at IS NOT NULL;
+
+
+-- ── Scott M Brown ────────────────────────────────────────────
+INSERT INTO `rc-datamart-report-082025.leads_data_reconciliation.webform_submissions`
+SELECT 
+  DATE(received_at), 
+  'Scott M Brown', 
+  'WordPress', 
+  'webhook_wordpress_smb.fct_webhook_wordpress_scott_m_brown_contactform_expanded',
+  NULLIF(TRIM(fname), ''), 
+  NULLIF(TRIM(lname), ''), 
+  LOWER(TRIM(email)),
+  page_url, 
+  gclid, 
+  CURRENT_TIMESTAMP()
+FROM `rc-datamart-forms-webhook.webhook_wordpress_smb.fct_webhook_wordpress_scott_m_brown_contactform_expanded`
+WHERE received_at IS NOT NULL;
+
+
+-- ── Meyer Pink Law ───────────────────────────────────────────
+INSERT INTO `rc-datamart-report-082025.leads_data_reconciliation.webform_submissions`
+SELECT 
+  DATE(received_at), 
+  'Meyer Pink Law', 
+  'WordPress', 
+  'webhook_wordpress_meyerpink.fct_webhook_wordpress_meyerpink_contactform_expanded',
+  NULLIF(TRIM(COALESCE(first_name, input_1_3)), ''), 
+  NULLIF(TRIM(input_1_6), ''),
+  LOWER(TRIM(COALESCE(NULLIF(email, ''), NULLIF(input_2, '')))),
+  page_url, 
+  NULL, 
+  CURRENT_TIMESTAMP()
+FROM `rc-datamart-forms-webhook.webhook_wordpress_meyerpink.fct_webhook_wordpress_meyerpink_contactform_expanded`
+WHERE received_at IS NOT NULL;
+
+
+-- ── Aurit Mediation ──────────────────────────────────────────
+INSERT INTO `rc-datamart-report-082025.leads_data_reconciliation.webform_submissions`
+SELECT 
+  DATE(received_at), 
+  'Aurit Mediation', 
+  'WordPress', 
+  'webhook_wordpress_auritmediation.fct_webhook_wordpress_aurit_contactform_expanded',
+  NULLIF(TRIM(form_data_first_name), ''), 
+  NULLIF(TRIM(form_data_last_name), ''),
+  LOWER(TRIM(COALESCE(NULLIF(form_data_email, ''), NULLIF(payload_email, '')))),
+  page_url, 
+  NULL, 
+  CURRENT_TIMESTAMP()
+FROM `rc-datamart-forms-webhook.webhook_wordpress_auritmediation.fct_webhook_wordpress_aurit_contactform_expanded`
+WHERE received_at IS NOT NULL;
+
+
+-- ── Haffner Law ──────────────────────────────────────────────
+INSERT INTO `rc-datamart-report-082025.leads_data_reconciliation.webform_submissions`
+SELECT 
+  DATE(received_at), 
+  'Haffner Law', 
+  'WordPress', 
+  'webhook_wordpress_haffner.fct_webhook_wordpress_haffner_contactform_expanded',
+  NULLIF(TRIM(fname), ''), 
+  NULLIF(TRIM(lname), ''), 
+  LOWER(TRIM(email)),
+  page_url, 
+  NULL, 
+  CURRENT_TIMESTAMP()
+FROM `rc-datamart-forms-webhook.webhook_wordpress_haffner.fct_webhook_wordpress_haffner_contactform_expanded`
+WHERE received_at IS NOT NULL;
+
+
+-- ── Kalish And Jaggars ───────────────────────────────────────
+INSERT INTO `rc-datamart-report-082025.leads_data_reconciliation.webform_submissions`
+SELECT 
+  DATE(received_at), 
+  'Kalish And Jaggars', 
+  'WordPress', 
+  'webhook_wordpress_kalishandjaggars.fct_webhook_wordpress_kalishandjaggars_contactform_expanded',
+  NULLIF(TRIM(SPLIT(TRIM(fullname), ' ')[SAFE_OFFSET(0)]), ''),
+  NULLIF(TRIM(ARRAY_TO_STRING(ARRAY(SELECT part FROM UNNEST(SPLIT(TRIM(fullname), ' ')) AS part WITH OFFSET pos WHERE pos > 0), ' ')), ''),
+  LOWER(TRIM(email)), 
+  page_url, 
+  NULL, 
+  CURRENT_TIMESTAMP()
+FROM `rc-datamart-forms-webhook.webhook_wordpress_kalishandjaggars.fct_webhook_wordpress_kalishandjaggars_contactform_expanded`
+WHERE received_at IS NOT NULL;
+
+
+-- ── Ireland and Associates ───────────────────────────────────
+INSERT INTO `rc-datamart-report-082025.leads_data_reconciliation.webform_submissions`
+SELECT 
+  DATE(received_at), 
+  'Ireland and Associates', 
+  'WordPress', 
+  'webhook_wordpress_ireland.fct_webhook_wordpress_ireland_contactform_expanded',
+  NULLIF(TRIM(SPLIT(TRIM(name), ' ')[SAFE_OFFSET(0)]), ''),
+  NULLIF(TRIM(ARRAY_TO_STRING(ARRAY(SELECT part FROM UNNEST(SPLIT(TRIM(name), ' ')) AS part WITH OFFSET pos WHERE pos > 0), ' ')), ''),
+  LOWER(TRIM(email)), 
+  NULL, 
+  NULL, 
+  CURRENT_TIMESTAMP()
+FROM `rc-datamart-forms-webhook.webhook_wordpress_ireland.fct_webhook_wordpress_ireland_contactform_expanded`
+WHERE received_at IS NOT NULL;
+
+
+-- ── Johnson Law Group ────────────────────────────────────────
+INSERT INTO `rc-datamart-report-082025.leads_data_reconciliation.webform_submissions`
+SELECT 
+  DATE(received_at), 
+  'Johnson Law Group', 
+  'WordPress', 
+  'webhook_wordpress_johnsonlawgroup.fct_webhook_wordpress_johnson_contactform_expanded',
+  NULLIF(TRIM(first_name), ''), 
+  NULLIF(TRIM(last_name), ''), 
+  LOWER(TRIM(email)),
+  page_url, 
+  NULL, 
+  CURRENT_TIMESTAMP()
+FROM `rc-datamart-forms-webhook.webhook_wordpress_johnsonlawgroup.fct_webhook_wordpress_johnson_contactform_expanded`
+WHERE received_at IS NOT NULL;
+
+
+-- ── Lancaster Law Group ──────────────────────────────────────
+INSERT INTO `rc-datamart-report-082025.leads_data_reconciliation.webform_submissions`
+SELECT 
+  DATE(received_at), 
+  'Lancaster Law Group', 
+  'WordPress', 
+  'webhook_wordpress_lancasterlawgroup.fct_webhook_wordpress_lancaster_contactform_expanded',
+  NULLIF(TRIM(first_name), ''), 
+  NULLIF(TRIM(last_name), ''), 
+  LOWER(TRIM(email)),
+  page_url, 
+  gclid, 
+  CURRENT_TIMESTAMP()
+FROM `rc-datamart-forms-webhook.webhook_wordpress_lancasterlawgroup.fct_webhook_wordpress_lancaster_contactform_expanded`
+WHERE received_at IS NOT NULL;
