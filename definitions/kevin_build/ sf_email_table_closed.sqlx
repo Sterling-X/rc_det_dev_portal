@@ -1,0 +1,6 @@
+CREATE TABLE IF NOT EXISTS `sterling-lawyers-database.sterling_sf_staging.sf_email`
+PARTITION BY DATE(CreatedDate)
+CLUSTER BY ParentId
+AS
+SELECT *
+FROM `sterling-lawyers-database.sterling_salesforce_raw_data.EmailMessage`;
