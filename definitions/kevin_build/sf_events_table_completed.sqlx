@@ -1,4 +1,4 @@
-CREATE TABLE IF NOT EXISTS `sterling-lawyers-database.sterling_sf_staging.sf_events_completed`
+CREATE OR REPLACE TABLE `sterling-lawyers-database.sterling_sf_staging.sf_events_completed`
 PARTITION BY DATE(StartDateTime)
 CLUSTER BY OwnerId, Consult_Type__c
 AS
