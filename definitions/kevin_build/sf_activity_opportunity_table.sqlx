@@ -65,8 +65,6 @@ CREATE TABLE IF NOT EXISTS `sterling-lawyers-database.sterling_sf_datamart.activ
   system_modstamp               TIMESTAMP,
   old_org_record_id             STRING,
   external_sync_id              STRING,
-  
-  -- EmailMessage Fields
   email_parent_id                 STRING,
   email_activity_id               STRING,
   email_text_body                 STRING,
@@ -103,7 +101,6 @@ CREATE TABLE IF NOT EXISTS `sterling-lawyers-database.sterling_sf_datamart.activ
   email_source                    STRING,
   matter_is_7_years               BOOLEAN,
   matter_complete_date_from_opp   DATE,
-
   bq_loaded_at                  TIMESTAMP,
   opportunity_id                STRING,
   opportunity_name              STRING,
