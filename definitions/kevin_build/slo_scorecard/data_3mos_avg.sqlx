@@ -1,0 +1,114 @@
+-- =====================================================================
+-- STEP 1 -- daily_raw: combine the 3 source tables by date
+-- =====================================================================
+CREATE OR REPLACE TABLE `sterling-lawyers-database.slo_marketing_team_scorecard.data_3mos_avg_daily_raw`
+PARTITION BY date AS
+WITH date_spine AS (
+  SELECT date FROM `sterling-lawyers-database.slo_marketing_team_scorecard.core_web_vitals_new_relic_daily_raw`
+  UNION DISTINCT
+  SELECT date FROM `sterling-lawyers-database.slo_marketing_team_scorecard.slo_total_users_daily`
+  UNION DISTINCT
+  SELECT date FROM `sterling-lawyers-database.slo_marketing_team_scorecard.slo_event_count`
+),
+cwv AS (
+  SELECT date, ps_mobile_1d, ps_desktop_1d
+  FROM `sterling-lawyers-database.slo_marketing_team_scorecard.core_web_vitals_new_relic_daily_raw`
+),
+users AS (
+  SELECT date, total_users
+  FROM `sterling-lawyers-database.slo_marketing_team_scorecard.slo_total_users_daily`
+),
+calls AS (
+  -- "Call Occured" on the sheet (col CQ)
+  SELECT date, SUM(event_count) AS call_occured
+  FROM `sterling-lawyers-database.slo_marketing_team_scorecard.slo_event_count`
+  WHERE event_name = 'CTM_Inbound_Tracking_Call_InboundCall'
+  GROUP BY date
+),
+forms AS (
+  -- "Form FIll" on the sheet (col CR)
+  SELECT date, SUM(event_count) AS form_fill
+  FROM `sterling-lawyers-database.slo_marketing_team_scorecard.slo_event_count`
+  WHERE event_name = 'form_fill_all'
+  GROUP BY date
+)
+SELECT
+  spine.date,
+  cwv.ps_mobile_1d,
+  cwv.ps_desktop_1d,
+  users.total_users,
+  calls.call_occured,
+  forms.form_fill
+FROM date_spine AS spine
+LEFT JOIN cwv   USING (date)
+LEFT JOIN users USING (date)
+LEFT JOIN calls USING (date)
+LEFT JOIN forms USING (date);
+
+
+-- =====================================================================
+-- STEP 2 -- data_3mos_avg: rolling-window scorecard on top of daily_raw
+-- ---------------------------------------------------------------------
+-- Page Speed rolling AVGs: 7d / 14d / 28d / 90d, calendar-day windows
+-- including the current day. AVG() ignores NULLs inside the window, so a
+-- day with no page-speed reading doesn't distort the average.
+--
+-- Overall Site Conversion Rate (sheet cols DM-DQ), pooled per window:
+--   SAFE_DIVIDE( SUM(call_occured + form_fill), SUM(total_users) )
+-- NULL calls/forms are treated as 0 in the numerator (like blank cells
+-- inside a spreadsheet SUM range); a window with no user data returns
+-- NULL via SAFE_DIVIDE rather than dividing by zero.
+-- =====================================================================
+CREATE OR REPLACE TABLE `sterling-lawyers-database.slo_marketing_team_scorecard.data_3mos_avg`
+PARTITION BY date AS
+SELECT
+  date,
+  ps_mobile_1d,
+  ps_desktop_1d,
+  total_users,
+  call_occured,
+  form_fill,
+
+  -- Page Speed Mobile rolling averages (calendar-day windows)
+  AVG(ps_mobile_1d)  OVER w7  AS ps_mobile_7d_avg,
+  AVG(ps_mobile_1d)  OVER w14 AS ps_mobile_14d_avg,
+  AVG(ps_mobile_1d)  OVER w28 AS ps_mobile_28d_avg,
+  AVG(ps_mobile_1d)  OVER w90 AS ps_mobile_90d_avg,
+
+  -- Page Speed Desktop rolling averages (calendar-day windows)
+  AVG(ps_desktop_1d) OVER w7  AS ps_desktop_7d_avg,
+  AVG(ps_desktop_1d) OVER w14 AS ps_desktop_14d_avg,
+  AVG(ps_desktop_1d) OVER w28 AS ps_desktop_28d_avg,
+  AVG(ps_desktop_1d) OVER w90 AS ps_desktop_90d_avg,
+
+  -- Overall Site Conversion Rate >= 5% : pooled (calls + forms) / users
+  SAFE_DIVIDE(
+    IFNULL(call_occured, 0) + IFNULL(form_fill, 0),
+    total_users
+  ) AS conv_rate_1d,
+  SAFE_DIVIDE(
+    SUM(IFNULL(call_occured, 0) + IFNULL(form_fill, 0)) OVER w7,
+    SUM(total_users) OVER w7
+  ) AS conv_rate_7d,
+  SAFE_DIVIDE(
+    SUM(IFNULL(call_occured, 0) + IFNULL(form_fill, 0)) OVER w14,
+    SUM(total_users) OVER w14
+  ) AS conv_rate_14d,
+  SAFE_DIVIDE(
+    SUM(IFNULL(call_occured, 0) + IFNULL(form_fill, 0)) OVER w28,
+    SUM(total_users) OVER w28
+  ) AS conv_rate_28d,
+  SAFE_DIVIDE(
+    SUM(IFNULL(call_occured, 0) + IFNULL(form_fill, 0)) OVER w90,
+    SUM(total_users) OVER w90
+  ) AS conv_rate_3mos
+
+FROM `sterling-lawyers-database.slo_marketing_team_scorecard.data_3mos_avg_daily_raw`
+-- Drop only fully-empty placeholder days (all 5 source metrics NULL); keep
+-- partial rows since window AVG()/SUM()s already skip NULLs correctly.
+WHERE COALESCE(ps_mobile_1d, ps_desktop_1d, total_users, call_occured, form_fill) IS NOT NULL
+WINDOW
+  w7  AS (ORDER BY UNIX_DATE(date) RANGE BETWEEN 6  PRECEDING AND CURRENT ROW),
+  w14 AS (ORDER BY UNIX_DATE(date) RANGE BETWEEN 13 PRECEDING AND CURRENT ROW),
+  w28 AS (ORDER BY UNIX_DATE(date) RANGE BETWEEN 27 PRECEDING AND CURRENT ROW),
+  w90 AS (ORDER BY UNIX_DATE(date) RANGE BETWEEN 89 PRECEDING AND CURRENT ROW);
