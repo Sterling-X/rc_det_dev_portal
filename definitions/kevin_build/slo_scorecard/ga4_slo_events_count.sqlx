@@ -1,0 +1,6 @@
+CREATE OR REPLACE TABLE
+  `sterling-lawyers-database.slo_marketing_team_scorecard.slo_event_count`
+AS
+SELECT *
+FROM
+  `rc-datamart-adminreport.ga4_sterlinglawyers_scorecard_tables.slo_event_count`;

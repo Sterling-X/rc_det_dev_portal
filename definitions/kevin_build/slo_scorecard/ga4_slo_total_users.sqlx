@@ -1,0 +1,6 @@
+CREATE OR REPLACE TABLE
+  `sterling-lawyers-database.slo_marketing_team_scorecard.slo_total_users_daily`
+AS
+SELECT *
+FROM
+  `rc-datamart-adminreport.ga4_sterlinglawyers_scorecard_tables.slo_total_users_daily`;
