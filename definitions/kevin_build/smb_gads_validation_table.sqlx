@@ -26,6 +26,18 @@
 -- Note: SMB's source/origin table uses a 40-column schema (vs. Johnson's 42)
 -- — gads_error_code / gads_error_message don't exist on SMB's source and
 -- aren't referenced anywhere in this query, so no impact here.
+--
+-- firm_id is hardcoded as 'smb' in each UNION block rather than read from
+-- the log tables — firm_id was added to those tables via ALTER TABLE at
+-- different times, so it's not reliably present on all four
+-- (smb_ga_export_log_consults_scheduled threw "Unrecognized name: firm_id").
+-- Since this validation table only ever covers SMB, the literal is safe.
+--
+-- event_date is CAST to STRING in every branch — smb_consults_complete
+-- stores it as STRING while the other three store it as DATE, which threw
+-- "Column 4 in UNION ALL has incompatible types: STRING, DATE, DATE, DATE".
+-- Casting all four to STRING is safe here since this is a reporting table,
+-- not something doing date arithmetic downstream.
 -- =========================================================================
 
 CREATE OR REPLACE TABLE `rc-datamart-report-082025.gads_validation_table.smb_gads` AS
@@ -33,10 +45,10 @@ CREATE OR REPLACE TABLE `rc-datamart-report-082025.gads_validation_table.smb_gad
 WITH combined_export_logs AS (
   -- Consults Complete
   SELECT
-    firm_id,
+    'smb' AS firm_id,
     request_id,
     submitted_at,
-    event_date,
+    CAST(event_date AS STRING) AS event_date,
     conversion_event_id,          -- unnested single ID
     request_status,
     error_payload,
@@ -48,10 +60,10 @@ WITH combined_export_logs AS (
 
   -- Consults Scheduled
   SELECT
-    firm_id,
+    'smb' AS firm_id,
     request_id,
     submitted_at,
-    event_date,
+    CAST(event_date AS STRING) AS event_date,
     conversion_event_id,
     request_status,
     error_payload,
@@ -63,10 +75,10 @@ WITH combined_export_logs AS (
 
   -- Funded Agreement
   SELECT
-    firm_id,
+    'smb' AS firm_id,
     request_id,
     submitted_at,
-    event_date,
+    CAST(event_date AS STRING) AS event_date,
     conversion_event_id,
     request_status,
     error_payload,
@@ -78,10 +90,10 @@ WITH combined_export_logs AS (
 
   -- QPC
   SELECT
-    firm_id,
+    'smb' AS firm_id,
     request_id,
     submitted_at,
-    event_date,
+    CAST(event_date AS STRING) AS event_date,
     conversion_event_id,
     request_status,
     error_payload,
