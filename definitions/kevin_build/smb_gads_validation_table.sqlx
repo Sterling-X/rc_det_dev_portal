@@ -1,0 +1,126 @@
+-- =========================================================================
+-- Kalish & Jaggars — GAds Export Log Validation Table
+-- Target: rc-datamart-report-082025.gads_validation_table.kalishandjaggars_gads
+--
+-- Same pattern as johnson_gads / auritmediation_gads:
+--   * Unions the four Kalish audit-log tables (one row per conversion_event_id)
+--   * Joins to kalishandjaggars_origin_conversion_events on Conversion_Event_ID
+--   * Keeps only rows where the log's conversion type matches the origin
+--     table's Conversion_Status (with QPC dual-status handling)
+--   * Excludes request_status = 'VOIDED'
+--
+-- NAMING (Kalish — confirmed from the parity-upgrade build, not renamed to
+-- match Johnson's ga_export_log_<target> convention):
+--   * rc-datamart-report-082025.gads_export_logs.kalishandjaggars_consults_complete
+--   * rc-datamart-report-082025.gads_export_logs.kalishandjaggars_consults_scheduled
+--   * rc-datamart-report-082025.gads_export_logs.kalishandjaggars_funded_agreement
+--   * rc-datamart-report-082025.gads_export_logs.kalishandjaggars_qpc
+-- (The *event-error* tables do follow the ga_export_event_errors_<target>
+-- convention, but those aren't referenced here — only the audit-log tables
+-- feed this validation table.)
+--
+-- CONVERSION_EVENT MAPPING (Kalish — same 4 targets as Johnson/Aurit):
+--   * Consults Complete   -> Conversion_Status = 'Consults Complete'
+--   * Consults Scheduled  -> Conversion_Status = 'Consults Scheduled'
+--   * Funded Agreement    -> Conversion_Status = 'Funded Agreement'
+--   * QPC                 -> Conversion_Status IN ('Qualified Potential Clients','QPC')
+-- =========================================================================
+
+CREATE OR REPLACE TABLE `rc-datamart-report-082025.gads_validation_table.kalishandjaggars_gads` AS
+
+WITH combined_export_logs AS (
+  -- Consults Complete
+  SELECT
+    firm_id,
+    request_id,
+    submitted_at,
+    event_date,
+    conversion_event_id,          -- unnested single ID
+    request_status,
+    error_payload,
+    'Consults Complete' AS Log_Conversion_Status
+  FROM `rc-datamart-report-082025.gads_export_logs.kalishandjaggars_consults_complete`,
+    UNNEST(conversion_event_ids) AS conversion_event_id
+
+  UNION ALL
+
+  -- Consults Scheduled
+  SELECT
+    firm_id,
+    request_id,
+    submitted_at,
+    event_date,
+    conversion_event_id,
+    request_status,
+    error_payload,
+    'Consults Scheduled' AS Log_Conversion_Status
+  FROM `rc-datamart-report-082025.gads_export_logs.kalishandjaggars_consults_scheduled`,
+    UNNEST(conversion_event_ids) AS conversion_event_id
+
+  UNION ALL
+
+  -- Funded Agreement
+  SELECT
+    firm_id,
+    request_id,
+    submitted_at,
+    event_date,
+    conversion_event_id,
+    request_status,
+    error_payload,
+    'Funded Agreement' AS Log_Conversion_Status
+  FROM `rc-datamart-report-082025.gads_export_logs.kalishandjaggars_funded_agreement`,
+    UNNEST(conversion_event_ids) AS conversion_event_id
+
+  UNION ALL
+
+  -- QPC
+  SELECT
+    firm_id,
+    request_id,
+    submitted_at,
+    event_date,
+    conversion_event_id,
+    request_status,
+    error_payload,
+    'QPC' AS Log_Conversion_Status
+  FROM `rc-datamart-report-082025.gads_export_logs.kalishandjaggars_qpc`,
+    UNNEST(conversion_event_ids) AS conversion_event_id
+
+  -- ---------------------------------------------------------------------
+  -- IF conversion_event_ids is a comma-separated STRING instead of an
+  -- ARRAY, replace each UNNEST(conversion_event_ids) block above with:
+  --   UNNEST(SPLIT(conversion_event_ids, ',')) AS conversion_event_id
+  -- ---------------------------------------------------------------------
+)
+
+SELECT
+  -- From kalishandjaggars_origin_conversion_events
+  origin.SterlingX_Client_ID,
+  origin.SterlingX_Client_Name,
+  origin.Origin_First_Name,
+  origin.Origin_Last_Name,
+  origin.Origin_Email_Name,
+  origin.Origin_Phone_Number,
+  origin.Origin_Platform,
+  origin.Conversion_Notes,
+  origin.Conversion_Status,
+
+  -- From combined export logs
+  logs.firm_id,
+  logs.request_id,
+  logs.submitted_at,
+  logs.event_date,
+  logs.conversion_event_id AS conversion_event_ids,
+  logs.request_status,
+  logs.error_payload
+FROM combined_export_logs AS logs
+INNER JOIN `rc-datamart-report-082025.firms_origin_conversion_events.kalishandjaggars_origin_conversion_events` AS origin
+  ON logs.conversion_event_id = origin.Conversion_Event_ID
+  AND (
+    -- QPC has a dual-status pattern in the origin table
+    (logs.Log_Conversion_Status = 'QPC'
+       AND origin.Conversion_Status IN ('Qualified Potential Clients', 'QPC'))
+    OR logs.Log_Conversion_Status = origin.Conversion_Status
+  )
+WHERE logs.request_status != 'VOIDED';
