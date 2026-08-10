@@ -1,32 +1,34 @@
 -- =========================================================================
--- Kalish & Jaggars — GAds Export Log Validation Table
--- Target: rc-datamart-report-082025.gads_validation_table.kalishandjaggars_gads
+-- Scott M. Brown (SMB) — GAds Export Log Validation Table
+-- Target: rc-datamart-report-082025.gads_validation_table.smb_gads
 --
 -- Same pattern as johnson_gads / auritmediation_gads:
---   * Unions the four Kalish audit-log tables (one row per conversion_event_id)
---   * Joins to kalishandjaggars_origin_conversion_events on Conversion_Event_ID
+--   * Unions the four SMB audit-log tables (one row per conversion_event_id)
+--   * Joins to smb_origin_conversion_events on Conversion_Event_ID
 --   * Keeps only rows where the log's conversion type matches the origin
 --     table's Conversion_Status (with QPC dual-status handling)
 --   * Excludes request_status = 'VOIDED'
 --
--- NAMING (Kalish — confirmed from the parity-upgrade build, not renamed to
--- match Johnson's ga_export_log_<target> convention):
---   * rc-datamart-report-082025.gads_export_logs.kalishandjaggars_consults_complete
---   * rc-datamart-report-082025.gads_export_logs.kalishandjaggars_consults_scheduled
---   * rc-datamart-report-082025.gads_export_logs.kalishandjaggars_funded_agreement
---   * rc-datamart-report-082025.gads_export_logs.kalishandjaggars_qpc
--- (The *event-error* tables do follow the ga_export_event_errors_<target>
--- convention, but those aren't referenced here — only the audit-log tables
--- feed this validation table.)
+-- NAMING (SMB — confirmed as of the parity-upgrade build):
+--   * rc-datamart-report-082025.gads_export_logs.smb_consults_complete
+--       (does NOT follow the ga_export_log_<target> convention — confirmed
+--       via table-not-found error, then created fresh under this name)
+--   * rc-datamart-report-082025.gads_export_logs.smb_ga_export_log_consults_scheduled
+--   * rc-datamart-report-082025.gads_export_logs.smb_ga_export_log_funded_agreement
+--   * rc-datamart-report-082025.gads_export_logs.smb_ga_export_log_qpc
 --
--- CONVERSION_EVENT MAPPING (Kalish — same 4 targets as Johnson/Aurit):
+-- CONVERSION_EVENT MAPPING (SMB — same 4 targets as Johnson/Aurit):
 --   * Consults Complete   -> Conversion_Status = 'Consults Complete'
 --   * Consults Scheduled  -> Conversion_Status = 'Consults Scheduled'
 --   * Funded Agreement    -> Conversion_Status = 'Funded Agreement'
 --   * QPC                 -> Conversion_Status IN ('Qualified Potential Clients','QPC')
+--
+-- Note: SMB's source/origin table uses a 40-column schema (vs. Johnson's 42)
+-- — gads_error_code / gads_error_message don't exist on SMB's source and
+-- aren't referenced anywhere in this query, so no impact here.
 -- =========================================================================
 
-CREATE OR REPLACE TABLE `rc-datamart-report-082025.gads_validation_table.kalishandjaggars_gads` AS
+CREATE OR REPLACE TABLE `rc-datamart-report-082025.gads_validation_table.smb_gads` AS
 
 WITH combined_export_logs AS (
   -- Consults Complete
@@ -39,7 +41,7 @@ WITH combined_export_logs AS (
     request_status,
     error_payload,
     'Consults Complete' AS Log_Conversion_Status
-  FROM `rc-datamart-report-082025.gads_export_logs.kalishandjaggars_consults_complete`,
+  FROM `rc-datamart-report-082025.gads_export_logs.smb_consults_complete`,
     UNNEST(conversion_event_ids) AS conversion_event_id
 
   UNION ALL
@@ -54,7 +56,7 @@ WITH combined_export_logs AS (
     request_status,
     error_payload,
     'Consults Scheduled' AS Log_Conversion_Status
-  FROM `rc-datamart-report-082025.gads_export_logs.kalishandjaggars_consults_scheduled`,
+  FROM `rc-datamart-report-082025.gads_export_logs.smb_ga_export_log_consults_scheduled`,
     UNNEST(conversion_event_ids) AS conversion_event_id
 
   UNION ALL
@@ -69,7 +71,7 @@ WITH combined_export_logs AS (
     request_status,
     error_payload,
     'Funded Agreement' AS Log_Conversion_Status
-  FROM `rc-datamart-report-082025.gads_export_logs.kalishandjaggars_funded_agreement`,
+  FROM `rc-datamart-report-082025.gads_export_logs.smb_ga_export_log_funded_agreement`,
     UNNEST(conversion_event_ids) AS conversion_event_id
 
   UNION ALL
@@ -84,7 +86,7 @@ WITH combined_export_logs AS (
     request_status,
     error_payload,
     'QPC' AS Log_Conversion_Status
-  FROM `rc-datamart-report-082025.gads_export_logs.kalishandjaggars_qpc`,
+  FROM `rc-datamart-report-082025.gads_export_logs.smb_ga_export_log_qpc`,
     UNNEST(conversion_event_ids) AS conversion_event_id
 
   -- ---------------------------------------------------------------------
@@ -95,7 +97,7 @@ WITH combined_export_logs AS (
 )
 
 SELECT
-  -- From kalishandjaggars_origin_conversion_events
+  -- From smb_origin_conversion_events
   origin.SterlingX_Client_ID,
   origin.SterlingX_Client_Name,
   origin.Origin_First_Name,
@@ -115,7 +117,7 @@ SELECT
   logs.request_status,
   logs.error_payload
 FROM combined_export_logs AS logs
-INNER JOIN `rc-datamart-report-082025.firms_origin_conversion_events.kalishandjaggars_origin_conversion_events` AS origin
+INNER JOIN `rc-datamart-report-082025.firms_origin_conversion_events.smb_origin_conversion_events` AS origin
   ON logs.conversion_event_id = origin.Conversion_Event_ID
   AND (
     -- QPC has a dual-status pattern in the origin table
