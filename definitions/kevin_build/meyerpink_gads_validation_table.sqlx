@@ -1,0 +1,149 @@
+-- =========================================================================
+-- Meyer Pink — GAds Export Log Validation Table
+-- Target: rc-datamart-report-082025.gads_validation_table.meyerpink_gads
+--
+-- Same pattern as johnson_gads / auritmediation_gads / kalishandjaggars_gads:
+--   * Unions the four Meyer Pink audit-log tables (one row per conversion_event_id)
+--   * Joins to meyerpink_origin_conversion_events on Conversion_Event_ID
+--   * Keeps only rows where the log's conversion type matches the origin
+--     table's own filter field for that report type
+--   * Excludes request_status = 'VOIDED'
+--
+-- IMPORTANT DIFFERENCE FROM JOHNSON/KALISH:
+-- Meyer Pink's own upload scripts filter Consults Complete, Consults
+-- Scheduled, and Funded Agreement on the ORIGIN TABLE'S Conversion_Event
+-- FIELD (values "...Report" suffixed) — not Conversion_Status like
+-- Johnson/Kalish. Only QPC matches on Conversion_Status (same dual-status
+-- pattern as everywhere else). This validation table's join mirrors that
+-- exactly — it does NOT match Kalish's all-Conversion_Status shape.
+--
+-- NAMING (Meyer Pink — confirmed from the parity-upgrade build, not renamed
+-- to match Johnson's ga_export_log_<target> convention, same situation as
+-- Kalish):
+--   * rc-datamart-report-082025.gads_export_logs.meyerpink_consults_complete
+--   * rc-datamart-report-082025.gads_export_logs.meyerpink_consults_scheduled
+--   * rc-datamart-report-082025.gads_export_logs.meyerpink_funded_agreement
+--   * rc-datamart-report-082025.gads_export_logs.meyerpink_qpc
+-- (The *event-error* tables follow the ga_export_event_errors_<target>
+-- convention, but those aren't referenced here — only the audit-log tables
+-- feed this validation table.)
+--
+-- CONVERSION FIELD MAPPING (Meyer Pink):
+--   * Consults Complete   -> origin.Conversion_Event  = 'Consults Complete Report'
+--   * Consults Scheduled  -> origin.Conversion_Event  = 'Consults Scheduled Report'
+--   * Funded Agreement    -> origin.Conversion_Event  = 'Funded Agreement Report'
+--   * QPC                 -> origin.Conversion_Status IN ('Qualified Potential Clients','QPC')
+--
+-- NOTE: assumes meyerpink_origin_conversion_events carries the same shared
+-- SterlingX_Client_ID / Origin_* / Conversion_Notes columns as the other
+-- firms' origin tables, plus both Conversion_Event and Conversion_Status
+-- fields (as referenced by Meyer Pink's own upload scripts). Worth a quick
+-- schema check before running if that hasn't been confirmed live.
+-- =========================================================================
+
+CREATE OR REPLACE TABLE `rc-datamart-report-082025.gads_validation_table.meyerpink_gads` AS
+
+WITH combined_export_logs AS (
+  -- Consults Complete
+  SELECT
+    firm_id,
+    request_id,
+    submitted_at,
+    event_date,
+    conversion_event_id,          -- unnested single ID
+    request_status,
+    error_payload,
+    'Consults Complete' AS Log_Conversion_Type
+  FROM `rc-datamart-report-082025.gads_export_logs.meyerpink_consults_complete`,
+    UNNEST(conversion_event_ids) AS conversion_event_id
+
+  UNION ALL
+
+  -- Consults Scheduled
+  SELECT
+    firm_id,
+    request_id,
+    submitted_at,
+    event_date,
+    conversion_event_id,
+    request_status,
+    error_payload,
+    'Consults Scheduled' AS Log_Conversion_Type
+  FROM `rc-datamart-report-082025.gads_export_logs.meyerpink_consults_scheduled`,
+    UNNEST(conversion_event_ids) AS conversion_event_id
+
+  UNION ALL
+
+  -- Funded Agreement
+  SELECT
+    firm_id,
+    request_id,
+    submitted_at,
+    event_date,
+    conversion_event_id,
+    request_status,
+    error_payload,
+    'Funded Agreement' AS Log_Conversion_Type
+  FROM `rc-datamart-report-082025.gads_export_logs.meyerpink_funded_agreement`,
+    UNNEST(conversion_event_ids) AS conversion_event_id
+
+  UNION ALL
+
+  -- QPC
+  SELECT
+    firm_id,
+    request_id,
+    submitted_at,
+    event_date,
+    conversion_event_id,
+    request_status,
+    error_payload,
+    'QPC' AS Log_Conversion_Type
+  FROM `rc-datamart-report-082025.gads_export_logs.meyerpink_qpc`,
+    UNNEST(conversion_event_ids) AS conversion_event_id
+
+  -- ---------------------------------------------------------------------
+  -- IF conversion_event_ids is a comma-separated STRING instead of an
+  -- ARRAY, replace each UNNEST(conversion_event_ids) block above with:
+  --   UNNEST(SPLIT(conversion_event_ids, ',')) AS conversion_event_id
+  -- ---------------------------------------------------------------------
+)
+
+SELECT
+  -- From meyerpink_origin_conversion_events
+  origin.SterlingX_Client_ID,
+  origin.SterlingX_Client_Name,
+  origin.Origin_First_Name,
+  origin.Origin_Last_Name,
+  origin.Origin_Email_Name,
+  origin.Origin_Phone_Number,
+  origin.Origin_Platform,
+  origin.Conversion_Notes,
+  origin.Conversion_Event,
+  origin.Conversion_Status,
+
+  -- From combined export logs
+  logs.firm_id,
+  logs.request_id,
+  logs.submitted_at,
+  logs.event_date,
+  logs.conversion_event_id AS conversion_event_ids,
+  logs.request_status,
+  logs.error_payload
+FROM combined_export_logs AS logs
+INNER JOIN `rc-datamart-report-082025.firms_origin_conversion_events.meyerpink_origin_conversion_events` AS origin
+  ON logs.conversion_event_id = origin.Conversion_Event_ID
+  AND (
+    -- QPC matches on Conversion_Status (dual-status pattern, same as every other firm)
+    (logs.Log_Conversion_Type = 'QPC'
+       AND origin.Conversion_Status IN ('Qualified Potential Clients', 'QPC'))
+    -- The other three match on Conversion_Event with the "...Report" suffix
+    -- Meyer Pink's own upload scripts use — NOT Conversion_Status
+    OR (logs.Log_Conversion_Type = 'Consults Complete'
+       AND origin.Conversion_Event = 'Consults Complete Report')
+    OR (logs.Log_Conversion_Type = 'Consults Scheduled'
+       AND origin.Conversion_Event = 'Consults Scheduled Report')
+    OR (logs.Log_Conversion_Type = 'Funded Agreement'
+       AND origin.Conversion_Event = 'Funded Agreement Report')
+  )
+WHERE logs.request_status != 'VOIDED';

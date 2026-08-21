@@ -1,0 +1,130 @@
+-- =========================================================================
+-- Lancaster Law Group — GAds Export Log Validation Table
+-- Target: rc-datamart-report-082025.gads_validation_table.lancaster_gads
+--
+-- Same pattern as johnson_gads / auritmediation_gads / kalishandjaggars_gads:
+--   * Unions the four Lancaster audit-log tables (one row per conversion_event_id)
+--   * Joins to lancaster_origin_conversion_events on Conversion_Event_ID
+--   * Keeps only rows where the log's conversion type matches the origin
+--     table's Conversion_Status (with QPC dual-status handling)
+--   * Excludes request_status = 'VOIDED'
+--
+-- NAMING (Lancaster — brand new build, uses the clean ga_export_log_<target>
+-- convention from day one, same as Johnson/Aurit):
+--   * rc-datamart-report-082025.gads_export_logs.lancaster_ga_export_log_consults_scheduled
+--   * rc-datamart-report-082025.gads_export_logs.lancaster_ga_export_log_consults_complete
+--   * rc-datamart-report-082025.gads_export_logs.lancaster_ga_export_log_funded_agreement
+--   * rc-datamart-report-082025.gads_export_logs.lancaster_ga_export_log_qpc
+--
+-- CONVERSION_STATUS MAPPING (Lancaster — universal-firm pipeline, same shape
+-- as Johnson/Kalish/Aurit; NOT the Conversion_Event/"Report"-suffix pattern
+-- SMB/MeyerPink use):
+--   * Consults Scheduled  -> Conversion_Status = 'Consults Scheduled'
+--   * Consults Complete   -> Conversion_Status = 'Consults Complete'
+--   * Funded Agreement    -> Conversion_Status = 'Funded Agreement'
+--   * QPC                 -> Conversion_Status IN ('Qualified Potential Clients','QPC')
+--
+-- NOTE: Lancaster has no prior GAds scripts to confirm this against — this
+-- mirrors the confirmed Johnson/Kalish/Aurit universal-firm shape, but worth
+-- a quick check of actual Conversion_Status values in
+-- lancaster_origin_conversion_events once real data is flowing.
+-- =========================================================================
+
+CREATE OR REPLACE TABLE `rc-datamart-report-082025.gads_validation_table.lancaster_gads` AS
+
+WITH combined_export_logs AS (
+  -- Consults Scheduled
+  SELECT
+    firm_id,
+    request_id,
+    submitted_at,
+    event_date,
+    conversion_event_id,          -- unnested single ID
+    request_status,
+    error_payload,
+    'Consults Scheduled' AS Log_Conversion_Status
+  FROM `rc-datamart-report-082025.gads_export_logs.lancaster_ga_export_log_consults_scheduled`,
+    UNNEST(conversion_event_ids) AS conversion_event_id
+
+  UNION ALL
+
+  -- Consults Complete
+  SELECT
+    firm_id,
+    request_id,
+    submitted_at,
+    event_date,
+    conversion_event_id,
+    request_status,
+    error_payload,
+    'Consults Complete' AS Log_Conversion_Status
+  FROM `rc-datamart-report-082025.gads_export_logs.lancaster_ga_export_log_consults_complete`,
+    UNNEST(conversion_event_ids) AS conversion_event_id
+
+  UNION ALL
+
+  -- Funded Agreement
+  SELECT
+    firm_id,
+    request_id,
+    submitted_at,
+    event_date,
+    conversion_event_id,
+    request_status,
+    error_payload,
+    'Funded Agreement' AS Log_Conversion_Status
+  FROM `rc-datamart-report-082025.gads_export_logs.lancaster_ga_export_log_funded_agreement`,
+    UNNEST(conversion_event_ids) AS conversion_event_id
+
+  UNION ALL
+
+  -- QPC
+  SELECT
+    firm_id,
+    request_id,
+    submitted_at,
+    event_date,
+    conversion_event_id,
+    request_status,
+    error_payload,
+    'QPC' AS Log_Conversion_Status
+  FROM `rc-datamart-report-082025.gads_export_logs.lancaster_ga_export_log_qpc`,
+    UNNEST(conversion_event_ids) AS conversion_event_id
+
+  -- ---------------------------------------------------------------------
+  -- IF conversion_event_ids is a comma-separated STRING instead of an
+  -- ARRAY, replace each UNNEST(conversion_event_ids) block above with:
+  --   UNNEST(SPLIT(conversion_event_ids, ',')) AS conversion_event_id
+  -- ---------------------------------------------------------------------
+)
+
+SELECT
+  -- From lancaster_origin_conversion_events
+  origin.SterlingX_Client_ID,
+  origin.SterlingX_Client_Name,
+  origin.Origin_First_Name,
+  origin.Origin_Last_Name,
+  origin.Origin_Email_Name,
+  origin.Origin_Phone_Number,
+  origin.Origin_Platform,
+  origin.Conversion_Notes,
+  origin.Conversion_Status,
+
+  -- From combined export logs
+  logs.firm_id,
+  logs.request_id,
+  logs.submitted_at,
+  logs.event_date,
+  logs.conversion_event_id AS conversion_event_ids,
+  logs.request_status,
+  logs.error_payload
+FROM combined_export_logs AS logs
+INNER JOIN `rc-datamart-report-082025.firms_origin_conversion_events.lancaster_origin_conversion_events` AS origin
+  ON logs.conversion_event_id = origin.Conversion_Event_ID
+  AND (
+    -- QPC has a dual-status pattern in the origin table
+    (logs.Log_Conversion_Status = 'QPC'
+       AND origin.Conversion_Status IN ('Qualified Potential Clients', 'QPC'))
+    OR logs.Log_Conversion_Status = origin.Conversion_Status
+  )
+WHERE logs.request_status != 'VOIDED';
